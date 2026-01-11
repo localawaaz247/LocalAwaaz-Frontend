@@ -45,15 +45,15 @@ const ContactSection = () => {
   };
 
   return (
-    <section id="contact" className="py-24 bg-muted/30 relative overflow-hidden">
+    <section id="contact" className="py-24 bg-muted/30 relative overflow-hidden max-sm:px-4">
       {/* Background */}
       <div className="absolute inset-0 bg-texture opacity-50" />
       <div className="absolute bottom-0 left-0 w-full h-1 bg-linear-to-r from-primary via-secondary to-accent" />
 
-      <div className="container mx-auto px-4 md:px-6 relative z-10">
+      <div className="container mx-auto px-2 md:px-6 relative z-10">
         {/* Section Header */}
         <div className="text-center max-w-2xl mx-auto mb-16">
-          <span className="inline-block px-4 py-1.5 glass-card rounded-full text-sm font-medium text-primary mb-4">
+          <span className="inline-block px-4 py-1.5 glass-card rounded-full text-sm font-medium text-accent mb-4">
             Contact Us
           </span>
           <h2 className="text-3xl md:text-4xl lg:text-5xl font-bold font-display mb-6">
@@ -146,7 +146,7 @@ const ContactSection = () => {
 
                 <button
                   type="submit"
-                  className="w-full btn-gradient px-8 py-4 rounded-xl font-semibold text-lg flex items-center justify-center gap-2 group"
+                  className="w-full btn-gradient  py-2 md:px-8 md:py-3 rounded-xl font-semibold text-lg flex items-center justify-center gap-2 group"
                 >
                   Send Message
                   <Send className="w-5 h-5 group-hover:translate-x-1 transition-transform" />

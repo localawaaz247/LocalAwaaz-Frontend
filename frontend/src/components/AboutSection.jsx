@@ -28,21 +28,21 @@ const AboutSection = () => {
       <div className="container mx-auto px-4 md:px-6 relative z-10">
         <div className="grid lg:grid-cols-2 gap-12 items-center">
           {/* Left Content */}
-          <div className="animate-fade-in-up">
-            <span className="inline-block px-4 py-1.5 glass-card rounded-full text-sm font-medium text-accent mb-4">
+          <div className="animate-fade-in-up max-sm:flex max-sm:flex-col  justify-center items-center">
+            <span className="inline-block   px-4 py-1.5 glass-card rounded-full text-sm font-medium text-accent mb-4">
               About Us
             </span>
-            <h2 className="text-3xl md:text-4xl lg:text-5xl font-bold font-display mb-6">
+            <h2 className="text-3xl max-sm:text-center md:text-4xl lg:text-5xl font-bold font-display mb-6">
               Bridging the Gap Between{' '}
               <span className="text-gradient">Citizens & Government</span>
             </h2>
             <p className="text-lg text-muted-foreground mb-6 leading-relaxed">
-              LocalAwaaz was born from a simple idea: every citizen deserves a voice, 
+              LocalAwaaz was born from a simple idea - every citizen deserves a voice, 
               and every voice deserves to be heard. We're building a platform that 
               empowers communities to identify, report, and track local issues while 
               creating a transparent bridge to local authorities.
             </p>
-            <p className="text-lg text-muted-foreground mb-8 leading-relaxed">
+            <p className="text-lg text-muted-foreground mb-8 leading-relaxed ">
               Our mission is to transform how citizens interact with local governance, 
               making it easier than ever to contribute to the betterment of your neighborhood. 
               Through our badge system, we recognize and celebrate the active citizens who 
@@ -51,7 +51,7 @@ const AboutSection = () => {
 
             {/* Mission Statement Card */}
             <div className="glass-card p-6 rounded-2xl border-l-4 border-primary">
-              <p className="text-foreground font-medium italic">
+              <p className="text-foreground font-medium italic font-serif">
                 "We envision a world where every local issue is addressed, 
                 every citizen is empowered, and every community thrives."
               </p>

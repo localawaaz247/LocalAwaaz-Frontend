@@ -59,7 +59,8 @@ const Footer = () => {
           </div>
 
           {/* Product Links */}
-          <div>
+          <div className='md:hidden max-sm:grid max-sm:grid-cols-3 gap-4'>
+          <div >
             <h4 className="font-semibold mb-4 text-background">Product</h4>
             <ul className="space-y-3">
               {footerLinks.product.map((link) => (
@@ -94,6 +95,57 @@ const Footer = () => {
 
           {/* Legal Links */}
           <div>
+            <h4 className="font-semibold mb-4 text-background">Legal</h4>
+            <ul className="space-y-3">
+              {footerLinks.legal.map((link) => (
+                <li key={link.name}>
+                  <a
+                    href={link.href}
+                    className="text-background/70 hover:text-background transition-colors text-sm"
+                  >
+                    {link.name}
+                  </a>
+                </li>
+              ))}
+            </ul>
+          </div>
+          </div>
+
+          <div className='max-sm:hidden'>
+            <h4 className="font-semibold mb-4 text-background">Product</h4>
+            <ul className="space-y-3">
+              {footerLinks.product.map((link) => (
+                <li key={link.name}>
+                  <button
+                    onClick={() => scrollToSection(link.href)}
+                    className="text-background/70 hover:text-background transition-colors text-sm"
+                  >
+                    {link.name}
+                  </button>
+                </li>
+              ))}
+            </ul>
+          </div>
+
+          {/* Company Links */}
+          <div className='max-sm:hidden'>
+            <h4 className="font-semibold mb-4 text-background">Company</h4>
+            <ul className="space-y-3">
+              {footerLinks.company.map((link) => (
+                <li key={link.name}>
+                  <button
+                    onClick={() => scrollToSection(link.href)}
+                    className="text-background/70 hover:text-background transition-colors text-sm"
+                  >
+                    {link.name}
+                  </button>
+                </li>
+              ))}
+            </ul>
+          </div>
+
+          {/* Legal Links */}
+          <div className='max-sm:hidden'>
             <h4 className="font-semibold mb-4 text-background">Legal</h4>
             <ul className="space-y-3">
               {footerLinks.legal.map((link) => (

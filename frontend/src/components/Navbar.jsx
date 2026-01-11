@@ -42,8 +42,8 @@ const Navbar = () => {
       <div className="container mx-auto px-4 md:px-6">
         <div className="flex items-center  justify-between">
           {/* Logo */}
-          <a href="#" className="flex items-center gap-2">
-            <div className="w-14 h-14 rounded-xl  flex items-center justify-center">
+          <a href="#" className="flex items-center gap-1 md:gap-2 ">
+            <div className=" w-11 h-11 md:w-14 md:h-14 rounded-xl  flex items-center justify-center">
               <span className="text-xl font-bold text-white">
                 <img src={logo} alt='/' className='h-full w-full'/>
               </span>
@@ -116,7 +116,7 @@ const Navbar = () => {
 
         {/* Mobile Menu */}
         {isMobileMenuOpen && (
-          <div className="md:hidden mt-4 pb-4 animate-fade-in-up">
+          <div className={`md:hidden mt-4 pb-4  animate-fade-in-up bg-texture px-2 rounded-lg`}>
             <div className="flex flex-col gap-2">
               {navLinks.map((link) => (
                 <button
