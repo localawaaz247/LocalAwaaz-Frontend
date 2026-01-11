@@ -6,7 +6,7 @@ import AboutSection from '../components/AboutSection';
 import ContactSection from '../components/ContactSection';
 import Footer from '../components/Footer';
 
-const Index = () => {
+const LandingPage = () => {
   return (
     <div className="min-h-screen">
       <Navbar />
@@ -20,4 +20,4 @@ const Index = () => {
   );
 };
 
-export default Index;
+export default LandingPage;

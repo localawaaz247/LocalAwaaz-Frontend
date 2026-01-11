@@ -1,4 +1,5 @@
 import { Heart } from 'lucide-react';
+import logo from "/logo.png"
 
 const Footer = () => {
   const currentYear = new Date().getFullYear();
@@ -39,8 +40,10 @@ const Footer = () => {
           {/* Brand */}
           <div className="lg:col-span-2">
             <div className="flex items-center gap-2 mb-4">
-              <div className="w-10 h-10 rounded-xl btn-gradient flex items-center justify-center">
-                <span className="text-xl font-bold text-white">L</span>
+              <div className="w-14 h-14 rounded-xl  flex items-center justify-center">
+                <span className="text-xl font-bold text-white">
+                  <img src={logo} alt='/'/>
+                </span>
               </div>
               <span className="text-2xl font-bold font-display">LocalAwaaz</span>
             </div>

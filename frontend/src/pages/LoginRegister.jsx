@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { Link } from 'react-router-dom';
 import { Eye, EyeOff, User, Lock, Mail, ArrowLeft, UserCircle, Check, Megaphone, Users, MessageCircle, Shield, ArrowRight } from 'lucide-react';
 import google from "/google.png";
+import logo from "/logo.png"
 
 const LoginRegister = () => {
   const [showPassword, setShowPassword] = useState(false);
@@ -68,8 +69,10 @@ const LoginRegister = () => {
         <div className="relative z-10 flex flex-col justify-center px-12 xl:px-20">
           {/* Logo */}
           <div className="flex items-center gap-3 mb-12">
-            <div className="w-14 h-14 rounded-2xl btn-gradient flex items-center justify-center shadow-lg shadow-primary/30">
-              <span className="text-3xl font-bold text-white">L</span>
+            <div className="w-14 h-14 rounded-2xl  flex items-center justify-center shadow-lg shadow-primary/30">
+              <span className="text-3xl font-bold text-white">
+                <img src={logo} alt='/'/>
+              </span>
             </div>
             <span className="text-3xl font-bold font-display text-gradient">
               LocalAwaaz
@@ -126,8 +129,10 @@ const LoginRegister = () => {
           <div className="glass-card p-8 rounded-2xl h-full">
             {/* Mobile Logo */}
             <div className="flex items-center justify-center gap-2 mb-8 lg:hidden">
-              <div className="w-12 h-12 rounded-xl btn-gradient flex items-center justify-center">
-                <span className="text-2xl font-bold text-white">L</span>
+              <div className="w-12 h-12 rounded-xl  flex items-center justify-center">
+                <span className="text-2xl font-bold text-white">
+                  <img src={logo} alt='/'/>
+                </span>
               </div>
               <span className="text-2xl font-bold font-display text-gradient">
                 LocalAwaaz
