@@ -44,7 +44,7 @@ const HeroSection = () => {
 
           
           <div className="grid grid-cols-1 sm:grid-cols-3 gap-6 max-w-3xl mx-auto stagger-children">
-            <div className="glass-card p-6 hover:shadow-lg transition-all duration-300 hover:-translate-y-1">
+            <div className="glass-card hero-spotlight p-6  hover:shadow-lg transition-all duration-300 hover:-translate-y-1">
               <div className="w-14 h-14 rounded-xl bg-secondary/10 dark:bg-secondary/15 flex items-center justify-center mb-4 mx-auto">
                 <MessageSquare className="w-7 h-7 text-secondary" />
               </div>
@@ -52,7 +52,7 @@ const HeroSection = () => {
               <p className="text-muted-foreground text-sm">Easily report community problems and safety concerns.</p>
             </div>
 
-            <div className="glass-card p-6 hover:shadow-lg transition-all duration-300 hover:-translate-y-1">
+            <div className="glass-card hero-spotlight p-6 hover:shadow-lg transition-all duration-300 hover:-translate-y-1">
               <div className="w-14 h-14 rounded-xl bg-secondary/10 dark:bg-secondary/15 flex items-center justify-center mb-4 mx-auto">
                 <Award className="w-7 h-7 text-secondary" />
               </div>
@@ -60,7 +60,7 @@ const HeroSection = () => {
               <p className="text-muted-foreground text-sm">Track the status and progress of your reported issues.</p>
             </div>
 
-            <div className="glass-card p-6 hover:shadow-lg transition-all duration-300 hover:-translate-y-1">
+            <div className="glass-card hero-spotlight p-6 hover:shadow-lg transition-all duration-300 hover:-translate-y-1">
               <div className="w-14 h-14 rounded-xl bg-secondary/10 dark:bg-secondary/15 flex items-center justify-center mb-4 mx-auto">
                 <Users className="w-7 h-7 text-secondary" />
               </div>

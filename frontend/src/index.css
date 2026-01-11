@@ -53,7 +53,7 @@
     /* Custom gradients */
     --gradient-primary: linear-gradient(135deg, hsl(220, 70%, 35%) 0%, hsl(175, 60%, 40%) 50%, hsl(160, 60%, 35%) 100%);
     --gradient-primary-hover: linear-gradient(135deg, hsl(220, 70%, 30%) 0%, hsl(175, 60%, 35%) 50%, hsl(160, 60%, 30%) 100%);
-    --gradient-text: linear-gradient(135deg, hsl(220, 70%, 35%) 0%, hsl(175, 60%, 40%) 50%, hsl(160, 60%, 35%) 100%);
+    --gradient-text: linear-gradient(135deg, hsl(220, 70%, 35%) 0%, hsl(217, 52%, 41%) 50%, hsl(160, 48%, 28%) 100%);
     
     /* Glassmorphism */
     --glass-bg: hsla(0, 0%, 100%, 0.7);
@@ -73,7 +73,7 @@
 
   .dark {
     /* Dark mode - Matching reference image */
-    --background: 220 30% 7%;
+    --background: 220 35% 5%;
     --foreground: 220 14% 91%;
 
     --card: 217 33% 10%;
@@ -103,13 +103,14 @@
 
     --gradient-primary: linear-gradient(135deg, hsl(221, 83%, 53%) 0%, hsl(168, 76%, 50%) 100%);
     --gradient-primary-hover: linear-gradient(135deg, hsl(221, 83%, 45%) 0%, hsl(168, 76%, 42%) 100%);
-    --gradient-text: linear-gradient(135deg, hsl(168, 76%, 50%) 0%, hsl(180, 70%, 45%) 100%);
+    --gradient-text: linear-gradient(135deg, hsl(168, 76%, 50%) 0%, hsl(204, 67%, 44%) 100%, hsl(204, 67%, 44%) 100%);
 
-    --glass-bg: hsla(217, 33%, 10%, 0.9);
+    --glass-bg: hsla(220, 35%, 8%, 0.9);
     --glass-border: hsla(216, 20%, 22%, 0.8);
     --glass-shadow: 0 8px 32px hsla(0, 0%, 0%, 0.5);
 
     --glow-teal: hsla(168, 76%, 50%, 0.35);
+    
     --glow-blue: hsla(221, 83%, 53%, 0.30);
   }
 }
@@ -165,6 +166,20 @@
     content: none;
   }
 
+  .dark .glass-card.hero-spotlight::before {
+    background: linear-gradient(
+      135deg,
+      hsla(221, 78%, 46%, 0.45) 0%,
+      hsla(221, 83%, 63%, 0.20) 28%,
+      transparent 40%,
+      transparent 100%
+    );
+  }
+
+  .dark .glass-card.hero-spotlight::after {
+    background: linear-gradient(90deg, transparent, hsla(221, 83%, 63%, 0.55), transparent);
+  }
+
   .dark .glass-card::before {
     content: '';
     position: absolute;
@@ -206,10 +221,22 @@
     box-shadow: 0 4px 20px hsla(175, 60%, 40%, 0.3);
   }
 
+  .dark .btn-gradient {
+    box-shadow:
+      0 10px 35px hsla(221, 83%, 53%, 0.35),
+      0 6px 22px hsla(168, 76%, 50%, 0.10);
+  }
+
   .btn-gradient:hover {
     background: var(--gradient-primary-hover);
     box-shadow: 0 6px 25px hsla(175, 60%, 40%, 0.4);
     transform: translateY(-2px);
+  }
+
+  .dark .btn-gradient:hover {
+    box-shadow:
+      0 14px 45px hsla(221, 83%, 53%, 0.42),
+      0 8px 26px hsla(168, 76%, 50%, 0.14);
   }
 
   /* Subtle background texture */
@@ -219,6 +246,15 @@
       radial-gradient(ellipse at 20% 30%, hsla(175, 60%, 80%, 0.08) 0%, transparent 50%),
       radial-gradient(ellipse at 80% 70%, hsla(220, 70%, 80%, 0.08) 0%, transparent 50%),
       radial-gradient(ellipse at 50% 50%, hsla(160, 60%, 80%, 0.05) 0%, transparent 70%);
+  }
+
+  .dark .bg-texture {
+    background-color: hsl(225, 50%, 4%);
+    background-image:
+      radial-gradient(circle at 50% 42%, hsla(0, 0%, 100%, 0.12) 0%, hsla(0, 0%, 100%, 0.06) 22%, transparent 55%),
+      radial-gradient(ellipse at 20% 30%, hsla(225, 55%, 18%, 0.35) 0%, transparent 60%),
+      radial-gradient(ellipse at 80% 70%, hsla(225, 55%, 18%, 0.25) 0%, transparent 62%),
+      linear-gradient(180deg, hsl(225, 50%, 4%) 0%, hsl(225, 45%, 6%) 50%, hsl(225, 50%, 4%) 100%);
   }
 
   /* Floating animation */

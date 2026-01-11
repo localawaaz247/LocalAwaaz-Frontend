@@ -1,11 +1,14 @@
 import { useState, useEffect } from 'react';
 import { Menu, X, Sun, Moon } from 'lucide-react';
 import { useTheme } from '../hooks/useTheme';
+import { useNavigate } from 'react-router-dom';
+import logo from '/logo.png';
 
 const Navbar = () => {
   const [isScrolled, setIsScrolled] = useState(false);
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
   const { isDark, toggleTheme } = useTheme();
+  const navigate=useNavigate();
 
   useEffect(() => {
     const handleScroll = () => {
@@ -37,11 +40,13 @@ const Navbar = () => {
       }`}
     >
       <div className="container mx-auto px-4 md:px-6">
-        <div className="flex items-center justify-between">
+        <div className="flex items-center  justify-between">
           {/* Logo */}
           <a href="#" className="flex items-center gap-2">
-            <div className="w-10 h-10 rounded-xl btn-gradient flex items-center justify-center">
-              <span className="text-xl font-bold text-white">L</span>
+            <div className="w-14 h-14 rounded-xl  flex items-center justify-center">
+              <span className="text-xl font-bold text-white">
+                <img src={logo} alt='/' className='h-full w-full'/>
+              </span>
             </div>
             <span className="text-xl md:text-2xl font-bold font-display text-gradient">
               LocalAwaaz
@@ -75,12 +80,12 @@ const Navbar = () => {
                 <Moon className="w-5 h-5 text-primary" />
               )}
             </button>
-            <a
-              href="/signup"
+            <button
+             onClick={()=>navigate("/login")}
               className="btn-gradient px-6 py-2.5 rounded-full font-semibold text-sm"
             >
               Get Started
-            </a>
+            </button>
           </div>
 
           {/* Mobile Menu Button */}
@@ -122,12 +127,12 @@ const Navbar = () => {
                   {link.name}
                 </button>
               ))}
-              <a
-                href="/signup"
+              <button
+                onClick={()=>navigate("/login")}
                 className="block text-center btn-gradient px-6 py-2.5 rounded-full font-semibold text-sm mt-2"
               >
                 Get Started
-              </a>
+              </button>
             </div>
           </div>
         )}
