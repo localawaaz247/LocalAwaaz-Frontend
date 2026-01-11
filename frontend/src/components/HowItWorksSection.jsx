@@ -1,0 +1,96 @@
+import { Camera, Send, Eye, Award } from 'lucide-react';
+
+const steps = [
+  {
+    number: '01',
+    icon: Camera,
+    title: 'Capture the Issue',
+    description: 'Take a photo of the issue and add a description with location details.',
+  },
+  {
+    number: '02',
+    icon: Send,
+    title: 'Submit Your Report',
+    description: 'Submit your report to the platform. It gets routed to the right authorities.',
+  },
+  {
+    number: '03',
+    icon: Eye,
+    title: 'Track Progress',
+    description: 'Monitor real-time updates as authorities work on resolving the issue.',
+  },
+  {
+    number: '04',
+    icon: Award,
+    title: 'Earn Your Badge',
+    description: 'When resolved, earn recognition badges for your contribution to the community.',
+  },
+];
+
+const HowItWorksSection = () => {
+  return (
+    <section id="how-it-works" className="py-24 bg-muted/30 relative overflow-hidden">
+      {/* Background decoration */}
+      <div className="absolute inset-0 bg-texture opacity-50" />
+      
+      <div className="container mx-auto px-4 md:px-6 relative z-10">
+        {/* Section Header */}
+        <div className="text-center max-w-2xl mx-auto mb-16">
+          <span className="inline-block px-4 py-1.5 glass-card rounded-full text-sm font-medium text-secondary mb-4">
+            How It Works
+          </span>
+          <h2 className="text-3xl md:text-4xl lg:text-5xl font-bold font-display mb-6">
+            Four Simple Steps to{' '}
+            <span className="text-gradient">Create Change</span>
+          </h2>
+          <p className="text-lg text-muted-foreground">
+            Making your voice heard has never been easier. Follow these simple steps to report and track local issues.
+          </p>
+        </div>
+
+        {/* Steps */}
+        <div className="max-w-5xl mx-auto">
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-8 stagger-children">
+            {steps.map((step, index) => (
+              <div key={index} className="relative">
+                {/* Connector Line (hidden on last item and mobile) */}
+                {index < steps.length - 1 && (
+                  <div className="hidden lg:block absolute top-12 left-[calc(50%+3rem)] w-[calc(100%-3rem)] h-0.5 bg-gradient-to-r from-primary/30 via-secondary/30 to-accent/30" />
+                )}
+                
+                <div className="glass-card p-6 rounded-2xl text-center hover:shadow-xl transition-all duration-300 hover:-translate-y-2 group">
+                  {/* Step Number */}
+                  <div className="inline-flex items-center justify-center w-8 h-8 rounded-full badge-shimmer text-white text-sm font-bold mb-4">
+                    {step.number}
+                  </div>
+                  
+                  {/* Icon */}
+                  <div className="w-16 h-16 mx-auto rounded-2xl bg-gradient-to-br from-primary/10 via-secondary/10 to-accent/10 flex items-center justify-center mb-5 group-hover:scale-110 transition-transform">
+                    <step.icon className="w-8 h-8 text-primary" />
+                  </div>
+                  
+                  {/* Content */}
+                  <h3 className="text-lg font-bold font-display mb-2 text-foreground">
+                    {step.title}
+                  </h3>
+                  <p className="text-muted-foreground text-sm leading-relaxed">
+                    {step.description}
+                  </p>
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+
+        {/* CTA */}
+        <div className="text-center mt-16 animate-fade-in-up">
+          <button className="btn-gradient px-8 py-4 rounded-full font-semibold text-lg">
+            Start Reporting Today
+          </button>
+        </div>
+      </div>
+    </section>
+  );
+};
+
+export default HowItWorksSection;
