@@ -84,7 +84,7 @@ const HowItWorksSection = () => {
 
         {/* CTA */}
         <div className="text-center mt-16 animate-fade-in-up">
-          <button className="btn-gradient px-8 py-4 rounded-full font-semibold text-lg">
+          <button className="btn-gradient px-8 md:py-3 py-2 rounded-full font-semibold text-lg">
             Start Reporting Today
           </button>
         </div>
