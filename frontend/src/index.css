@@ -69,10 +69,21 @@
     --sidebar-accent-foreground: 240 5.9% 10%;
     --sidebar-border: 220 13% 91%;
     --sidebar-ring: 217.2 91.2% 59.8%;
+
+
+   --toast-success: #a5dc86;
+  --toast-error: #f27474;
+  --toast-warning:#f8bb86;
+  --toast-info: #3fc3ee;
+  --toast-text: #ffffff;
   }
 
   .dark {
     /* Dark mode - Matching reference image */
+
+    --toast-success: #2d6a4f; /* Example: slightly deeper green for dark mode */
+    --toast-error: #bc4749;
+
     --background: 220 35% 5%;
     --foreground: 220 14% 91%;
 
@@ -132,6 +143,58 @@
 
 @layer components {
   /* Gradient text utility */
+.loader-wrapper {
+  width: 100vw;
+  height: 100vh;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: radial-gradient(
+    circle at top,
+    rgba(255, 255, 255, 0.06),
+    rgba(0, 0, 0, 0.85)
+  );
+}
+ 
+.loader {
+  display: flex;
+  gap: 12px;
+}
+
+.loader span {
+  width: 14px;
+  height: 14px;
+  border-radius: 50%;
+  background: linear-gradient(145deg, #438aa2, hsl(185, 31%, 48%));
+  animation: pulse 1.4s ease-in-out infinite;
+}
+
+.loader span:nth-child(2) {
+  animation-delay: 0.2s;
+}
+.loader span:nth-child(3) {
+  animation-delay: 0.4s;
+}
+
+@keyframes pulse {
+  0% {
+    transform: scale(0.6);
+    opacity: 0.4;
+  }
+  50% {
+    transform: scale(1.2);
+    opacity: 1;
+  }
+  100% {
+    transform: scale(0.6);
+    opacity: 0.4;
+  }
+}
+
+
+
+
+
   .text-gradient {
     background: var(--gradient-text);
     -webkit-background-clip: text;
@@ -315,6 +378,7 @@
     animation: shimmer 3s linear infinite;
   }
 }
+
 
 @layer utilities {
   .shadow-glass {

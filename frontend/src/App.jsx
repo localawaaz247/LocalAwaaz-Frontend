@@ -4,23 +4,29 @@ import { ThemeProvider } from "./util/themeProvider";
 import LoginRegister from "./pages/LoginRegister";
 import NotFound from "./pages/NotFound";
 import LandingPage from "./pages/LandingPage";
+import Homepage from "./pages/Homepage";
+import {Provider} from "react-redux"
+import { appStore } from "./store/store";
 
 
 const App = () => {
   return (
-   
+      
       <ThemeProvider>
+        <Provider store={appStore}>
           <BrowserRouter>
             <Routes>
               <Route path="/" element={<LandingPage />} />
               <Route path="/login" element={<LoginRegister />} />
-             
+              <Route path="/home" element={<Homepage/>}/>
               {/* keep this at the bottom */}
               <Route path="*" element={<NotFound />} />
             </Routes>
-          </BrowserRouter>
-        
+         </BrowserRouter>
+          </Provider>
       </ThemeProvider>
+      
+      
     
   );
 };
