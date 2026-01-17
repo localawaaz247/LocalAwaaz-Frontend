@@ -1,6 +1,6 @@
 
 import { login, register } from "../reducer/authReducer";
-import {showToast} from "../util/toast"
+import {showToast} from "../utils/toast"
 
 
 
@@ -30,11 +30,10 @@ export  default async function authAction (prevState,formData,dispatch,navigate)
            const {name,userName,email,password,country,city,state,gender,pinCode}=data;
          const result=await dispatch(register({name,userName,email,password,country,city,state,pinCode,gender}));
          if(register.rejected.match(result)){
-          console.log(result.payload);
            showToast({icon:"error",title:result.payload.message})
           return {error: result.payload}
          }
-           showToast({icon:"success",title:"Account Created Successfully!"})
+           showToast({icon:"success",title:"SignUp Successfull!"})
         return {success:true};
     }
 

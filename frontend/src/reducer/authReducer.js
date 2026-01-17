@@ -1,6 +1,7 @@
 import {  createAsyncThunk, createSlice } from "@reduxjs/toolkit";
 import axios from "axios";
-const BASE_URL=import.meta.env.VITE_BASE_URL;
+import { BASE_URL } from "../utils/config";
+
 
 
 export const login=createAsyncThunk("/auth/login",async(credentials,{rejectWithValue})=>{
@@ -8,7 +9,6 @@ export const login=createAsyncThunk("/auth/login",async(credentials,{rejectWithV
       const res=await axios.post(`${BASE_URL}/auth/login`,credentials);
       return res.data;
   } catch (error) {
-    console.log(error);
      return rejectWithValue(error?.response?.data);
   }
 
@@ -18,7 +18,6 @@ export const register=createAsyncThunk("/auth/register",async(data,{rejectWithVa
 
     try {
         const res=await axios.post(`${BASE_URL}/auth/register`,data);
-        console.log(res);
         return res.data;
         
     } catch (error) {
