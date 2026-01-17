@@ -4,7 +4,7 @@ export const showToast = ({
   icon = "success",
   title = "",
   position = "top-end",
-  timer = 1500,
+  timer = 3500,
 }) => {
   Swal.fire({
     toast: true,
