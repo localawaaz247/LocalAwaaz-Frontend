@@ -285,9 +285,11 @@ const LoginRegister = () => {
           <div className="absolute top-20 left-10 w-72 h-72 bg-primary/10 rounded-full blur-3xl" />
           <div className="absolute bottom-20 right-10 w-96 h-96 bg-secondary/10 rounded-full blur-3xl" />
         </div>
-
+        
+        <div className='h-full no-scrollbar overflow-y-auto'>
         <div className="w-full max-w-md relative z-10 py-4">
           {/* Back to home */}
+        
           <Link
             to="/"
             className="inline-flex items-center gap-2 text-foreground/70 hover:text-primary transition-colors mb-4 group"
@@ -557,7 +559,7 @@ const LoginRegister = () => {
                       setCountryCode(selected.iso2)}}
                      className='w-full px-4 py-3 rounded-xl border border-border bg-card/50 focus:bg-card focus:border-primary focus:ring-2 focus:ring-primary/20 outline-none transition-all'
                     > 
-                     <option value="">Select Country</option>
+                     <option value=""> Country</option>
                       {countries && countries.map((country)=>{
                         return <option name={country.name} key={country.iso2} value={country?.iso2}>
                           {country.name} (+{country.phonecode})
@@ -582,7 +584,7 @@ const LoginRegister = () => {
                       setStateCode(selected.iso2)}}
                      className='w-full px-4 py-3 rounded-xl border border-border bg-card/50 focus:bg-card focus:border-primary focus:ring-2 focus:ring-primary/20 outline-none transition-all'
                     >
-                      <option value=""> Select State</option>
+                      <option value=""> State</option>
                         {states && states.map((s)=> 
                         <option  key={s.iso2} value={s.iso2}>{s.name}</option>
                       ) }
@@ -600,7 +602,7 @@ const LoginRegister = () => {
                      onChange={(e)=>setCity(e.target.value)}
                      className='w-full px-4 py-3 rounded-xl border border-border bg-card/50 focus:bg-card focus:border-primary focus:ring-2 focus:ring-primary/20 outline-none transition-all'
                     >
-                      <option value=""> Select City</option>
+                      <option value="">City</option>
 
                        {cities && cities.map((city)=>{
                         return <option  key={city.id} value={city.name}>{city.name}</option>
@@ -668,6 +670,8 @@ const LoginRegister = () => {
               </button>
             </p>
           </div>
+        
+        </div>
         </div>
       </div>
     </div>

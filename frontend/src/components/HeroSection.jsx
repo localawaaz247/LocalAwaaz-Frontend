@@ -2,14 +2,14 @@ import { ArrowRight, Award, Users, MessageSquare } from 'lucide-react';
 
 const HeroSection = () => {
   return (
-    <section className="min-h-screen bg-texture flex items-center pt-20 pb-16 relative overflow-hidden">
+    <section className="min-h-screen bg-texture flex items-center justify-center pt-20 pb-16 relative overflow-hidden">
       {/* Decorative blobs */}
       <div className="absolute top-20 right-10 w-72 h-72 bg-primary/5 rounded-full blur-3xl animate-float" />
       <div className="absolute bottom-20 left-10 w-96 h-96 bg-secondary/5 rounded-full blur-3xl animate-float" style={{ animationDelay: '2s' }} />
       <div className="absolute top-1/2 left-1/3 w-64 h-64 bg-accent/5 rounded-full blur-3xl animate-float" style={{ animationDelay: '4s' }} />
 
-      <div className="container mx-auto px-4 md:px-6 relative z-10">
-        <div className="max-w-5xl mx-auto text-center">
+      <div className="container flex justify-center  px-4 md:px-6 relative z-10">
+        <div className="max-w-5xl  text-center">
           {/* Badge */}
           <div className="inline-flex items-center gap-2 glass-card px-4 py-2 rounded-full mb-8 animate-fade-in-up">
             <span className="w-2 h-2 rounded-full bg-accent animate-pulse" />

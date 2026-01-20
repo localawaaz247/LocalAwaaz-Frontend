@@ -8,7 +8,7 @@ import Footer from '../components/Footer';
 
 const LandingPage = () => {
   return (
-    <div className="min-h-screen">
+    <div className="min-h-screen w-[100%]">
       <Navbar />
       <HeroSection />
       <FeaturesSection />
