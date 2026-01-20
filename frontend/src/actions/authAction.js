@@ -20,7 +20,7 @@ export  default async function authAction (prevState,formData,dispatch,navigate)
       return { error: result.payload };
      }
     
-       navigate("/home");
+       navigate("/homepage");
        showToast({icon:"success",title:"Login Successfull!"})
   
   return { success: true};

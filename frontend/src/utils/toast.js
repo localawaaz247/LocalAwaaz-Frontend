@@ -14,8 +14,6 @@ export const showToast = ({
     showConfirmButton: false,
     timer,
     timerProgressBar: true,
-     background: "linear-gradient(90deg, #0a244a, #0a505e, #095c47)",
-     color: "#ffffff",
     didOpen: (toast) => {
       toast.addEventListener("mouseenter", Swal.stopTimer);
       toast.addEventListener("mouseleave", Swal.resumeTimer);

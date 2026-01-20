@@ -20,10 +20,11 @@ const values = [
 
 const AboutSection = () => {
   return (
-    <section id="about" className="py-24 bg-texture relative overflow-hidden">
+    <section id="about" className="py-24 w-full  px-2 md:px-6 bg-texture relative overflow-hidden">
       {/* Decorative elements */}
-      <div className="absolute top-0 left-1/4 w-96 h-96 bg-secondary/5 rounded-full blur-3xl" />
-      <div className="absolute bottom-0 right-1/4 w-80 h-80 bg-primary/5 rounded-full blur-3xl" />
+     <div className="absolute top-0 left-1/4 w-72 md:w-96 h-72 md:h-96 bg-secondary/5 rounded-full blur-3xl pointer-events-none" />
+<div className="absolute bottom-0 right-1/4 w-64 md:w-80 h-64 md:h-80 bg-primary/5 rounded-full blur-3xl pointer-events-none" />
+
 
       <div className="container mx-auto px-4 md:px-6 relative z-10">
         <div className="grid lg:grid-cols-2 gap-12 items-center">
@@ -64,7 +65,7 @@ const AboutSection = () => {
             {values.map((value, index) => (
               <div
                 key={index}
-                className="glass-card p-6 rounded-2xl flex gap-5 hover:shadow-xl transition-all duration-300 hover:-translate-x-2 group"
+               className="glass-card p-6 rounded-2xl flex gap-5 hover:shadow-xl transition-all duration-300 sm:hover:-translate-x-2 group"
               >
                 <div className="w-14 h-14 rounded-xl bg-gradient-to-br from-primary/10 via-secondary/10 to-accent/10 flex items-center justify-center flex-shrink-0 group-hover:scale-110 transition-transform">
                   <value.icon className="w-7 h-7 text-primary" />

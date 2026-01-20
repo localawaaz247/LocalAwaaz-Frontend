@@ -48,7 +48,7 @@ const features = [
 
 const FeaturesSection = () => {
   return (
-    <section id="features" className="py-24 bg-texture relative">
+    <section id="features" className=" w-full py-24 px-2 md:px-6 bg-texture relative">
       {/* Decorative elements */}
       <div className="absolute top-40 right-0 w-80 h-80 bg-primary/5 rounded-full blur-3xl" />
       <div className="absolute bottom-20 left-0 w-96 h-96 bg-accent/5 rounded-full blur-3xl" />

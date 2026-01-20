@@ -67,7 +67,7 @@ const ContactSection = () => {
 
         <div className="grid lg:grid-cols-5 gap-12 max-w-6xl mx-auto">
           {/* Contact Info */}
-          <div className="lg:col-span-2 space-y-6 stagger-children">
+          <div className="lg:col-span-2 space-y-10 stagger-children">
             {contactInfo.map((info, index) => (
               <a
                 key={index}
@@ -84,18 +84,13 @@ const ContactSection = () => {
               </a>
             ))}
 
-            {/* Social proof */}
-            <div className="glass-card p-6 rounded-2xl mt-8">
-              <p className="text-muted-foreground text-sm mb-3">Trusted by communities across</p>
-              <p className="text-3xl font-bold text-gradient">50+ Cities</p>
-              <p className="text-muted-foreground text-sm mt-1">in India</p>
-            </div>
+           
           </div>
 
           {/* Contact Form */}
           <div className="lg:col-span-3 animate-fade-in-up">
             <form onSubmit={handleSubmit} className="glass-card p-8 rounded-2xl">
-              <div className="space-y-6">
+              <div className="space-y-3">
                 <div>
                   <label htmlFor="name" className="block text-sm font-medium text-foreground mb-2">
                     Your Name

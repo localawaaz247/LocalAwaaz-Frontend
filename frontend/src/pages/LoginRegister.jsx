@@ -30,6 +30,10 @@ const LoginRegister = () => {
   const [state,setState]=useState("");
   const [city,setCity]=useState("");
   const [pincode,setPinCode]=useState("");
+  const [name, setName] = useState("");
+  const [userName, setUserName] = useState("");
+  const [password, setPassword] = useState("");
+  const [gender, setGender] = useState("");
   
   // const [verifyEmail, setVerifyEmail] = useState(false);
   const [isLogin, setIsLogin] = useState(true);
@@ -46,30 +50,31 @@ const LoginRegister = () => {
   
     const [result, formAction, isPending]=useActionState((prev,formData)=>authAction(prev,formData,dispatch,navigate), null);
 
-
-  const handleFormAction = async (formData) => {
-  const res = await formAction(formData);
-
-  // ✅ clear local states AFTER submit
-  setCountry("");
-  setCountryCode("");
-  setState("");
-  setStateCode("");
-  setCity("");
-  setPinCode("");
-  setEmailInput("");
-  setIsValidEmail(false);
-  setEmailVerified(false);
-  setShowOtpInput(false);
-  setEmailVerificationCode(['', '', '', '', '', '']);
-  setShowVerifiedMessage(false);
-  setTimer(30);
-  setIsTimerRunning(false);
-
-  return res;
-};
-
-   
+  // Handle successful registration
+  useEffect(() => {
+    if (result && result.success) {
+      setCountry("");
+      setCountryCode("");
+      setState("");
+      setStateCode("");
+      setCity("");
+      setPinCode("");
+      setEmailInput("");
+      setIsValidEmail(false);
+      setEmailVerified(false);
+      setShowOtpInput(false);
+      setEmailVerificationCode(['', '', '', '', '', '']);
+      setShowVerifiedMessage(false);
+      setTimer(30);
+      setIsTimerRunning(false);
+      setName("");
+      setUserName("");
+      setPassword("");
+      setGender("");
+      // Switch to login form after successful registration
+      setIsLogin(true);
+    }
+  }, [result]);
   
 
   useEffect(()=>{
@@ -160,7 +165,6 @@ const LoginRegister = () => {
       if (otp.length === 6) {
         setIsOTPVerifying(true);
     const res=await axios.post(`${BASE_URL}/otp/verify`,{email,otp}); 
-    console.log(res);
       setEmailVerified(true);
       setShowOtpInput(false);
       setShowVerifiedMessage(true);
@@ -203,7 +207,6 @@ const LoginRegister = () => {
   };
 
   const handleResendOtp = () => {
-    console.log('Resending OTP to:', emailInput);
     setTimer(30);
     setIsTimerRunning(true);
   };
@@ -285,9 +288,11 @@ const LoginRegister = () => {
           <div className="absolute top-20 left-10 w-72 h-72 bg-primary/10 rounded-full blur-3xl" />
           <div className="absolute bottom-20 right-10 w-96 h-96 bg-secondary/10 rounded-full blur-3xl" />
         </div>
-
+        
+        <div className='h-full no-scrollbar overflow-y-auto'>
         <div className="w-full max-w-md relative z-10 py-4">
           {/* Back to home */}
+        
           <Link
             to="/"
             className="inline-flex items-center gap-2 text-foreground/70 hover:text-primary transition-colors mb-4 group"
@@ -335,7 +340,7 @@ const LoginRegister = () => {
             </div>
 
             {/* Signup/SignIn Form */}
-            <form  action={handleFormAction} className="space-y-2">
+            <form action={formAction} className="space-y-2">
               {/* Name Row */}
 
               <input
@@ -358,6 +363,8 @@ const LoginRegister = () => {
                     <input
                       type="text"
                       name="name"
+                      value={name}
+                      onChange={(e) => setName(e.target.value)}
                       placeholder="John"
                       className="w-full pl-11 pr-4 py-3 rounded-xl border border-border bg-card/50 focus:bg-card focus:border-primary focus:ring-2 focus:ring-primary/20 outline-none transition-all"
                       required
@@ -376,6 +383,8 @@ const LoginRegister = () => {
                   <input
                     type="text"
                     name="userName"
+                    value={userName}
+                    onChange={(e) => setUserName(e.target.value)}
                     placeholder="username"
                     className="w-full pl-11 pr-4 py-3 rounded-xl border border-border bg-card/50 focus:bg-card focus:border-primary focus:ring-2 focus:ring-primary/20 outline-none transition-all"
                     required
@@ -502,6 +511,8 @@ const LoginRegister = () => {
                   <input
                     type={showPassword ? 'text' : 'password'}
                     name="password"
+                    value={password}
+                    onChange={(e) => setPassword(e.target.value)}
                     placeholder=" password"
                     className="w-full pl-11 pr-12 py-3 rounded-xl border border-border bg-card/50 focus:bg-card focus:border-primary focus:ring-2 focus:ring-primary/20 outline-none transition-all"
                     required
@@ -529,6 +540,8 @@ const LoginRegister = () => {
                 <div className="relative">
                   <select
                     name="gender"
+                    value={gender}
+                    onChange={(e) => setGender(e.target.value)}
                     className="w-full pl-11 pr-12 py-3 rounded-xl border border-border bg-card/50 focus:bg-card focus:border-primary focus:ring-2 focus:ring-primary/20 outline-none transition-all"
                     required
                   >
@@ -544,8 +557,8 @@ const LoginRegister = () => {
               {!isLogin && <div className='w-full grid grid-cols-2 gap-4 '>
                  
                  <div className='mt-2 '>
-                  <label className='text-sm font-medium text-foreground mb-2'>Country</label>
-                  <div className="relative">
+                  <label className='text-sm font-medium text-foreground'>Country</label>
+                  <div className="relative mt-1">
                     <select
                      name='countryCode'
                      value={countryCode}
@@ -557,7 +570,7 @@ const LoginRegister = () => {
                       setCountryCode(selected.iso2)}}
                      className='w-full px-4 py-3 rounded-xl border border-border bg-card/50 focus:bg-card focus:border-primary focus:ring-2 focus:ring-primary/20 outline-none transition-all'
                     > 
-                     <option value="">Select Country</option>
+                     <option value=""> Country</option>
                       {countries && countries.map((country)=>{
                         return <option name={country.name} key={country.iso2} value={country?.iso2}>
                           {country.name} (+{country.phonecode})
@@ -570,7 +583,7 @@ const LoginRegister = () => {
 
                  <div className='mt-2'>
                   <label className='text-sm font-medium text-foreground'>State</label>
-                  <div className='relative'>
+                  <div className='relative mt-1'>
                     <select
                      name='stateCode'
                      value={stateCode}
@@ -582,7 +595,7 @@ const LoginRegister = () => {
                       setStateCode(selected.iso2)}}
                      className='w-full px-4 py-3 rounded-xl border border-border bg-card/50 focus:bg-card focus:border-primary focus:ring-2 focus:ring-primary/20 outline-none transition-all'
                     >
-                      <option value=""> Select State</option>
+                      <option value=""> State</option>
                         {states && states.map((s)=> 
                         <option  key={s.iso2} value={s.iso2}>{s.name}</option>
                       ) }
@@ -593,14 +606,14 @@ const LoginRegister = () => {
 
                   <div className='mt-2'>
                   <label className='text-sm font-medium text-foreground'>City</label>
-                  <div className='relative'>
+                  <div className='relative mt-1'>
                     <select
                      name='city'
                      value={city}
                      onChange={(e)=>setCity(e.target.value)}
                      className='w-full px-4 py-3 rounded-xl border border-border bg-card/50 focus:bg-card focus:border-primary focus:ring-2 focus:ring-primary/20 outline-none transition-all'
                     >
-                      <option value=""> Select City</option>
+                      <option value="">City</option>
 
                        {cities && cities.map((city)=>{
                         return <option  key={city.id} value={city.name}>{city.name}</option>
@@ -615,7 +628,7 @@ const LoginRegister = () => {
                   <label className='text-foreground text-sm font-medium'>
                     Pin Code
                   </label>
-                  <div>
+                  <div className=' relative mt-1'>
                     <input
                      type='text'
                      name='pinCode'
@@ -668,6 +681,8 @@ const LoginRegister = () => {
               </button>
             </p>
           </div>
+        
+        </div>
         </div>
       </div>
     </div>

@@ -5,7 +5,17 @@
 @tailwind utilities;
 
 
+*::before,
+*::after {
+  box-sizing: border-box;
+}
 
+html, body {
+  width: 100%;
+  margin: 0;
+  padding: 0;
+  overflow-x: hidden;
+}
 
 
 
@@ -383,5 +393,14 @@
 @layer utilities {
   .shadow-glass {
     box-shadow: var(--glass-shadow);
+  }
+
+   .no-scrollbar {
+    -ms-overflow-style: none;   /* IE & Edge */
+    scrollbar-width: none;      /* Firefox */
+  }
+
+  .no-scrollbar::-webkit-scrollbar {
+    display: none;              /* Chrome, Safari */
   }
 }
