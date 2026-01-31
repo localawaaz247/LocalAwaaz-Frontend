@@ -281,7 +281,7 @@ const LoginRegister = () => {
       </div>
 
       {/* Right Side - Form */}
-      <div className="w-full lg:w-1/2 h-screen overflow-y-auto flex items-start justify-center  p-3 md:p-6 lg:p-12 relative">
+      <div className={`w-full lg:w-1/2 h-screen overflow-y-auto flex items-start justify-center  p-3 md:p-6 lg:p-12 relative`}>
 
         {/* Background decoration for mobile */}
         <div className="absolute inset-0 overflow-hidden pointer-events-none lg:hidden">
@@ -289,8 +289,8 @@ const LoginRegister = () => {
           <div className="absolute bottom-20 right-10 w-96 h-96 bg-secondary/10 rounded-full blur-3xl" />
         </div>
         
-        <div className='h-full no-scrollbar overflow-y-auto'>
-        <div className="w-full max-w-md relative z-10 py-4">
+        <div className={` h-full no-scrollbar ${isLogin ? "overflow-hidden ": "  py-4 overflow-y-auto"} `}>
+        <div className="w-full max-w-md relative z-10">
           {/* Back to home */}
         
           <Link

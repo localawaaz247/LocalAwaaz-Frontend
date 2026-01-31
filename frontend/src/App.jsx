@@ -8,6 +8,10 @@ import Homepage from "./pages/Homepage";
 import {Provider} from "react-redux"
 import { appStore } from "./store/store";
 import CompleteProfile from "./pages/CompleteProfile";
+import ReportIssue from "./pages/ReportIssue";
+import Notifications from "./pages/Notifications";
+import Profile from "./pages/Profile";
+import Feed from "./pages/Feed";
 
 
 const App = () => {
@@ -19,9 +23,15 @@ const App = () => {
             <Routes>
               <Route path="/" element={<LandingPage />} />
               <Route path="/login" element={<LoginRegister />} />
-              <Route path="/homepage" element={<Homepage/>}/>
               <Route path="/complete-profile" element={<CompleteProfile/>}/>
-              {/* keep this at the bottom */}
+
+              <Route path="/dashboard" element={<Homepage/>}>
+              <Route index element={<Feed />} />
+              <Route path="report" element={<ReportIssue />} />
+              <Route path="notifications" element={<Notifications />} />
+              <Route path="profile" element={<Profile />} />
+              </Route>
+              
               <Route path="*" element={<NotFound />} />
             </Routes>
          </BrowserRouter>
