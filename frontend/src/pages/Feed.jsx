@@ -9,19 +9,40 @@ import {
   Users,
   ShieldCheck,
 } from "lucide-react";
+import { useState, useEffect } from "react";
+import { getChosenLocation, formatLocationDisplay } from "../utils/locationUtils";
+import LocationModal from "../components/LocationModal";
 
 const Feed = () => {
+  const [chosenLocation, setChosenLocation] = useState(null)
+  const [showLocationModal, setShowLocationModal] = useState(false)
+
+  useEffect(() => {
+    const savedLocation = getChosenLocation()
+    setChosenLocation(savedLocation)
+  }, [])
+
+  const displayLocation = chosenLocation ? formatLocationDisplay(chosenLocation) : "Lucknow"
+
+  const handleLocationUpdate = () => {
+    const updatedLocation = getChosenLocation()
+    setChosenLocation(updatedLocation)
+  }
+
   return (
     <div className="bg-texture min-h-screen ">
       {/* HEADER (same as previous – NOT navbar) */}
       <div className="px-6 py-4 sticky top-2 glass-card z-50 rounded-lg border-0 border-b border-border">
         <div className="flex justify-between items-center">
           <div>
-            <h2 className="text-lg font-bold text-foreground">Indiranagar, Ward 84</h2>
+            <h2 className="text-lg font-bold text-foreground">{displayLocation}</h2>
             <div className="flex items-center gap-1 text-sm text-muted-foreground">
               <MapPin size={14} />
-              Bengaluru, Karnataka
-              <button className="ml-2 text-accent font-medium transition-colors">
+              {chosenLocation?.country || "Uttar Pradesh, India"}
+              <button 
+                className="ml-2 text-accent font-medium transition-colors hover:text-accent/80"
+                onClick={() => setShowLocationModal(true)}
+              >
                 Change Area
               </button>
             </div>
@@ -161,6 +182,14 @@ const Feed = () => {
 
       </div>
       </div>
+      
+      <LocationModal 
+        isOpen={showLocationModal}
+        onClose={() => {
+          setShowLocationModal(false)
+          handleLocationUpdate()
+        }}
+      />
     </div>
   );
 };
