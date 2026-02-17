@@ -143,7 +143,7 @@ const LoginRegister = () => {
     try {
       const email=emailInput;
       setEmailVerificationRequested(true);
-      const res=await axios.post(`${BASE_URL}/otp/request`,{email});
+      const res=await axios.post(`${BASE_URL}/otp/request`,{email,userName});
       setShowOtpInput(true);
       setEmailVerificationRequested(false);
       setTimer(30);
@@ -164,7 +164,7 @@ const LoginRegister = () => {
     try {
       if (otp.length === 6) {
         setIsOTPVerifying(true);
-    const res=await axios.post(`${BASE_URL}/otp/verify`,{email,otp}); 
+    const res=await axios.post(`${BASE_URL}/otp/verify`,{email,otp,userName}); 
       setEmailVerified(true);
       setShowOtpInput(false);
       setShowVerifiedMessage(true);

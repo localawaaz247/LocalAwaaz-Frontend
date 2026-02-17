@@ -31,6 +31,7 @@ export default function CompleteProfile() {
   /* ---------------- API CALLS ---------------- */
 
   useEffect(() => {
+    localStorage.setItem("access_token", token);
     cscApi.get("/countries").then((res) => setCountries(res.data));
   }, []);
 
@@ -49,6 +50,8 @@ export default function CompleteProfile() {
       .then((res) => setCities(res.data));
   }, [stateCode]);
 
+
+
   /* ---------------- SUBMIT ---------------- */
 
   const handleSubmit = async () => {
@@ -60,9 +63,11 @@ export default function CompleteProfile() {
         state,
         city,
         pinCode,
+      },{
+        headers:{
+          Authorization:`Bearer ${token}`
+        }
       });
-     
-      localStorage.setItem("access_token", token);
       showToast({ icon: "success", title: "Profile completed!" });
       navigate("/homepage");
     } catch (error) {

@@ -12,6 +12,7 @@ import ReportIssue from "./pages/ReportIssue";
 import Notifications from "./pages/Notifications";
 import Profile from "./pages/Profile";
 import Feed from "./pages/Feed";
+import Assistant from "./pages/Assistant";
 
 
 const App = () => {
@@ -28,6 +29,7 @@ const App = () => {
               <Route path="/dashboard" element={<Homepage/>}>
               <Route index element={<Feed />} />
               <Route path="report" element={<ReportIssue />} />
+              <Route path="assistant" element={<Assistant />} />
               <Route path="notifications" element={<Notifications />} />
               <Route path="profile" element={<Profile />} />
               </Route>
