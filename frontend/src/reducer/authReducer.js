@@ -34,9 +34,9 @@ export const logout=createAsyncThunk("/auth/logout",async(_,{rejectWithValue})=>
     }
 })
 
-export const validateToken=createAsyncThunk("/profile",async(_,{rejectWithValue})=>{
+export const validateToken=createAsyncThunk("/me/profile",async(_,{rejectWithValue})=>{
     try {
-        const res=await axiosInstance.get(`/profile`);
+        const res=await axiosInstance.get(`/me/profile`);
         return res.data;
     } catch (error) {
         localStorage.removeItem("access_token");
@@ -64,6 +64,9 @@ const authSlice=createSlice({
         },
         setIsAuthenticated:(state,action)=>{
             state.isAuthenticated=action.payload
+        },
+        setUser:(state,action)=>{
+            state.user=action.payload;
         }
     },
     extraReducers:((builders)=>{
@@ -127,5 +130,5 @@ const authSlice=createSlice({
     })
 })
 
-export const {clearError, logoutUser,setIsAuthenticated} = authSlice.actions;
+export const {clearError, logoutUser,setIsAuthenticated,setUser} = authSlice.actions;
 export  default authSlice.reducer;

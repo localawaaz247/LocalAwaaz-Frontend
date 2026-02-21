@@ -9,22 +9,48 @@ import {
   Users,
   ShieldCheck,
 } from "lucide-react";
-import { useState } from "react";
-import {useNavigate} from 'react-router-dom'
+import {  useState, useEffect } from "react";
+import {useNavigate, useLocation} from 'react-router-dom'
 import { getChosenLocation, formatLocationDisplay } from "../utils/locationUtils";
 import LocationModal from "../components/LocationModal";
+import axiosInstance from '../utils/axios'
 
 const Feed = () => {
   const [chosenLocation, setChosenLocation] = useState(() => getChosenLocation());
   const [showLocationModal, setShowLocationModal] = useState(false);
+  const location = useLocation();
 
    const navigate=useNavigate();
   const displayLocation = chosenLocation ? formatLocationDisplay(chosenLocation) : "Lucknow";
 
   const handleLocationUpdate = () => {
-    const updatedLocation = getChosenLocation()
+    const updatedLocation = getChosenLocation();
     setChosenLocation(updatedLocation)
+    // Only fetch issues when location is actually set
+    if (updatedLocation) {
+      getFeedIssue(updatedLocation)
+    }
   }
+
+  const getFeedIssue=async(locationData)=>{
+    
+    try {
+      const city = locationData?.city || 'Lucknow'
+      const res=await axiosInstance.get(`/issue/area?search=${city}`);
+      console.log(res);
+      
+    } catch (error) {
+       console.log(error);
+    }
+  }
+  
+
+  useEffect(() => {
+    // Show location modal when redirected to /dashboard
+    if (location.pathname === '/dashboard' && !chosenLocation) {
+      setShowLocationModal(true);
+    }
+  }, [location.pathname, chosenLocation]);
 
   return (
     <div className="bg-texture min-h-screen ">
@@ -46,7 +72,7 @@ const Feed = () => {
           </div>
 
           <div className="flex items-center gap-3">
-            <span className="text-sm bg-accent text-accent-foreground px-3 py-1 rounded-full border border-accent/30">
+            <span className="text-sm bg-cyan-800 text-accent-foreground px-3 py-2 rounded-full border border-accent/30">
               ● 12 Active Issues in your area
             </span>
             <button className="btn-gradient flex items-center gap-2 px-4 py-2 rounded-xl" onClick={()=>navigate("/dashboard/report")}>
@@ -186,6 +212,7 @@ const Feed = () => {
           setShowLocationModal(false)
           handleLocationUpdate()
         }}
+        forceLocation={location.pathname === '/dashboard' && !chosenLocation}
       />
     </div>
   );

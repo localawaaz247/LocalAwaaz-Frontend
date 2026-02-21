@@ -50,9 +50,6 @@ axiosInstance.interceptors.response.use(
   (response) => response,
   async (error) => {
     const originalRequest = error.config;
-
-    console.log(error);
-    
     // Skip token refresh logic for auth endpoints
     const skipRefreshUrls = ['/auth/login', '/auth/register', '/refresh_token'];
     if (skipRefreshUrls.some(url => originalRequest.url?.includes(url))) {
@@ -81,7 +78,6 @@ axiosInstance.interceptors.response.use(
 
       try {
         const response = await axios.post(`${BASE_URL}/refresh_token`,{},{withCredentials:true});
-         console.log(response.data);
         const { accessToken} = response.data;
         localStorage.setItem('access_token', accessToken);
         
