@@ -1,10 +1,11 @@
 import { useState, useEffect } from 'react'
-import { MapPin, X, Loader2, Search } from 'lucide-react'
+import { MapPin, X, Loader2, Search, Navigation } from 'lucide-react'
 import { Button } from './ui/button'
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from './ui/dialog'
-import { getUserLocation, saveUserLocation, reverseGeocode, saveChosenLocation } from '../utils/locationUtils'
+import { getUserLocation, reverseGeocode, saveChosenLocation, getCurrentPosition } from '../utils/locationUtils'
+import axiosInstance from '../utils/axios'
 
-const LocationModal = ({ isOpen, onClose }) => {
+const LocationModal = ({ isOpen, onClose, forceLocation = false }) => {
   const [isLoading, setIsLoading] = useState(false)
   const [error, setError] = useState('')
   const [location, setLocation] = useState(null)
@@ -27,21 +28,14 @@ const LocationModal = ({ isOpen, onClose }) => {
     setError('')
     
     try {
-      const response = await fetch(
-        `https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(searchQuery)}&limit=5`,
-        {
-          headers: {
-            'User-Agent': 'LocalAwaaz-App/1.0'
-          }
+      const response = await axiosInstance.get('/locations', {
+        params: {
+          keyword: searchQuery
         }
-      )
+      })
       
-      if (!response.ok) {
-        throw new Error('Failed to search location')
-      }
       
-      const data = await response.json()
-      setSearchResults(data || [])
+      setSearchResults(response.data.data || [])
     } catch (err) {
       setError('Failed to search location. Please try again.')
       console.error('Search error:', err)
@@ -55,8 +49,42 @@ const LocationModal = ({ isOpen, onClose }) => {
     setError('')
     
     try {
-      // Get detailed address for selected location
-      const locationData = await reverseGeocode(result.lat, result.lon)
+      // Save the location data from your backend API response
+      const locationData = {
+        latitude: null,
+        longitude: null,
+        address: result.fullAddress,
+        city: result.name,
+        state: result.state,
+        country: 'India', // Default since API seems to be for Indian locations
+        postcode: result.pincode === 'N/A' ? null : result.pincode
+      }
+      
+      const success = saveChosenLocation(locationData)
+      if (success) {
+        setLocation(locationData)
+        setTimeout(() => {
+          onClose()
+        }, 1500)
+      } else {
+        setError('Failed to save location. Please try again.')
+      }
+    } catch (err) {
+      console.log(err)
+      setError('Failed to save location. Please try again.')
+    } finally {
+      setIsLoading(false)
+    }
+  }
+
+  const handleCurrentLocation = async () => {
+    setIsLoading(true)
+    setError('')
+    
+    try {
+      const position = await getCurrentPosition();
+     
+      const locationData = await reverseGeocode(position.latitude, position.longitude);
       
       if (locationData.latitude !== null && locationData.longitude !== null) {
         const success = saveChosenLocation(locationData)
@@ -72,46 +100,75 @@ const LocationModal = ({ isOpen, onClose }) => {
         setError('Invalid location coordinates. Please try again.')
       }
     } catch (err) {
-      setError('Failed to save location. Please try again.')
+      setError(err.message || 'Failed to get current location. Please enable location permissions.')
     } finally {
       setIsLoading(false)
     }
   }
 
-  const handleSkip = () => {
-    // Save default location or skip
-    const defaultLocation = {
-      address: 'Location not provided',
-      city: 'Unknown',
-      state: 'Unknown',
-      country: 'Unknown',
-      postcode: null
-    }
-    saveChosenLocation(defaultLocation)
-    onClose()
-  }
+ 
 
   return (
-    <Dialog open={isOpen} onOpenChange={onClose}>
+    <Dialog open={isOpen} onOpenChange={(open) => {
+      // Prevent closing if forceLocation is true and no location is set
+      if (forceLocation && !location && open === false) {
+        return
+      }
+      onClose()
+    }}>
       <DialogContent className="sm:max-w-md">
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
             <MapPin className="h-5 w-5 text-accent" />
-            Change Location
+            {forceLocation ? 'Set Your Location' : 'Change Location'}
           </DialogTitle>
         </DialogHeader>
         
         <div className="space-y-4">
           <p className="text-sm text-muted-foreground">
-            Search for any location to view issues from that area.
+            {forceLocation 
+              ? 'Please set your location to continue. You can use your current location or search for any area.'
+              : 'Search for any location to view issues from that area.'
+            }
           </p>
           
+          {/* Current Location Button */}
+          <Button 
+            onClick={handleCurrentLocation}
+            disabled={isLoading || isSearching}
+            className="w-full hover:bg-transparent"
+            variant="outline"
+          >
+            {isLoading ? (
+              <>
+                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                Getting Location...
+              </>
+            ) : (
+              <>
+                <Navigation className="mr-2 h-4 w-4" />
+                Use Current Location
+              </>
+            )}
+          </Button>
+
+          <div className="relative">
+            <div className="absolute inset-0 flex items-center">
+              <span className="w-full border-t border-border" />
+            </div>
+            <div className="relative flex justify-center text-xs uppercase">
+              <span className="bg-background px-2 text-muted-foreground">
+                Or search manually
+              </span>
+            </div>
+          </div>
+
           {/* Search Input */}
           <div className="relative">
-            <Search className="absolute left-3 top-3 h-4 w-4 text-muted-foreground" />
+            <Search className="absolute left-3 top-4 h-4 w-4 text-muted-foreground" />
             <input
               type="text"
-              placeholder="Search for a city, area, or address..."
+              placeholder="Search for a city, pincode, or address..."
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
               onKeyPress={(e) => e.key === 'Enter' && searchLocation()}
@@ -120,7 +177,7 @@ const LocationModal = ({ isOpen, onClose }) => {
             {searchQuery && (
               <button
                 onClick={() => setSearchQuery('')}
-                className="absolute right-3 top-3 text-muted-foreground hover:text-foreground"
+                className="absolute right-3 top-4 text-muted-foreground hover:text-foreground"
               >
                 <X className="h-4 w-4" />
               </button>
@@ -158,10 +215,10 @@ const LocationModal = ({ isOpen, onClose }) => {
                       className="w-full text-left p-3 rounded-lg hover:bg-muted transition-colors"
                     >
                       <div className="text-sm font-medium text-foreground">
-                        {result.display_name}
+                        {result.name}
                       </div>
                       <div className="text-xs text-muted-foreground">
-                        {result.display_name.split(',')[0]}
+                        {result.state}
                       </div>
                     </button>
                   ))}
@@ -198,19 +255,11 @@ const LocationModal = ({ isOpen, onClose }) => {
             </div>
           )}
           
-          <div className="flex flex-col gap-2">
-            <Button 
-              variant="outline" 
-              onClick={onClose}
-              disabled={isLoading || isSearching}
-              className="w-full"
-            >
-              Cancel
-            </Button>
+          {forceLocation && (
             <p className="text-xs text-muted-foreground text-center">
-              You can change this later by clicking "Change Area"
+              Location is required to continue. You can change this later.
             </p>
-          </div>
+          )}
         </div>
       </DialogContent>
     </Dialog>

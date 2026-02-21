@@ -32,7 +32,7 @@ const Sidebar = () => {
     const dispatch=useDispatch();
     const navigate=useNavigate();
 
-    const user=useSelector((state)=>state.auth.user);
+    const user=useSelector((state)=>state.auth?.user);
     const name=user?.name;
 
     // Function to get initials from name
@@ -133,7 +133,7 @@ const Sidebar = () => {
             isDarkMode ? 'bottom-0 mb-2' : 'bottom-full mb-2'
           }`}>
             <div className="space-y-1">
-              <NavLink to="profile"> <SidebarItem icon={User} label="My Profile" /></NavLink>
+              <NavLink to="profile" onClick={() => setOpenModal(false)}> <SidebarItem icon={User} label="My Profile" /></NavLink>
               <div className="w-full flex items-center justify-between px-3 py-2">
                 <div className="flex items-center gap-2">
                   {isDarkMode ? <Moon className="w-4 h-4 text-primary" /> : <Sun className="w-4 h-4 text-primary" />}
@@ -144,6 +144,7 @@ const Sidebar = () => {
                     onClick={(e) => {
                       e.stopPropagation();
                       toggleTheme();
+                      setOpenModal(false);
                     }}
                     className={`p-1.5 rounded transition-colors ${
                       !isDarkMode 
@@ -157,6 +158,7 @@ const Sidebar = () => {
                     onClick={(e) => {
                       e.stopPropagation();
                       toggleTheme();
+                      setOpenModal(false);
                     }}
                     className={`p-1.5 rounded transition-colors ${
                       isDarkMode 
@@ -168,11 +170,11 @@ const Sidebar = () => {
                   </button>
                 </div>
               </div>
-              <button className="w-full flex items-center gap-3 px-3 py-2 rounded-lg hover:bg-muted/50 transition-colors text-left">
+              <button className="w-full flex items-center gap-3 px-3 py-2 rounded-lg hover:bg-muted/50 transition-colors text-left" onClick={() => setOpenModal(false)}>
                 <Settings className="w-4 h-4" />
                 <span className="text-sm">Settings</span>
               </button>
-              <button className="w-full flex items-center gap-3 px-3 py-2 rounded-lg hover:bg-muted/50 transition-colors text-left">
+              <button className="w-full flex items-center gap-3 px-3 py-2 rounded-lg hover:bg-muted/50 transition-colors text-left" onClick={() => setOpenModal(false)}>
                 <HelpCircle className="w-4 h-4" />
                 <span className="text-sm">Help</span>
               </button>
@@ -198,13 +200,13 @@ const Sidebar = () => {
         )}
         
         <button 
-          className="flex gap-3 items-center mt-4 w-full" 
+          className="flex gap-3 items-center mt-4 w-full border-t pt-6 border-foreground/30" 
           onClick={() => setOpenModal(!openModal)}
         >
-          <div className="w-8 h-8 rounded-full border text-gradient border-white text-xs flex justify-center items-center">
+          <div className="w-8 h-8 rounded-full border text-gradient border-accent text-xs flex justify-center items-center  ">
             {getInitials(name)}
           </div>
-          <span className="text-foreground">{name}</span>
+          <span className="text-gradient font-semibold">{name}</span>
         </button>
       </div>
     

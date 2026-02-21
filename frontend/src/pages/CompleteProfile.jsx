@@ -1,15 +1,17 @@
 import { useState, useEffect } from "react";
-import { UserCircle, MapPin, ArrowRight, User } from "lucide-react";
+import { UserCircle, MapPin, ArrowRight, ArrowLeft, User } from "lucide-react";
 import { cscApi } from "../utils/cscAPI";
-import { BASE_URL } from "../utils/config";
 import { useNavigate } from "react-router-dom";
 import { showToast } from "../utils/toast";
 import axiosInstance from "../utils/axios";
+import { setUser } from "../reducer/authReducer";
+import { useDispatch } from "react-redux";
 
 export default function CompleteProfile() {
   const [step, setStep] = useState(1);
 
   const navigate=useNavigate();
+  const dispatch=useDispatch();
 
   const [countries, setCountries] = useState([]);
   const [states, setStates] = useState([]);
@@ -55,7 +57,7 @@ export default function CompleteProfile() {
 
   const handleSubmit = async () => {
     try {
-      await axiosInstance.patch(`/users/complete-profile`, {
+      const res=await axiosInstance.patch(`/me/profile-complete`, {
         userName,
         gender,
         country,
@@ -64,6 +66,7 @@ export default function CompleteProfile() {
         pinCode,
       });
       showToast({ icon: "success", title: "Profile completed!" });
+      dispatch(setUser(res.data?.user));
       navigate("/dashboard");
     } catch (error) {
       showToast({
@@ -226,13 +229,21 @@ export default function CompleteProfile() {
               </div>
             </div>
 
-            <button
-              disabled={!country || !state || !city}
-              onClick={() => setStep(3)}
-              className="w-full btn-gradient flex items-center justify-center gap-2 py-3 rounded-xl font-semibold"
-            >
-              Continue <ArrowRight className="w-4 h-4" />
-            </button>
+            <div className="flex gap-3">
+              <button
+                onClick={() => setStep(1)}
+                className="flex-1 flex items-center justify-center gap-2 py-3 rounded-xl font-semibold border border-border bg-card/50 hover:bg-card transition-all"
+              >
+                <ArrowLeft className="w-4 h-4" /> Previous
+              </button>
+              <button
+                disabled={!country || !state || !city}
+                onClick={() => setStep(3)}
+                className="flex-1 btn-gradient flex items-center justify-center gap-2 py-3 rounded-xl font-semibold"
+              >
+                Continue <ArrowRight className="w-4 h-4" />
+              </button>
+            </div>
           </div>
         )}
 
@@ -263,13 +274,21 @@ export default function CompleteProfile() {
               </div>
             </div>
 
-            <button
-              disabled={!pinCode}
-              onClick={handleSubmit}
-              className="w-full btn-gradient py-3 rounded-xl font-semibold"
-            >
-              Finish Profile
-            </button>
+            <div className="flex gap-3">
+              <button
+                onClick={() => setStep(2)}
+                className="flex-1 flex items-center justify-center gap-2 py-3 rounded-xl font-semibold border border-border bg-card/50 hover:bg-card transition-all"
+              >
+                <ArrowLeft className="w-4 h-4" /> Previous
+              </button>
+              <button
+                disabled={!pinCode}
+                onClick={handleSubmit}
+                className="flex-1 btn-gradient py-3 rounded-xl font-semibold"
+              >
+                Finish Profile
+              </button>
+            </div>
           </div>
         )}
       </div>

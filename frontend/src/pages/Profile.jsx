@@ -1,41 +1,78 @@
-import React from "react";
+import React, { useEffect, useState } from "react";
+import axiosInstance from "../utils/axios";
+import Loader from "../components/Loader"
 
 const Profile = () => {
+  const [profileData, setProfileData] = useState(null);
+
+  useEffect(() => {
+    let isMounted = true;
+    
+    const getUserInfo = async () => {
+      try {
+        const res = await axiosInstance.get(`/me/profile`);
+        if (isMounted) {
+          setProfileData(res.data.data);
+        }
+      } catch (error) {
+        if (isMounted) {
+          console.error("Error fetching profile:", error);
+        }
+      }
+    };
+
+    getUserInfo();
+
+    return () => {
+      isMounted = false;
+    };
+  }, []);
+  
   return (
     <div className="w-full bg-texture min-h-screen">
-      {/* Cover */}
-      <div className="h-48 w-full bg-gradient-to-r from-slate-900 to-cyan-800 rounded-lg" />
+      {!profileData ? (
+        <div className="flex items-center justify-center min-h-screen">
+            <p className="text-muted-foreground">Loading profile...</p>
+          
+        </div>
+      ) : (
+        <>
+          {/* Cover */}
+          <div className="h-48 w-full bg-gradient-to-r from-slate-900 to-cyan-800 rounded-lg" />
 
-      {/* Profile Card */}
-      <div className="max-w-6xl mx-auto -mt-16 px-6">
-        <div className="glass-card rounded-xl p-6">
+          {/* Profile Card */}
+          <div className="max-w-6xl mx-auto -mt-16 px-6">
+            <div className="glass-card rounded-xl p-6">
           {/* Top Section */}
           <div className="flex justify-between items-start">
             <div className="flex gap-4 items-start">
               {/* Initials Badge */}
               <div className="w-14 h-14 rounded-xl bg-primary/10 flex items-center justify-center border border-primary/20">
                 <span className="text-primary font-semibold text-lg">
-                  RK
+                  {profileData?.name?.charAt(0)?.toUpperCase() || 'U'}
                 </span>
               </div>
 
               {/* Info */}
               <div>
                 <div className="flex items-center gap-2">
-                  <h2 className="text-xl font-bold text-foreground">Rajesh Kumar</h2>
-                  <span className="text-accent text-sm">✔</span>
+                  <h2 className="text-xl font-bold text-foreground">
+                    {profileData?.name || 'Loading...'}
+                  </h2>
+                  {profileData?.isEmailVerified && (
+                    <span className="text-accent text-sm">✔</span>
+                  )}
                 </div>
 
-                <p className="text-muted-foreground text-sm">@rajeshkumar</p>
+                <p className="text-muted-foreground text-sm">@{profileData?.userName || 'username'}</p>
 
                 <p className="mt-2 text-muted-foreground text-sm max-w-md leading-relaxed">
-                  Active citizen passionate about improving local infrastructure
-                  and community welfare. Let&apos;s make our city better together!
+                  {profileData?.bio || 'No bio available'}
                 </p>
 
                 <div className="flex gap-4 mt-3 text-sm text-muted-foreground">
-                  <span>📍 Mumbai, Ward K/E</span>
-                  <span>📅 Joined March 2023</span>
+                  <span>📍 {profileData?.contact?.city}, {profileData?.contact?.state}</span>
+                  <span>📅 Joined {new Date(profileData?.createdAt).toLocaleDateString('en-US', { month: 'long', year: 'numeric' })}</span>
                 </div>
               </div>
             </div>
@@ -57,10 +94,10 @@ const Profile = () => {
           {/* Stats */}
           <div className="grid grid-cols-4 gap-4 mt-6">
             {[
-              { label: "Issues Reported", value: 47 },
-              { label: "Issues Resolved", value: 32 },
-              { label: "Followers", value: 284 },
-              { label: "Following", value: 156 },
+              { label: "Issues Reported", value: profileData?.issuesReported || 0 },
+              { label: "Issues Resolved", value: profileData?.issuesResolved || 0 },
+              { label: "Issues Confirmed", value: profileData?.issuesConfirmed || 0 },
+              { label: "Civil Score", value: profileData?.civilScore || 0 },
             ].map((item, i) => (
               <div
                 key={i}
@@ -143,7 +180,9 @@ const Profile = () => {
             </div>
           </div>
         </div>
-      </div>
+          </div>
+        </>
+      )}
     </div>
   );
 };

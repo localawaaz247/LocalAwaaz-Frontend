@@ -1,5 +1,7 @@
 // Utility functions for location management
 
+import axiosInstance from "./axios";
+
 export const getUserLocation = () => {
   try {
     const savedLocation = localStorage.getItem('userLocation')
@@ -93,41 +95,25 @@ export const getCurrentPosition = () => {
 
 export const reverseGeocode = async (latitude, longitude) => {
   try {
-    const response = await fetch(
-      `https://nominatim.openstreetmap.org/reverse?format=json&lat=${latitude}&lon=${longitude}&zoom=18&addressdetails=1`,
-      {
-        headers: {
-          'User-Agent': 'LocalAwaaz-App/1.0'
-        }
-      }
-    )
+    const response = await axiosInstance.post('/get-location-from-coords', {
+      lat: latitude,
+      lng: longitude
+    })
     
-    if (!response.ok) {
-      throw new Error('Failed to fetch address')
-    }
-    
-    const data = await response.json()
+    const data = response.data?.data;
     
     return {
-      latitude,
-      longitude,
-      address: data.display_name || `${latitude.toFixed(6)}, ${longitude.toFixed(6)}`,
-      city: data.address?.city || data.address?.town || data.address?.village || 'Unknown',
-      state: data.address?.state || 'Unknown',
-      country: data.address?.country || 'Unknown',
-      postcode: data.address?.postcode || null
+      city: data.city || 'Unknown',
+      state: data.state || 'Unknown',
+      country: data.country || 'Unknown',
     }
   } catch (error) {
     console.error('Error in reverse geocoding:', error)
     // Return basic coordinates if geocoding fails
     return {
-      latitude,
-      longitude,
-      address: `${latitude.toFixed(6)}, ${longitude.toFixed(6)}`,
       city: 'Unknown',
       state: 'Unknown',
       country: 'Unknown',
-      postcode: null
     }
   }
 }
