@@ -9,20 +9,17 @@ import {
   Users,
   ShieldCheck,
 } from "lucide-react";
-import { useState, useEffect } from "react";
+import { useState } from "react";
+import {useNavigate} from 'react-router-dom'
 import { getChosenLocation, formatLocationDisplay } from "../utils/locationUtils";
 import LocationModal from "../components/LocationModal";
 
 const Feed = () => {
-  const [chosenLocation, setChosenLocation] = useState(null)
-  const [showLocationModal, setShowLocationModal] = useState(false)
+  const [chosenLocation, setChosenLocation] = useState(() => getChosenLocation());
+  const [showLocationModal, setShowLocationModal] = useState(false);
 
-  useEffect(() => {
-    const savedLocation = getChosenLocation()
-    setChosenLocation(savedLocation)
-  }, [])
-
-  const displayLocation = chosenLocation ? formatLocationDisplay(chosenLocation) : "Lucknow"
+   const navigate=useNavigate();
+  const displayLocation = chosenLocation ? formatLocationDisplay(chosenLocation) : "Lucknow";
 
   const handleLocationUpdate = () => {
     const updatedLocation = getChosenLocation()
@@ -32,7 +29,7 @@ const Feed = () => {
   return (
     <div className="bg-texture min-h-screen ">
       {/* HEADER (same as previous – NOT navbar) */}
-      <div className="px-6 py-4 sticky top-2 glass-card z-50 rounded-lg border-0 border-b border-border">
+      <div className="px-6 py-4 sticky top-2 glass-card z-50 rounded-lg border-0 border-b border-border mx-4">
         <div className="flex justify-between items-center">
           <div>
             <h2 className="text-lg font-bold text-foreground">{displayLocation}</h2>
@@ -52,7 +49,7 @@ const Feed = () => {
             <span className="text-sm bg-accent text-accent-foreground px-3 py-1 rounded-full border border-accent/30">
               ● 12 Active Issues in your area
             </span>
-            <button className="btn-gradient flex items-center gap-2 px-4 py-2 rounded-xl">
+            <button className="btn-gradient flex items-center gap-2 px-4 py-2 rounded-xl" onClick={()=>navigate("/dashboard/report")}>
               <Plus size={16} />
               New Issue
             </button>

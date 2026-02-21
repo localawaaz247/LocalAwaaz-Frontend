@@ -1,3 +1,4 @@
+/* eslint-disable no-unused-vars */
 import {
   Megaphone,
   Construction,
@@ -11,10 +12,10 @@ import {
   Camera,
 } from "lucide-react";
 import { useState, useEffect } from "react";
-import axios from "axios";
 import { BASE_URL } from "../utils/config";
 import {   saveCurrentLocation } from "../utils/locationUtils";
 import CurrentLocationModal from "../components/CurrentLocationModal";
+import axiosInstance from "../utils/axios";
 
 const categories = [
   { label: "Roads & Potholes", value: "ROAD_&_POTHOLES", icon: Construction },
@@ -45,12 +46,16 @@ export default function ReportIssue() {
       }
     },
     media: [],
+    mediaUrls: [],
     isAnonymous: false
   });
   const [errors, setErrors] = useState({});
   const [submitError, setSubmitError] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [showLocationModal, setShowLocationModal] = useState(false);
+  const [isUploading, setIsUploading] = useState(false);
+  const [uploadError, setUploadError] = useState('');
+  const [previewUrls, setPreviewUrls] = useState([]);
  
   useEffect(() => {
     // Check if user already has a saved location, but don't auto-populate
@@ -94,42 +99,130 @@ export default function ReportIssue() {
   };
 
   const handleFileChange = (e) => {
-    const file = e.target.files[0];
-    if (!file) {
-      setFormData(prev => ({
-        ...prev,
-        media: []
+    const files = Array.from(e.target.files);
+    
+    if (!files || files.length === 0) {
+      return; // No files selected, do nothing
+    }
+    
+    // Check if we're adding to existing files or replacing them
+    const currentFileCount = formData.media.length;
+    const totalFilesAfterAdd = currentFileCount + files.length;
+    
+    // Enforce 3-file limit
+    if (totalFilesAfterAdd > 3) {
+      setErrors(prev => ({ 
+        ...prev, 
+        media: `Cannot add ${files.length} file(s). You can only have a maximum of 3 files. Currently have ${currentFileCount}/3.`
       }));
-      setErrors(prev => ({ ...prev, media: '' }));
       return;
     }
     
     const maxSize = 20 * 1024 * 1024; // 20MB in bytes
+    const validTypes = ['image/png', 'image/jpg', 'image/jpeg', 'video/mp4'];
     
-    if (file.size > maxSize) {
+    // Validate each new file
+    const invalidFiles = files.filter(file => {
+      if (file.size > maxSize) return true;
+      if (!validTypes.includes(file.type)) return true;
+      return false;
+    });
+    
+    if (invalidFiles.length > 0) {
+      const errorMessages = invalidFiles.map(file => {
+        if (file.size > maxSize) {
+          return `${file.name} exceeds 20MB limit`;
+        }
+        return `${file.name} is not a supported format`;
+      });
+      
       setErrors(prev => ({ 
         ...prev, 
-        media: `File ${file.name} exceeds 20MB limit and will not be uploaded.`
-      }));
-      setFormData(prev => ({
-        ...prev,
-        media: []
+        media: errorMessages.join(', ')
       }));
       return;
     }
     
     setErrors(prev => ({ ...prev, media: '' }));
+    setUploadError('');
+    
+    // Combine existing files with new files
+    const updatedMedia = [...formData.media, ...files];
+    
+    // Create preview URLs for new files only
+    const newPreviewUrls = files.map(file => URL.createObjectURL(file));
+    const updatedPreviewUrls = [...previewUrls, ...newPreviewUrls];
+    
+    setPreviewUrls(updatedPreviewUrls);
     setFormData(prev => ({
       ...prev,
-      media: [file]
+      media: updatedMedia,
+      mediaUrls: [] // Reset uploaded URLs when new files are added
     }));
+    
+    // Clear the file input so the same file can be selected again if needed
+    e.target.value = '';
+  };
+
+  const handleRemoveFile = (indexToRemove) => {
+    // Revoke the preview URL to avoid memory leaks
+    if (previewUrls[indexToRemove]) {
+      URL.revokeObjectURL(previewUrls[indexToRemove]);
+    }
+    
+    const newMedia = formData.media.filter((_, index) => index !== indexToRemove);
+    const newPreviewUrls = previewUrls.filter((_, index) => index !== indexToRemove);
+    
+    setFormData(prev => ({
+      ...prev,
+      media: newMedia,
+      mediaUrls: [] // Reset uploaded URLs when files are removed
+    }));
+    setPreviewUrls(newPreviewUrls);
+    setUploadError('');
+  };
+
+  const handleUploadMedia = async () => {
+    if (formData.media.length === 0) {
+      setUploadError('Please select files to upload first');
+      return;
+    }
+    
+    setIsUploading(true);
+    setUploadError('');
+    
+    try {
+      const uploadFormData = new FormData();
+      formData.media.forEach((file, index) => {
+        uploadFormData.append(`issue_media`, file);
+      });
+      
+      const response = await axiosInstance.post('/upload-issues', uploadFormData, {
+        headers: {
+          'Content-Type': 'multipart/form-data',
+        },
+      });
+      
+      if (response.data && response.data.data && response.data.data.length > 0) {
+        const uploadedUrls = response.data.data.map(item => item.publicUrl);
+        setFormData(prev => ({
+          ...prev,
+          mediaUrls: uploadedUrls
+        }));
+      }
+    } catch (error) {
+      console.error('Error uploading files:', error);
+      setUploadError('Failed to upload files. Please try again.');
+    } finally {
+      setIsUploading(false);
+    }
   };
 
   const handleSubmit = async (e) => {
     e.preventDefault();
     setIsSubmitting(true);
     setSubmitError('');
-    const token=localStorage.getItem('access_token');
+   
     
     const validateForm = () => {
       const newErrors = {};
@@ -183,36 +276,12 @@ export default function ReportIssue() {
         isAnonymous: formData.isAnonymous
       };
 
-      // Handle file upload by converting to base64
-      if (formData.media.length > 0) {
-        const file = formData.media[0];
-        const reader = new FileReader();
-        
-        const base64Promise = new Promise((resolve, reject) => {
-          reader.onload = () => {
-            const base64String = reader.result.split(',')[1]; // Remove data:image/...;base64, prefix
-            resolve(base64String);
-          };
-          reader.onerror = reject;
-          reader.readAsDataURL(file);
-        });
-
-        const base64File = await base64Promise;
-        
-        dataToSend.media = {
-          name: file.name,
-          type: file.type,
-          size: file.size,
-          data: base64File
-        };
+      // Add uploaded media URLs if available
+      if (formData.mediaUrls.length > 0) {
+        dataToSend.media = formData.mediaUrls;
       }
 
-      const response = await axios.post(`${BASE_URL}/issue`, dataToSend, {
-        headers: {
-          'Authorization':`Bearer ${token}`,
-          'Content-Type': 'application/json'
-        },
-      });
+      const response = await axiosInstance.post(`/issue`, dataToSend);
       
       if (response.data) {
         console.log('Issue submitted successfully:', response.data);
@@ -231,8 +300,12 @@ export default function ReportIssue() {
             }
           },
           media: [],
+          mediaUrls: [],
           isAnonymous: false
         });
+        // Clear preview URLs
+        previewUrls.forEach(url => URL.revokeObjectURL(url));
+        setPreviewUrls([]);
         setErrors({});
       }
     
@@ -446,8 +519,8 @@ export default function ReportIssue() {
             <div className="space-y-6">
               <div>
                 <label className="mb-2 block text-sm font-semibold text-foreground">
-                  Add Photos
-                  <span className="font-normal text-muted-foreground"> (Optional)</span>
+                  Add Photos/Videos
+                  <span className="font-normal text-red-600"> *</span>
                 </label>
                 <div className="group relative">
                   <div className="h-44 cursor-pointer rounded-xl border-2 border-dashed border-border bg-muted/50 transition-all hover:border-cyan-600 hover:bg-muted">
@@ -455,6 +528,7 @@ export default function ReportIssue() {
                       type="file"
                       className="absolute inset-0 h-full w-full cursor-pointer opacity-0"
                       accept="image/png, image/jpg, image/jpeg, video/mp4"
+                      multiple
                       onChange={handleFileChange}
                     />
                     <div className="flex h-full flex-col items-center justify-center gap-2 text-center">
@@ -462,25 +536,34 @@ export default function ReportIssue() {
                         <>
                           <Camera className="h-8 w-8 text-green-600" />
                           <span className="text-sm font-medium text-foreground">
-                            {formData.media[0].name.length > 20 
-                              ? `${formData.media[0].name.substring(0, 20)}...` 
-                              : formData.media[0].name}
+                            {formData.media.length} file(s) selected
                           </span>
-                          <span className="text-xs text-muted-foreground">
-                            {(formData.media[0].size / (1024 * 1024)).toFixed(2)} MB
-                          </span>
-                          <span className="text-xs text-cyan-600 font-medium">
-                            Click to change file
-                          </span>
+                          <div className="text-xs text-muted-foreground max-w-xs">
+                            {formData.media.map((file, index) => (
+                              <div key={index} className="truncate">
+                                {file.name.length > 25 
+                                  ? `${file.name.substring(0, 25)}...` 
+                                  : file.name} ({(file.size / (1024 * 1024)).toFixed(2)} MB)
+                              </div>
+                            ))}
+                          </div>
+                          <div className="flex flex-col gap-1">
+                            <span className="text-xs text-cyan-600 font-medium">
+                              Click again to add more files
+                            </span>
+                            <span className="text-xs text-muted-foreground">
+                              (Max 3 files total)
+                            </span>
+                          </div>
                         </>
                       ) : (
                         <>
                           <Camera className="h-8 w-8 text-muted-foreground transition-colors group-hover:text-primary" />
                           <span className="text-sm font-medium text-muted-foreground transition-colors group-hover:text-foreground">
-                            Upload Photo/Video
+                            Upload Photos/Videos
                           </span>
                           <span className="text-xs text-muted-foreground">
-                            PNG, JPG, JPEG, MP4 up to 20MB (single file)
+                            PNG, JPG, JPEG, MP4 up to 30MB (max 3 files)
                           </span>
                         </>
                       )}
@@ -489,21 +572,115 @@ export default function ReportIssue() {
                   {errors.media && (
                     <p className="mt-2 text-xs text-red-600">{errors.media}</p>
                   )}
-                  {formData.media.length > 0 && (
+                </div>
+                
+                {/* Upload Button or Success Message */}
+                {formData.media.length > 0 && formData.mediaUrls.length === 0 && (
+                  <div className="mt-4">
                     <button
                       type="button"
-                      onClick={() => {
-                        setFormData(prev => ({ ...prev, media: [] }));
-                      }}
-                      className="absolute top-2 right-2 bg-red-600 text-white rounded-full p-1 hover:bg-red-700 transition-colors"
+                      onClick={handleUploadMedia}
+                      disabled={isUploading}
+                      className="w-full rounded-xl py-3 font-semibold text-white shadow-lg transition-all hover:scale-105 disabled:opacity-50 disabled:cursor-not-allowed bg-gradient-to-r from-cyan-600 to-teal-600"
                     >
-                      <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-                      </svg>
+                      {isUploading ? 'Uploading...' : 'Upload Files'}
                     </button>
-                  )}
-                </div>
+                    
+                    {uploadError && (
+                      <div className="mt-2 rounded-lg bg-red-50 border border-red-200 p-3">
+                        <p className="text-xs text-red-600">{uploadError}</p>
+                      </div>
+                    )}
+                  </div>
+                )}
+                
+                {/* Success Message - Show when files are uploaded successfully */}
+                {formData.mediaUrls.length > 0 && (
+                  <div className="mt-4">
+                    <div className="w-full rounded-xl py-3 px-4 border-2 text-center">
+                        <span className="text-green-600 text-sm ">
+                          File upload successful
+                        </span>
+                     
+                    </div>
+                  </div>
+                )}
               </div>
+
+              {/* File Preview Section - Hide when files are uploaded successfully */}
+              {formData.media.length > 0 && formData.mediaUrls.length === 0 && (
+                <div className="mt-6">
+                  <h3 className="mb-3 text-sm font-semibold text-foreground">
+                    Selected Files ({formData.media.length}/3)
+                  </h3>
+                  <div className="grid grid-cols-3 gap-3">
+                    {formData.media.map((file, index) => (
+                      <div key={index} className="relative group">
+                        <div className="aspect-square rounded-lg overflow-hidden bg-muted border-2 border-border transition-all hover:border-cyan-600">
+                          {file.type.startsWith('video/') ? (
+                            <video
+                              src={previewUrls[index]}
+                              className="w-full h-full object-cover"
+                              muted
+                              loop
+                              onMouseEnter={(e) => e.target.play()}
+                              onMouseLeave={(e) => e.target.pause()}
+                            />
+                          ) : (
+                            <img
+                              src={previewUrls[index]}
+                              alt={`Preview ${index + 1}`}
+                              className="w-full h-full object-cover"
+                            />
+                          )}
+                        </div>
+                        
+                        {/* File type indicator */}
+                        <div className="absolute top-2 left-2">
+                          {file.type.startsWith('video/') ? (
+                            <div className="bg-black/70 text-white text-xs px-2 py-1 rounded flex items-center gap-1">
+                              <svg className="w-3 h-3" fill="currentColor" viewBox="0 0 20 20">
+                                <path d="M2 6a2 2 0 012-2h6a2 2 0 012 2v8a2 2 0 01-2 2H4a2 2 0 01-2-2V6zM14.553 7.106A1 1 0 0014 8v4a1 1 0 00.553.894l2 1A1 1 0 0018 13V7a1 1 0 00-1.447-.894l-2 1z"/>
+                              </svg>
+                              Video
+                            </div>
+                          ) : (
+                            <div className="bg-black/70 text-white text-xs px-2 py-1 rounded flex items-center gap-1">
+                              <svg className="w-3 h-3" fill="currentColor" viewBox="0 0 20 20">
+                                <path fillRule="evenodd" d="M4 3a2 2 0 00-2 2v10a2 2 0 002 2h12a2 2 0 002-2V5a2 2 0 00-2-2H4zm12 12H4l4-8 3 6 2-4 3 6z" clipRule="evenodd"/>
+                              </svg>
+                              Image
+                            </div>
+                          )}
+                        </div>
+                        
+                        {/* Remove button */}
+                        <button
+                          type="button"
+                          onClick={() => handleRemoveFile(index)}
+                          className="absolute top-2 right-2 bg-red-600 text-white rounded-full p-1.5 opacity-0 group-hover:opacity-100 transition-opacity hover:bg-red-700 shadow-lg"
+                        >
+                          <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                          </svg>
+                        </button>
+                        
+                        {/* File name tooltip */}
+                        <div className="absolute bottom-0 left-0 right-0 bg-gradient-to-t from-black/80 to-transparent p-2 opacity-0 group-hover:opacity-100 transition-opacity">
+                          <p className="text-white text-xs truncate">
+                            {file.name.length > 15 
+                              ? `${file.name.substring(0, 15)}...` 
+                              : file.name}
+                          </p>
+                          <p className="text-white/70 text-xs">
+                            {(file.size / (1024 * 1024)).toFixed(1)} MB
+                          </p>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
 
               <div>
                   <label className="mb-3 flex items-center gap-2 text-sm font-semibold text-foreground cursor-pointer">

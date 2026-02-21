@@ -1,10 +1,10 @@
 import { useState, useEffect } from "react";
 import { UserCircle, MapPin, ArrowRight, User } from "lucide-react";
 import { cscApi } from "../utils/cscAPI";
-import axios from "axios";
 import { BASE_URL } from "../utils/config";
-import { useNavigate, useSearchParams } from "react-router-dom";
+import { useNavigate } from "react-router-dom";
 import { showToast } from "../utils/toast";
+import axiosInstance from "../utils/axios";
 
 export default function CompleteProfile() {
   const [step, setStep] = useState(1);
@@ -25,13 +25,12 @@ export default function CompleteProfile() {
   const [city, setCity] = useState("");
   const [pinCode, setPinCode] = useState("");
 
-  const [searchparams] = useSearchParams();
-  const token = searchparams.get("params");
+
 
   /* ---------------- API CALLS ---------------- */
 
   useEffect(() => {
-    localStorage.setItem("access_token", token);
+    
     cscApi.get("/countries").then((res) => setCountries(res.data));
   }, []);
 
@@ -56,20 +55,16 @@ export default function CompleteProfile() {
 
   const handleSubmit = async () => {
     try {
-      await axios.patch(`${BASE_URL}/users/complete-profile`, {
+      await axiosInstance.patch(`/users/complete-profile`, {
         userName,
         gender,
         country,
         state,
         city,
         pinCode,
-      },{
-        headers:{
-          Authorization:`Bearer ${token}`
-        }
       });
       showToast({ icon: "success", title: "Profile completed!" });
-      navigate("/homepage");
+      navigate("/dashboard");
     } catch (error) {
       showToast({
         icon: "error",

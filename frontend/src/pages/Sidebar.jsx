@@ -16,15 +16,36 @@ import {
 import { useState, useEffect, useRef } from "react";
 
 import {  NavLink, useLocation, useNavigate} from "react-router-dom"
-import { BASE_URL } from "../utils/config";
+import { useDispatch, useSelector } from "react-redux";
+import { logout } from "../reducer/authReducer";
 
 const Sidebar = () => {
     const location=useLocation();
     const [openModal,setOpenModal]=useState(false);
-    const [isDarkMode, setIsDarkMode] = useState(false);
+    const [isDarkMode, setIsDarkMode] = useState(() => {
+        const savedTheme = localStorage.getItem('theme');
+        const systemPrefersDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
+        return savedTheme === 'dark' || (!savedTheme && systemPrefersDark);
+    });
     const path=location.pathname;
     const modalRef = useRef(null);
+    const dispatch=useDispatch();
     const navigate=useNavigate();
+
+    const user=useSelector((state)=>state.auth.user);
+    const name=user?.name;
+
+    // Function to get initials from name
+    const getInitials = (name) => {
+        if (!name) return '';
+        
+        const words = name.trim().split(' ');
+        if (words.length >= 2) {
+            return words[0][0].toUpperCase() + words[1][0].toUpperCase();
+        } else {
+            return name[0].toUpperCase();
+        }
+    };
 
     // Toggle theme
     const toggleTheme = () => {
@@ -39,26 +60,30 @@ const Sidebar = () => {
         }
     };
 
+    const [isLoggingOut, setIsLoggingOut] = useState(false);
+
     const handleLogout=async()=>{
-      try {
-        const res=await axios.post(`${BASE_URL}/auth/logout`);
+      try { 
+        setIsLoggingOut(true);
+        await dispatch(logout()).unwrap();
         navigate("/");
-        
       } catch (error) {
-        console.log(error);
+         console.error("Logout error:", error);
+         // Still navigate even if logout API fails
+         navigate("/");
+      } finally {
+        setIsLoggingOut(false);
       }
     }
 
-    // Check for saved theme preference or system preference
+    // Apply theme to DOM on mount and when theme changes
     useEffect(() => {
-        const savedTheme = localStorage.getItem('theme');
-        const systemPrefersDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
-        
-        if (savedTheme === 'dark' || (!savedTheme && systemPrefersDark)) {
-            setIsDarkMode(true);
+        if (isDarkMode) {
             document.documentElement.classList.add('dark');
+        } else {
+            document.documentElement.classList.remove('dark');
         }
-    }, []);
+    }, [isDarkMode]);
 
     // Close modal when clicking outside
     useEffect(() => {
@@ -151,9 +176,22 @@ const Sidebar = () => {
                 <HelpCircle className="w-4 h-4" />
                 <span className="text-sm">Help</span>
               </button>
-              <button className="w-full flex items-center gap-3 px-3 py-2 rounded-lg hover:bg-muted/50 transition-colors text-left" onClick={handleLogout}>
-                <LogOut className="w-4 h-4 text-red-500" />
-                <span className="text-sm text-red-500">Log out</span>
+              <button 
+                className="w-full flex items-center gap-3 px-3 py-2 rounded-lg hover:bg-muted/50 transition-colors text-left disabled:opacity-50 disabled:cursor-not-allowed" 
+                onClick={handleLogout}
+                disabled={isLoggingOut}
+              >
+                {isLoggingOut ? (
+                  <>
+                    <div className="w-4 h-4 border-2 border-red-500 border-t-transparent rounded-full animate-spin" />
+                    <span className="text-sm text-red-500">Logging out...</span>
+                  </>
+                ) : (
+                  <>
+                    <LogOut className="w-4 h-4 text-red-500" />
+                    <span className="text-sm text-red-500">Log out</span>
+                  </>
+                )}
               </button>
             </div>
           </div>
@@ -164,9 +202,9 @@ const Sidebar = () => {
           onClick={() => setOpenModal(!openModal)}
         >
           <div className="w-8 h-8 rounded-full border text-gradient border-white text-xs flex justify-center items-center">
-            AM
+            {getInitials(name)}
           </div>
-          <span className="text-foreground">Amit Maurya</span>
+          <span className="text-foreground">{name}</span>
         </button>
       </div>
     

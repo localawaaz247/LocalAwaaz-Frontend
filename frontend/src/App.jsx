@@ -13,6 +13,10 @@ import Notifications from "./pages/Notifications";
 import Profile from "./pages/Profile";
 import Feed from "./pages/Feed";
 import Assistant from "./pages/Assistant";
+import GoogleCallback from "./pages/GoogleCallback";
+import { ProtectedRoute } from "./components/ProtectedRoute";
+import { PublicRoute } from "./components/PublicRoute";
+
 
 
 const App = () => {
@@ -22,11 +26,13 @@ const App = () => {
         <Provider store={appStore}>
           <BrowserRouter>
             <Routes>
-              <Route path="/" element={<LandingPage />} />
-              <Route path="/login" element={<LoginRegister />} />
-              <Route path="/complete-profile" element={<CompleteProfile/>}/>
+              <Route path="/" element={<PublicRoute><LandingPage /></PublicRoute>} />
+              <Route path="/login" element={<PublicRoute><LoginRegister /></PublicRoute>} />
+              <Route path="/google/callback" element={<GoogleCallback />} />
+              <Route path="/complete-profile" element={<ProtectedRoute><CompleteProfile/></ProtectedRoute>}/>
 
-              <Route path="/dashboard" element={<Homepage/>}>
+              <Route path="/dashboard" element={<ProtectedRoute><Homepage/></ProtectedRoute>}>
+             
               <Route index element={<Feed />} />
               <Route path="report" element={<ReportIssue />} />
               <Route path="assistant" element={<Assistant />} />
