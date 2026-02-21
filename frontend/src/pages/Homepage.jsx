@@ -1,4 +1,4 @@
-import { Outlet, useLocation } from "react-router-dom"
+import { Navigate, Outlet, useLocation, useNavigate, useSearchParams,  } from "react-router-dom"
 import { useState, useEffect } from "react"
 import Sidebar from "./Sidebar"
 import LocationModal from "../components/LocationModal"
@@ -7,7 +7,11 @@ import { getUserLocation } from "../utils/locationUtils"
 
 const Homepage = () => {
   const [showLocationModal, setShowLocationModal] = useState(false)
-  const location = useLocation()
+  const location = useLocation();
+  const [searchParams]=useSearchParams();
+  const token=searchParams.get('token');
+  const navigate=useNavigate();
+  
 
   useEffect(() => {
     // Check if user is on dashboard route and if it's their first visit
@@ -23,9 +27,18 @@ const Homepage = () => {
         
         // Mark that user has visited homepage
         localStorage.setItem('hasVisitedHomepage', 'true')
+        
       }
     }
   }, [location.pathname])
+
+
+  useEffect(()=>{
+    if(token){
+          localStorage.setItem('access_token',token);
+           navigate("/dashboard");
+        }
+  },[])
 
   return (
     <div className="flex h-screen w-screen bg-background">

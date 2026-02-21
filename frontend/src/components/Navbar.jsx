@@ -3,11 +3,13 @@ import { Menu, X, Sun, Moon } from 'lucide-react';
 import { useTheme } from '../hooks/useTheme';
 import { useNavigate } from 'react-router-dom';
 import logo from '/logo.png';
+import { useSelector } from 'react-redux';
 
 const Navbar = () => {
   const [isScrolled, setIsScrolled] = useState(false);
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
   const { isDark, toggleTheme } = useTheme();
+  const {isAuthenticated}=useSelector((state)=>state.auth);
   const navigate=useNavigate();
 
   useEffect(() => {
@@ -128,7 +130,7 @@ const Navbar = () => {
                 </button>
               ))}
               <button
-                onClick={()=>navigate("/login")}
+                onClick={()=>navigate(isAuthenticated? "/dashboard": "/login")}
                 className="block text-center btn-gradient px-6 py-2.5 rounded-full font-semibold text-sm mt-2"
               >
                 Get Started

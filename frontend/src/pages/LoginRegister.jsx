@@ -7,12 +7,13 @@ import google from "/google.png";
 import logo from "/logo.png"
 import { cscApi } from '../utils/cscAPI';
 import authAction from '../actions/authAction';
-import {useDispatch} from "react-redux"
+import {useDispatch, useSelector} from "react-redux"
 import Loader from '../components/Loader';
 import { showToast } from '../utils/toast';
 import axios from 'axios';
 import { BASE_URL } from '../utils/config';
 import MiniLoader from '../components/MiniLoader';
+import axiosInstance from '../utils/axios';
 
 
 const LoginRegister = () => {
@@ -47,6 +48,8 @@ const LoginRegister = () => {
   const [timer, setTimer] = useState(30);
   const [isTimerRunning, setIsTimerRunning] = useState(false);
   const [showVerifiedMessage, setShowVerifiedMessage] = useState(false);
+
+  const {isAuthenticated}=useSelector((state)=>state.auth);
   
     const [result, formAction, isPending]=useActionState((prev,formData)=>authAction(prev,formData,dispatch,navigate), null);
 
@@ -75,6 +78,9 @@ const LoginRegister = () => {
       setIsLogin(true);
     }
   }, [result]);
+
+
+  
   
 
   useEffect(()=>{
@@ -143,7 +149,7 @@ const LoginRegister = () => {
     try {
       const email=emailInput;
       setEmailVerificationRequested(true);
-      const res=await axios.post(`${BASE_URL}/otp/request`,{email,userName});
+      const res=await axiosInstance.post(`/otp/request`,{email,userName});
       setShowOtpInput(true);
       setEmailVerificationRequested(false);
       setTimer(30);
@@ -164,7 +170,7 @@ const LoginRegister = () => {
     try {
       if (otp.length === 6) {
         setIsOTPVerifying(true);
-    const res=await axios.post(`${BASE_URL}/otp/verify`,{email,otp,userName}); 
+    const res=await axiosInstance.post(`/otp/verify`,{email,otp,userName}); 
       setEmailVerified(true);
       setShowOtpInput(false);
       setShowVerifiedMessage(true);
