@@ -118,21 +118,16 @@ export default function ReportIssue() {
       return;
     }
     
-    const maxSize = 20 * 1024 * 1024; // 20MB in bytes
     const validTypes = ['image/png', 'image/jpg', 'image/jpeg', 'video/mp4'];
     
     // Validate each new file
     const invalidFiles = files.filter(file => {
-      if (file.size > maxSize) return true;
       if (!validTypes.includes(file.type)) return true;
       return false;
     });
     
     if (invalidFiles.length > 0) {
       const errorMessages = invalidFiles.map(file => {
-        if (file.size > maxSize) {
-          return `${file.name} exceeds 20MB limit`;
-        }
         return `${file.name} is not a supported format`;
       });
       
