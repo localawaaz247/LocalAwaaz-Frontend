@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react'
 import { MapPin, X, Loader2, Search, Navigation } from 'lucide-react'
 import { Button } from './ui/button'
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from './ui/dialog'
-import { getUserLocation, reverseGeocode, saveChosenLocation, getCurrentPosition } from '../utils/locationUtils'
+import { getUserLocation, reverseGeocode, saveChosenLocation, getCurrentPosition, saveCurrentLocation } from '../utils/locationUtils'
 import axiosInstance from '../utils/axios'
 
 const LocationModal = ({ isOpen, onClose, forceLocation = false }) => {
@@ -60,6 +60,9 @@ const LocationModal = ({ isOpen, onClose, forceLocation = false }) => {
         postcode: result.pincode === 'N/A' ? null : result.pincode
       }
       
+      // Remove currentLocation from localStorage if user is selecting typed location
+      localStorage.removeItem('currentLocation');
+      
       const success = saveChosenLocation(locationData)
       if (success) {
         setLocation(locationData)
@@ -87,9 +90,20 @@ const LocationModal = ({ isOpen, onClose, forceLocation = false }) => {
       const locationData = await reverseGeocode(position.latitude, position.longitude);
       
       if (locationData.latitude !== null && locationData.longitude !== null) {
-        const success = saveChosenLocation(locationData)
-        if (success) {
-          setLocation(locationData)
+        // Save the full location data (including coords) to chosen location
+        const fullLocationData = {
+          ...locationData,
+          latitude: position.latitude,
+          longitude: position.longitude
+        }
+        const success = saveChosenLocation(fullLocationData)
+        // Also save coordinates separately for current location API calls
+        const coordsSaved = saveCurrentLocation({
+          latitude: position.latitude,
+          longitude: position.longitude
+        })
+        if (success && coordsSaved) {
+          setLocation(fullLocationData)
           setTimeout(() => {
             onClose()
           }, 1500)

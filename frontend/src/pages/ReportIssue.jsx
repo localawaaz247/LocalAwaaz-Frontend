@@ -118,21 +118,16 @@ export default function ReportIssue() {
       return;
     }
     
-    const maxSize = 20 * 1024 * 1024; // 20MB in bytes
     const validTypes = ['image/png', 'image/jpg', 'image/jpeg', 'video/mp4'];
     
     // Validate each new file
     const invalidFiles = files.filter(file => {
-      if (file.size > maxSize) return true;
       if (!validTypes.includes(file.type)) return true;
       return false;
     });
     
     if (invalidFiles.length > 0) {
       const errorMessages = invalidFiles.map(file => {
-        if (file.size > maxSize) {
-          return `${file.name} exceeds 20MB limit`;
-        }
         return `${file.name} is not a supported format`;
       });
       
@@ -258,14 +253,6 @@ export default function ReportIssue() {
     if (!validateForm()) return;
 
     try {
-      // Debug: Log form data before sending
-      console.log('Form data being sent:', {
-        title: formData.title,
-        category: formData.category,
-        description: formData.description,
-        location: formData.location,
-        isAnonymous: formData.isAnonymous
-      });
 
       // Prepare data for JSON submission
       let dataToSend = {
@@ -284,7 +271,7 @@ export default function ReportIssue() {
       const response = await axiosInstance.post(`/issue`, dataToSend);
       
       if (response.data) {
-        console.log('Issue submitted successfully:', response.data);
+       
         setFormData({
           title: '',
           category: '',
@@ -307,6 +294,8 @@ export default function ReportIssue() {
         previewUrls.forEach(url => URL.revokeObjectURL(url));
         setPreviewUrls([]);
         setErrors({});
+        // Remove current location from localStorage
+        localStorage.removeItem('currentLocation');
       }
     
     } catch (error) {
@@ -361,7 +350,7 @@ export default function ReportIssue() {
         <div className="glass-card p-8 shadow-xl">
           {/* Categories */}
           <div className="mb-8">
-            <h2 className="mb-2 text-2xl font-bold text-foreground">Select Issue Category</h2>
+            <h2 className="mb-2 text-2xl font-bold text-foreground">Select Issue Category<span className="text-red-600"> *</span></h2>
             <p className="text-sm text-muted-foreground">Choose the category that best describes your issue</p>
             {errors.category && (
               <p className="mt-1 text-xs text-red-600">{errors.category}</p>
@@ -391,7 +380,7 @@ export default function ReportIssue() {
             <div className="space-y-6 md:col-span-2">
               <div>
                 <label className="mb-2 block text-sm font-semibold text-foreground">
-                  Issue Title
+                  Issue Title<span className="text-red-600"> *</span>
                 </label>
                 <input
                   type="text"
@@ -408,7 +397,7 @@ export default function ReportIssue() {
 
               <div>
                 <label className="mb-2 block text-sm font-semibold text-foreground">
-                  Detailed Description
+                  Detailed Description<span className="text-red-600"> *</span>
                 </label>
                 <textarea
                   placeholder="Provide more details about the issue..."
@@ -484,6 +473,7 @@ export default function ReportIssue() {
               <div className="mt-4 p-3 rounded-lg bg-muted/50 border">
                 <div className="flex items-center justify-between">
                   <div className="flex items-center gap-2">
+                    <span className="text-sm font-semibold text-foreground">GPS Location<span className="text-red-600"> *</span></span>
                     {formData.location.geoData.coordinates ? (
                       <>
                         <div className="h-4 w-4 rounded-full bg-green-600"></div>
@@ -563,7 +553,7 @@ export default function ReportIssue() {
                             Upload Photos/Videos
                           </span>
                           <span className="text-xs text-muted-foreground">
-                            PNG, JPG, JPEG, MP4 up to 30MB (max 3 files)
+                            PNG, JPG, JPEG, MP4 etc (max 3 files)
                           </span>
                         </>
                       )}

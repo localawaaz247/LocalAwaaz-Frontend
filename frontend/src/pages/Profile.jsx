@@ -1,37 +1,31 @@
 import React, { useEffect, useState } from "react";
-import axiosInstance from "../utils/axios";
-import Loader from "../components/Loader"
+import { useDispatch, useSelector } from "react-redux";
+import { getProfileDetails } from "../reducer/profileReducer";
+import Loader from "../components/Loader";
+import EditProfileModal from "../components/modals/EditProfileModal";
+import SettingsModal from "../components/modals/SettingsModal";
+import IssuesPosted from "../components/IssuesPosted";
+import ConfirmedIssues from "../components/ConfirmedIssues";
+import Comments from "../components/Comments";
+import SavedIssues from "../components/SavedIssues";
 
 const Profile = () => {
-  const [profileData, setProfileData] = useState(null);
+  const dispatch = useDispatch();
+  const profileData = useSelector((state) => state.profile.profileDetail);
+  const [isEditModalOpen, setIsEditModalOpen] = useState(false);
+  const [isSettingsModalOpen, setIsSettingsModalOpen] = useState(false);
+  const [activeTab, setActiveTab] = useState('posted');
 
   useEffect(() => {
-    let isMounted = true;
-    
-    const getUserInfo = async () => {
-      try {
-        const res = await axiosInstance.get(`/me/profile`);
-        if (isMounted) {
-          setProfileData(res.data.data);
-        }
-      } catch (error) {
-        if (isMounted) {
-          console.error("Error fetching profile:", error);
-        }
-      }
-    };
-
-    getUserInfo();
-
-    return () => {
-      isMounted = false;
-    };
+    if (!profileData) {
+      dispatch(getProfileDetails());
+    }
   }, []);
   
   return (
     <div className="w-full bg-texture min-h-screen">
       {!profileData ? (
-        <div className="flex items-center justify-center min-h-screen">
+        <div className="flex items-center justify-center min-h-screen"> 
             <p className="text-muted-foreground">Loading profile...</p>
           
         </div>
@@ -79,13 +73,16 @@ const Profile = () => {
 
             {/* Actions */}
             <div className="flex gap-2">
-              <button className="btn-gradient px-4 py-2 rounded-xl text-sm">
+              <button 
+                onClick={() => setIsEditModalOpen(true)}
+                className="btn-gradient px-4 py-2 rounded-xl text-sm"
+              >
                 Edit Profile
               </button>
-              <button className="px-4 py-2 bg-card border border-border rounded-xl text-sm text-card-foreground hover:bg-muted transition-colors">
-                Share Profile
-              </button>
-              <button className="w-9 h-9 bg-card border border-border rounded-xl flex items-center justify-center hover:bg-muted transition-colors">
+              <button 
+                onClick={() => setIsSettingsModalOpen(true)}
+                className="w-9 h-9 bg-card border border-border rounded-xl flex items-center justify-center hover:bg-muted transition-colors"
+              >
                 ⚙️
               </button>
             </div>
@@ -131,58 +128,67 @@ const Profile = () => {
 
           {/* Tabs */}
           <div className="mt-8 border-b border-border flex gap-6 text-sm">
-            <button className="pb-3 border-b-2 border-primary text-primary font-semibold">
-              Posts / Reports
+            <button 
+              onClick={() => setActiveTab('posted')}
+              className={`pb-3 border-b-2 transition-colors ${
+                activeTab === 'posted' 
+                  ? 'border-primary text-primary font-semibold' 
+                  : 'border-transparent text-muted-foreground hover:text-foreground'
+              }`}
+            >
+              Issues Posted
             </button>
-            <button className="pb-3 text-muted-foreground hover:text-foreground transition-colors">
+            <button 
+              onClick={() => setActiveTab('confirmed')}
+              className={`pb-3 border-b-2 transition-colors ${
+                activeTab === 'confirmed' 
+                  ? 'border-primary text-primary font-semibold' 
+                  : 'border-transparent text-muted-foreground hover:text-foreground'
+              }`}
+            >
+              Issues Confirmed
+            </button>
+            <button 
+              onClick={() => setActiveTab('comments')}
+              className={`pb-3 border-b-2 transition-colors ${
+                activeTab === 'comments' 
+                  ? 'border-primary text-primary font-semibold' 
+                  : 'border-transparent text-muted-foreground hover:text-foreground'
+              }`}
+            >
               Comments
             </button>
-            <button className="pb-3 text-muted-foreground hover:text-foreground transition-colors">
+            <button 
+              onClick={() => setActiveTab('saved')}
+              className={`pb-3 border-b-2 transition-colors ${
+                activeTab === 'saved' 
+                  ? 'border-primary text-primary font-semibold' 
+                  : 'border-transparent text-muted-foreground hover:text-foreground'
+              }`}
+            >
               Saved Issues
             </button>
           </div>
 
-          {/* Recent Reports */}
+          {/* Tab Content */}
           <div className="mt-6">
-            <h3 className="text-sm font-semibold text-foreground mb-4">
-              Recent Reports
-            </h3>
-
-            <div className="space-y-4">
-              {[1, 2, 3].map((i) => (
-                <div key={i} className="glass-card rounded-lg p-4 flex justify-between items-start hover:shadow-lg transition-all">
-                  <div>
-                    <div className="flex items-center gap-2">
-                      <h4 className="font-semibold text-sm text-foreground">
-                        Broken Street Light on MG Road
-                      </h4>
-                      <span className="text-xs bg-destructive/10 text-destructive border border-destructive/20 px-2 py-0.5 rounded-lg">
-                        Open
-                      </span>
-                    </div>
-
-                    <p className="text-sm text-muted-foreground mt-1 max-w-lg leading-relaxed">
-                      The street light near the bus stop has been non-functional for
-                      over a week, causing safety concerns for pedestrians at night.
-                    </p>
-
-                    <div className="flex gap-4 mt-2 text-xs text-muted-foreground">
-                      <span>⏱ 2 days ago</span>
-                      <span>💬 12 comments</span>
-                      <span>👍 24 upvotes</span>
-                    </div>
-                  </div>
-
-                  {/* Decorative Placeholder */}
-                  <div className="w-20 h-20 rounded-lg bg-gradient-to-br from-primary/10 to-secondary/10" />
-                </div>
-              ))}
-            </div>
+            {activeTab === 'posted' && <IssuesPosted />}
+            {activeTab === 'confirmed' && <ConfirmedIssues />}
+            {activeTab === 'comments' && <Comments />}
+            {activeTab === 'saved' && <SavedIssues />}
           </div>
         </div>
           </div>
         </>
       )}
+      <EditProfileModal 
+        isOpen={isEditModalOpen} 
+        onClose={() => setIsEditModalOpen(false)} 
+      />
+      <SettingsModal 
+        isOpen={isSettingsModalOpen} 
+        onClose={() => setIsSettingsModalOpen(false)} 
+      />
     </div>
   );
 };

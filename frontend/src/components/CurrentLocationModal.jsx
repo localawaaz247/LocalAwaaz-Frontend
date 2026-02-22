@@ -29,18 +29,24 @@ const CurrentLocationModal = ({ isOpen, onClose, onLocationCaptured }) => {
 
     navigator.geolocation.getCurrentPosition(
       (position) => {
-        console.log("Latitude:", position.coords.latitude);
-        console.log("Longitude:", position.coords.longitude);
+       
         
         // Get address from coordinates using reverse geocoding
         reverseGeocode(position.coords.latitude, position.coords.longitude)
           .then(locationData => {
-            if (locationData.latitude !== null && locationData.longitude !== null) {
-              setLocation(locationData)
+            // Combine reverse geocode data with actual coordinates
+            const fullLocationData = {
+              ...locationData,
+              latitude: position.coords.latitude,
+              longitude: position.coords.longitude
+            }
+            
+            if (fullLocationData.latitude !== null && fullLocationData.longitude !== null) {
+              setLocation(fullLocationData)
               
               // Pass location data to parent component
               setTimeout(() => {
-                onLocationCaptured(locationData)
+                onLocationCaptured(fullLocationData)
                 onClose()
               }, 1500)
             } else {
@@ -103,7 +109,9 @@ const CurrentLocationModal = ({ isOpen, onClose, onLocationCaptured }) => {
                   ✓ Location captured successfully
                 </p>
                 <p className="text-xs text-muted-foreground mt-1">
-                  {location.address}
+                  {location.city && location.state 
+                    ? `${location.city}, ${location.state}`
+                    : `Lat: ${location.latitude?.toFixed(4)}, Lng: ${location.longitude?.toFixed(4)}`}
                 </p>
               </div>
             )}

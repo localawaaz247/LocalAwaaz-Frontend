@@ -404,10 +404,10 @@ html, body {
     display: none;              /* Chrome, Safari */
   }
 
-  /* Thin scrollbar with theme colors */
+  /* Thin scrollbar with dark gray */
   .thin-scrollbar {
     scrollbar-width: thin;
-    scrollbar-color: hsl(var(--border)) transparent;
+    scrollbar-color: #6b7280 transparent;
   }
 
   .thin-scrollbar::-webkit-scrollbar {
@@ -420,13 +420,13 @@ html, body {
   }
 
   .thin-scrollbar::-webkit-scrollbar-thumb {
-    background-color: hsl(var(--border));
+    background-color: #6b7280;
     border-radius: 3px;
     transition: background-color 0.2s ease;
   }
 
   .thin-scrollbar::-webkit-scrollbar-thumb:hover {
-    background-color: hsl(var(--muted-foreground));
+    background-color: #4b5563;
   }
 
   /* Dark mode thin scrollbar */

@@ -7,50 +7,78 @@ import {
   CheckCircle2,
   Clock,
   Users,
-  ShieldCheck,
 } from "lucide-react";
-import {  useState, useEffect } from "react";
-import {useNavigate, useLocation} from 'react-router-dom'
-import { getChosenLocation, formatLocationDisplay } from "../utils/locationUtils";
+import { useState, useEffect } from "react";
+import { useDispatch, useSelector } from "react-redux";
+import { useNavigate, useLocation } from 'react-router-dom'
+import { getChosenLocation, formatLocationDisplay, getCurrentLocationStored } from "../utils/locationUtils";
 import LocationModal from "../components/LocationModal";
-import axiosInstance from '../utils/axios'
+import IssueCard from "../components/IssueCard";
+import { fetchIssues, clearIssues } from "../reducer/issueFeedReducer";
 
 const Feed = () => {
   const [chosenLocation, setChosenLocation] = useState(() => getChosenLocation());
   const [showLocationModal, setShowLocationModal] = useState(false);
   const location = useLocation();
+  const navigate = useNavigate();
+  const dispatch = useDispatch();
+  
+  // Get issues from Redux store
+  const { issues, loading, error, pagination } = useSelector((state) => state.issueFeed);
 
-   const navigate=useNavigate();
   const displayLocation = chosenLocation ? formatLocationDisplay(chosenLocation) : "Lucknow";
+  const activeIssuesCount = pagination?.totalIssues || issues?.length || 0;
 
   const handleLocationUpdate = () => {
     const updatedLocation = getChosenLocation();
-    setChosenLocation(updatedLocation)
-    // Only fetch issues when location is actually set
-    if (updatedLocation) {
-      getFeedIssue(updatedLocation)
-    }
-  }
-
-  const getFeedIssue=async(locationData)=>{
+    const currentLocation = getCurrentLocationStored();
     
-    try {
-      const city = locationData?.city || 'Lucknow'
-      const res=await axiosInstance.get(`/issue/area?search=${city}`);
-      console.log(res);
-      
-    } catch (error) {
-       console.log(error);
+    setChosenLocation(updatedLocation);
+    
+    // Determine which location data to use
+    let locationData = null;
+    
+    if (currentLocation?.latitude && currentLocation?.longitude) {
+      // User selected current location (has coordinates)
+      locationData = {
+        latitude: currentLocation.latitude,
+        longitude: currentLocation.longitude,
+        ...updatedLocation // Merge with any additional location info
+      };
+    } else if (updatedLocation) {
+      // User typed/searched location
+      locationData = updatedLocation;
+    }
+    
+    // Only fetch issues when location is actually set
+    if (locationData) {
+      dispatch(fetchIssues(locationData));
+    } else {
+      dispatch(clearIssues());
     }
   }
-  
 
+  // Fetch issues on component mount if location exists
   useEffect(() => {
-    // Show location modal when redirected to /dashboard
-    if (location.pathname === '/dashboard' && !chosenLocation) {
-      setShowLocationModal(true);
+    const currentLocation = getCurrentLocationStored();
+    const chosenLoc = getChosenLocation();
+    
+    let locationData = null;
+    
+    if (currentLocation?.latitude && currentLocation?.longitude) {
+      locationData = {
+        latitude: currentLocation.latitude,
+        longitude: currentLocation.longitude,
+        ...chosenLoc
+      };
+    } else if (chosenLoc) {
+      locationData = chosenLoc;
     }
-  }, [location.pathname, chosenLocation]);
+    
+    if (locationData) {
+      dispatch(fetchIssues(locationData));
+    }
+  }, [dispatch]);
 
   return (
     <div className="bg-texture min-h-screen ">
@@ -73,7 +101,7 @@ const Feed = () => {
 
           <div className="flex items-center gap-3">
             <span className="text-sm bg-cyan-800 text-accent-foreground px-3 py-2 rounded-full border border-accent/30">
-              ● 12 Active Issues in your area
+              ● {activeIssuesCount} Active {activeIssuesCount === 1 ? 'Issue' : 'Issues'} in your area
             </span>
             <button className="btn-gradient flex items-center gap-2 px-4 py-2 rounded-xl" onClick={()=>navigate("/dashboard/report")}>
               <Plus size={16} />
@@ -149,61 +177,43 @@ const Feed = () => {
         </div>
 
          <div className="grid grid-cols-1 md:grid-cols-2 gap-6 my-10">
-                    {/* Card 1 */}
-        <IssueCard
-          status="Open"
-          category="Infrastructure"
-          title="Large Pothole on 12th Main Road"
-          description="A severe pothole has developed near the junction, causing traffic slowdowns and posing a risk to two-wheelers."
-          location="Near Sony Signal"
-          confirmed="42"
-          impact="89"
-          action="Confirm"
-          actionType="primary"
-          image="https://images.unsplash.com/photo-1560782202-154b39d57ef2?q=80&w=687&auto=format&fit=crop&ixlib=rb-4.1.0&ixid=M3wxMjA3fDB8MHxwaG90by1wYWdlfHx8fGVufDB8fHx8fA%3D%3D"
-        />
-
-        {/* Card 2 */}
-        <IssueCard
-          status="Under Review"
-          category="Sanitation"
-          title="Garbage Accumulation in Park"
-          description="Waste collection has been missed for 3 days straight at the 4th block community park entrance."
-          location="Community Park, 4th Block"
-          confirmed="156"
-          impact="94"
-          action="Authority Reviewing"
-          actionType="warning"
-          image="https://images.unsplash.com/photo-1581578731548-c64695cc6952"
-          verified
-        /> 
-        <IssueCard
-          status="Under Review"
-          category="Sanitation"
-          title="Garbage Accumulation in Park"
-          description="Waste collection has been missed for 3 days straight at the 4th block community park entrance."
-          location="Community Park, 4th Block"
-          confirmed="156"
-          impact="94"
-          action="Authority Reviewing"
-          actionType="warning"
-          image="https://images.unsplash.com/photo-1581578731548-c64695cc6952"
-          verified
-        />
-        <IssueCard
-          status="Open"
-          category="Infrastructure"
-          title="Large Pothole on 12th Main Road"
-          description="A severe pothole has developed near the junction, causing traffic slowdowns and posing a risk to two-wheelers."
-          location="Near Sony Signal"
-          confirmed="42"
-          impact="89"
-          action="Confirm"
-          actionType="primary"
-          image="https://images.unsplash.com/photo-1560782202-154b39d57ef2?q=80&w=687&auto=format&fit=crop&ixlib=rb-4.1.0&ixid=M3wxMjA3fDB8MHxwaG90by1wYWdlfHx8fGVufDB8fHx8fA%3D%3D"
-        />
-
-      </div>
+          {loading ? (
+            <div className="col-span-full flex justify-center items-center py-20">
+              <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-accent"></div>
+            </div>
+          ) : error ? (
+            <div className="col-span-full text-center py-20">
+              <p className="text-destructive">Failed to load issues. Please try again.</p>
+            </div>
+          ) : issues.length === 0 ? (
+            <div className="col-span-full text-center ">
+              <p className="text-muted-foreground ">No Issues found in your area</p>
+            </div>
+          ) : (
+            issues.map((issue) => (
+              <IssueCard
+                key={issue._id || issue.id}
+                status={issue.status || "Open"}
+                color={issue.status === "Resolved" ? "green" : issue.status === "Under Review" ? "yellow" : "red"}
+                category={issue.category || "General"}
+                title={issue.title}
+                description={issue.description}
+                location={issue.location?.address || issue.location}
+                confirmed={issue.confirmationCount || 0}
+                impact={issue.impactScore || 0}
+                action={issue.status === "Open" ? "Confirm" : "Authority Reviewing"}
+                primary={issue.status === "Open"}
+                verified={issue.isVerified}
+                priority={issue.priority}
+                reportedBy={{ name: issue.isAnonymous ? "Anonymous User" : issue.reportedBy?.name }}
+                isAnonymous={issue.isAnonymous}
+                media={issue.media?.map(m => ({ url: m.url || m })) || []}
+                impactScore={issue.impactScore}
+                confirmationCount={issue.confirmationCount}
+              />
+            ))
+          )}
+        </div>
       </div>
       
       <LocationModal 
@@ -238,80 +248,3 @@ const StatCard = ({ icon, label, value }) => (
   </div>
 );
 
-const IssueCard = ({
-  status,
-  color,
-  category,
-  title,
-  description,
-  image,
-  location,
-  confirmed,
-  impact,
-  action,
-  primary,
-  verified,
-}) => {
-  const colors = {
-    red: "bg-destructive/10 text-destructive border border-destructive/20",
-    yellow: "bg-secondary/20 text-secondary border border-secondary/30",
-    green: "bg-accent/20 text-accent border border-accent/30",
-  };
-
-  return (
-    <div className="glass-card p-5 rounded-xl hover:shadow-lg transition-all">
-      <div className="flex justify-between mb-3">
-        <div className="flex gap-2">
-          <span className={`text-xs px-3 py-1 rounded-full ${colors[color]}`}>
-            {status}
-          </span>
-          <span className="text-xs px-3 py-1 rounded-full bg-muted text-muted-foreground border border-border">
-            {category}
-          </span>
-        </div>
-        <span className="text-xs text-muted-foreground">2 hrs ago</span>
-      </div>
-
-      <h4 className="font-semibold text-foreground mb-2">{title}</h4>
-      <p className="text-sm text-muted-foreground mb-3 leading-relaxed">{description}</p>
-
-      <img
-        src={image}
-        alt="issue"
-        className="h-40 w-full rounded-lg object-cover mb-3"
-      />
-
-      <div className="flex items-center gap-2 text-sm text-muted-foreground mb-4">
-        <MapPin size={14} />
-        {location}
-        {verified && (
-          <span className="flex items-center gap-1 text-accent ml-2">
-            <ShieldCheck size={14} />
-            Verified User
-          </span>
-        )}
-      </div>
-
-      <div className="flex justify-between items-center">
-        <div className="flex gap-6 text-sm">
-          <span className="text-foreground">
-            <strong>{confirmed}</strong> Confirmed
-          </span>
-          <span className="text-foreground">
-            <strong>{impact}</strong> Impact
-          </span>
-        </div>
-
-        <button
-          className={`px-4 py-2 rounded-xl text-sm font-medium transition-all ${
-            primary
-              ? "btn-gradient"
-              : "bg-secondary/20 text-secondary border border-secondary/30 hover:bg-secondary/30"
-          }`}
-        >
-          {action}
-        </button>
-      </div>
-    </div>
-  );
-};
