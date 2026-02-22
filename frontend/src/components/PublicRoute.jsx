@@ -6,7 +6,7 @@ export function PublicRoute({ children }) {
     const { isAuthenticated, tokenValidationLoading, isInitialized } = useAuth();
 
     if (!isInitialized || tokenValidationLoading) {
-        return <Loader />;
+        return <div className="h-screen flex items-center justify-center"> <Loader /></div>;
     }
 
     if (isAuthenticated) {

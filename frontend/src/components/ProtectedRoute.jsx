@@ -7,7 +7,7 @@ export function ProtectedRoute({children}){
     const { isAuthenticated, tokenValidationLoading, isInitialized } = useAuth();
 
     if (!isInitialized || tokenValidationLoading) {
-        return <Loader />;
+        return <div className="h-screen flex justify-center items-center"><Loader /></div>;
     }
 
     if(!isAuthenticated){

@@ -14,7 +14,7 @@ const GoogleCallback = () => {
     const handleGoogleCallback = async () => {
       const token = searchParams.get('token');
       const isProfileComplete = searchParams.get('isProfileComplete');
-       console.log(isProfileComplete);
+       
 
       if (!token) {
         navigate('/login');
@@ -45,7 +45,7 @@ const GoogleCallback = () => {
     handleGoogleCallback();
   }, [searchParams, navigate, dispatch]);
 
-  return <Loader/>; 
+  return <div className='flex justify-center items-center h-screen '><Loader/></div>; 
 };
 
 export default GoogleCallback;
