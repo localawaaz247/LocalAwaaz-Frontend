@@ -14,6 +14,7 @@ import Profile from "./pages/Profile";
 import Feed from "./pages/Feed";
 import Assistant from "./pages/Assistant";
 import GoogleCallback from "./pages/GoogleCallback";
+import IssueDetailPage from "./pages/IssueDetailPage";
 import { ProtectedRoute } from "./components/ProtectedRoute";
 import { PublicRoute } from "./components/PublicRoute";
 
@@ -40,6 +41,7 @@ const App = () => {
               <Route path="profile" element={<Profile />} />
               </Route>
               
+              <Route path="/issue/:id" element={<IssueDetailPage />} />
               <Route path="*" element={<NotFound />} />
             </Routes>
          </BrowserRouter>

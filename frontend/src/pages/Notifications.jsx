@@ -1,150 +1,166 @@
-import React from "react";
 
-const notifications = [
-  {
-    name: "Sarah Johnson",
-    action: "commented on your post",
-    message: "Loved the way you highlighted the local issue!",
-    time: "2m ago",
-    avatar: "https://i.pravatar.cc/40?img=1",
-  },
-  {
-    name: "Michael Chen",
-    action: "liked your report",
-    message: "Road Repair Request · Ward 12",
-    time: "15m ago",
-    avatar: "https://i.pravatar.cc/40?img=2",
-  },
-  {
-    name: "Emma Wilson",
-    action: "mentioned you in a comment",
-    message: "@localAwaaz What do you think about this?",
-    time: "1h ago",
-    avatar: "https://i.pravatar.cc/40?img=3",
-  },
-  {
-    name: "David Park",
-    action: "started following you",
-    message: "Check their profile",
-    time: "3h ago",
-    avatar: "https://i.pravatar.cc/40?img=4",
-  },
-  {
-    name: "Lisa Anderson",
-    action: "shared your post",
-    message: "Water Supply Issue · Sector 9",
-    time: "5h ago",
-    avatar: "https://i.pravatar.cc/40?img=5",
-  },
-  {
-    name: "James Taylor",
-    action: "liked your comment",
-    message: "“This needs urgent attention.”",
-    time: "8h ago",
-    avatar: "https://i.pravatar.cc/40?img=6",
-  },
-  {
-    name: "Rachel Green",
-    action: "mentioned you in a report",
-    message: "Garbage Collection Delay",
-    time: "1d ago",
-    avatar: "https://i.pravatar.cc/40?img=7",
-  },
-  {
-    name: "Tom Harris",
-    action: "commented on your post",
-    message: "Great explanation of the problem!",
-    time: "1d ago",
-    avatar: "https://i.pravatar.cc/40?img=8",
-  },
-  {
-    name: "Nina Patel",
-    action: "liked your report",
-    message: "Street Light Not Working",
-    time: "2d ago",
-    avatar: "https://i.pravatar.cc/40?img=9",
-  },
-  {
-    name: "Chris Martinez",
-    action: "started following you",
-    message: "Community Volunteer",
-    time: "2d ago",
-    avatar: "https://i.pravatar.cc/40?img=10",
-  },
-];
+import { useNotifications } from "../hooks/useNotifications";
+import { useSelector } from "react-redux";
+import { Bell, CheckCircle } from "lucide-react";
+import { useNavigate } from "react-router-dom";
 
 const Notifications = () => {
+  const user = useSelector((state) => state.auth?.user);
+  const { notifications, unreadCount, markAsRead, loading } = useNotifications(user);
+  const navigate = useNavigate();
+
+  const formatTimeAgo = (timestamp) => {
+    const now = new Date();
+    const notificationTime = new Date(timestamp);
+    const diffInMs = now - notificationTime;
+    const diffInMins = Math.floor(diffInMs / 60000);
+    const diffInHours = Math.floor(diffInMs / 3600000);
+    const diffInDays = Math.floor(diffInMs / 86400000);
+
+    if (diffInMins < 1) return "Just now";
+    if (diffInMins < 60) return `${diffInMins}m ago`;
+    if (diffInHours < 24) return `${diffInHours}h ago`;
+    return `${diffInDays}d ago`;
+  };
+
+  const getNotificationIcon = (type) => {
+    switch (type) {
+      case 'ISSUE_CONFIRMED':
+        return '✅';
+      case 'ISSUE_FLAGGED':
+        return '🚩';
+      case 'ISSUE_SHARED':
+        return '🔄';
+      case 'ISSUE_RESOLVED':
+        return '✨';
+      case 'ISSUE_CREATED':
+        return '📝';
+      case 'COMMENT':
+        return '💬';
+      case 'MENTION':
+        return '@';
+      case 'LIKE':
+        return '❤️';
+      default:
+        return '🔔';
+    }
+  };
+
+  const getNotificationMessage = (notification) => {
+    const { type, sender, issue } = notification;
+    const senderName = sender?.name || 'Someone';
+    const issueTitle = issue?.title || 'an issue';
+
+    switch (type) {
+      case 'ISSUE_CONFIRMED':
+        return `${senderName} confirmed your issue "${issueTitle}"`;
+      case 'ISSUE_FLAGGED':
+        return `${senderName} flagged your issue "${issueTitle}"`;
+      case 'ISSUE_SHARED':
+        return `${senderName} shared your issue "${issueTitle}"`;
+      case 'ISSUE_RESOLVED':
+        return `Your issue "${issueTitle}" has been resolved`;
+      case 'ISSUE_CREATED':
+        return `${senderName} reported a new issue "${issueTitle}"`;
+      case 'COMMENT':
+        return `${senderName} commented on "${issueTitle}"`;
+      case 'MENTION':
+        return `${senderName} mentioned you in "${issueTitle}"`;
+      case 'LIKE':
+        return `${senderName} liked your issue "${issueTitle}"`;
+      default:
+        return notification.message || `${senderName} sent you a notification`;
+    }
+  };
+
   return (
     <div className="min-h-screen bg-texture flex justify-center py-10">
       <div className="w-full max-w-4xl px-4">
         {/* Header */}
         <div className="flex items-center justify-between mb-6">
-          <div>
-            <h1 className="text-3xl font-bold text-gradient mb-2">
-              Notifications
-            </h1>
-            <p className="text-sm text-muted-foreground">
-              Stay updated with your local activity
-            </p>
+          <div className="flex items-center gap-3">
+            <div className="w-12 h-12 rounded-xl bg-gradient-to-r from-primary to-secondary flex items-center justify-center shadow-lg">
+              <Bell className="w-6 h-6 text-primary-foreground" />
+            </div>
+            <div>
+              <h1 className="text-3xl font-bold text-gradient mb-2">
+                Notifications
+              </h1>
+              <p className="text-sm text-muted-foreground">
+                {unreadCount > 0 ? `${unreadCount} unread notifications` : "All caught up!"}
+              </p>
+            </div>
           </div>
-          <button className="text-sm font-medium text-accent/80 hover:text-accent transition-colors">
-            Mark all as read
-          </button>
-        </div>
-
-        {/* Filters */}
-        <div className="flex gap-2 mb-6">
-          <button className="btn-gradient px-4 py-1.5 text-sm rounded-full">
-            All
-          </button>
-          <button className="px-4 py-1.5 text-sm rounded-full bg-card border border-border text-card-foreground hover:bg-muted transition-colors">
-            Mentions
-          </button>
-          <button className="px-4 py-1.5 text-sm rounded-full bg-card border border-border text-card-foreground hover:bg-muted transition-colors">
-            Likes
-          </button>
+          {unreadCount > 0 && (
+            <button 
+              onClick={markAsRead}
+              className="flex items-center gap-2 text-sm font-medium text-accent/80 hover:text-accent transition-colors"
+            >
+              <CheckCircle className="w-4 h-4" />
+              Mark all as read
+            </button>
+          )}
         </div>
 
         {/* Notification List */}
         <div className="glass-card rounded-xl divide-y divide-border">
-          {notifications.map((item, index) => (
-            <div
-              key={index}
-              className="flex items-start gap-3 px-4 py-4 hover:bg-muted/50 transition-colors"
-            >
-              <img
-                src={item.avatar}
-                alt={item.name}
-                className="w-10 h-10 rounded-full"
-              />
-
-              <div className="flex-1">
-                <p className="text-sm text-foreground">
-                  <span className="font-semibold text-foreground">{item.name}</span>{" "}
-                  <span className="text-muted-foreground">{item.action}</span>
-                </p>
-                <p className="text-sm text-muted-foreground mt-1">{item.message}</p>
-              </div>
-
-              <span className="text-xs text-muted-foreground whitespace-nowrap">
-                {item.time}
-              </span>
+          {loading ? (
+            <div className="flex flex-col items-center justify-center py-12">
+              <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-accent mb-4"></div>
+              <p className="text-muted-foreground">Loading notifications...</p>
             </div>
-          ))}
-        </div>
+          ) : notifications.length === 0 ? (
+            <div className="flex flex-col items-center justify-center py-12">
+              <Bell className="w-12 h-12 text-muted-foreground mb-4" />
+              <p className="text-muted-foreground">No notifications yet</p>
+              <p className="text-sm text-muted-foreground mt-2">
+                We'll notify you when something important happens
+              </p>
+            </div>
+          ) : (
+            notifications.map((notification, index) => (
+              <div
+                key={notification._id || index}
+                className={`flex items-start gap-3 px-4 py-4 hover:bg-muted/50 transition-colors ${
+                  !notification.isRead ? 'bg-primary/5' : ''
+                }`}
+              >
+                <div className="w-10 h-10 rounded-full bg-gradient-to-r from-primary to-secondary flex items-center justify-center text-white font-bold flex-shrink-0">
+                  {getNotificationIcon(notification.type)}
+                </div>
 
-        {/* Load More */}
-        <div className="flex justify-center mt-6">
-          <button className="px-6 py-2 text-sm border border-border rounded-lg bg-card text-card-foreground hover:bg-muted transition-colors">
-            Load More Notifications
-          </button>
+                <div className="flex-1 min-w-0">
+                  <p className="text-sm text-foreground">
+                    {getNotificationMessage(notification)}
+                  </p>
+                  {notification.issue && (
+                    <p className="text-xs text-accent mt-1">
+                      Status: {notification.issue.status}
+                    </p>
+                  )}
+                </div>
+
+                <div className="flex flex-col items-end gap-1 flex-shrink-0">
+                  <span className="text-xs text-muted-foreground whitespace-nowrap">
+                    {formatTimeAgo(notification.createdAt)}
+                  </span>
+                  {!notification.isRead && (
+                    <div className="w-2 h-2 bg-primary rounded-full"></div>
+                  )}
+                </div>
+              </div>
+            ))
+          )}
         </div>
 
         {/* Footer Links */}
         <div className="flex justify-center gap-4 text-sm text-accent mt-6">
-          <button className="hover:text-accent/80 transition-colors">Back to Profile</button>
-          <span>•</span>
-          <button className="hover:text-accent/80 transition-colors">Edit Profile</button>
+          <button 
+            onClick={() => navigate('/dashboard')}
+            className="hover:text-accent/80 transition-colors"
+          >
+            Back to Dashboard
+          </button>
           <span>•</span>
           <button className="hover:text-accent/80 transition-colors">Settings</button>
         </div>

@@ -18,6 +18,7 @@ import { useState, useEffect, useRef } from "react";
 import {  NavLink, useLocation, useNavigate} from "react-router-dom"
 import { useDispatch, useSelector } from "react-redux";
 import { logout } from "../reducer/authReducer";
+import { useNotifications } from "../hooks/useNotifications";
 
 const Sidebar = () => {
     const location=useLocation();
@@ -34,6 +35,7 @@ const Sidebar = () => {
 
     const user=useSelector((state)=>state.auth?.user);
     const name=user?.name;
+    const { unreadCount, markAsRead } = useNotifications(user);
 
     // Function to get initials from name
     const getInitials = (name) => {
@@ -119,7 +121,9 @@ const Sidebar = () => {
       <NavLink to="/dashboard" end> <SidebarItem icon={Home} label="Home Feed"  active={path ==="/dashboard"}/></NavLink>
        <NavLink to="report"> <SidebarItem icon={PlusCircle} label="Report Issue" active={path ==="/dashboard/report"}/></NavLink>
         
-        <NavLink to="notifications"><SidebarItem icon={Bell} label="Notifications" active={path ==="/dashboard/notifications"} /></NavLink>
+        <NavLink to="notifications" onClick={() => markAsRead()}>
+          <SidebarItem icon={Bell} label="Notifications" active={path ==="/dashboard/notifications"} unreadCount={unreadCount} />
+        </NavLink>
 
         <NavLink to="assistant"> <SidebarItem icon={Sparkle} label="LokAi " active={path ==="/dashboard/assistant"}/></NavLink>
       </nav>
@@ -217,18 +221,25 @@ const Sidebar = () => {
   );
 };
 
-const SidebarItem = ({ icon: Icon, label, active }) => {
+const SidebarItem = ({ icon: Icon, label, active, unreadCount }) => {
   return (
     <div
-      className={`flex items-center gap-3 px-4 py-3 rounded-xl cursor-pointer transition-all duration-200
+      className={`flex items-center justify-between px-4 py-3 rounded-xl cursor-pointer transition-all duration-200
         ${
           active
             ? "bg-gradient-to-r from-primary to-secondary text-primary-foreground shadow-lg scale-105"
             : "hover:bg-muted text-foreground/80 hover:text-foreground"
         }`}
     >
-      <Icon className="w-5 h-5" />
-      <span className="text-sm font-medium">{label}</span>
+      <div className="flex items-center gap-3">
+        <Icon className="w-5 h-5" />
+        <span className="text-sm font-medium">{label}</span>
+      </div>
+      {unreadCount > 0 && (
+        <span className="bg-red-500 text-white text-xs rounded-full px-2 py-1 font-bold">
+          {unreadCount > 99 ? '99+' : unreadCount}
+        </span>
+      )}
     </div>
   );
 };

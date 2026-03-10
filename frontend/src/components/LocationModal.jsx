@@ -86,6 +86,7 @@ const LocationModal = ({ isOpen, onClose, forceLocation = false }) => {
     
     try {
       const position = await getCurrentPosition();
+    
      
       const locationData = await reverseGeocode(position.latitude, position.longitude);
       
