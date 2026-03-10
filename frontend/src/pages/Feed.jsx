@@ -14,11 +14,21 @@ import { useNavigate, useLocation } from 'react-router-dom'
 import { getChosenLocation, formatLocationDisplay, getCurrentLocationStored } from "../utils/locationUtils";
 import LocationModal from "../components/LocationModal";
 import IssueCard from "../components/IssueCard";
+import IssueDetail from "../components/IssueDetail";
+import FlagModal from "../components/modals/FlagModal";
+import axiosInstance from "../utils/axios";
 import { fetchIssues, clearIssues } from "../reducer/issueFeedReducer";
+import { showToast } from "../utils/toast";
+
 
 const Feed = () => {
   const [chosenLocation, setChosenLocation] = useState(() => getChosenLocation());
   const [showLocationModal, setShowLocationModal] = useState(false);
+  const [selectedIssue, setSelectedIssue] = useState(null);
+  const [isDetailOpen, setIsDetailOpen] = useState(false);
+  const [showFlagModal, setShowFlagModal] = useState(false);
+  const [selectedIssueForFlag, setSelectedIssueForFlag] = useState(null);
+  const [flagLoading, setFlagLoading] = useState(false);
   const location = useLocation();
   const navigate = useNavigate();
   const dispatch = useDispatch();
@@ -28,6 +38,61 @@ const Feed = () => {
 
   const displayLocation = chosenLocation ? formatLocationDisplay(chosenLocation) : "Lucknow";
   const activeIssuesCount = pagination?.totalIssues || issues?.length || 0;
+
+  const handleCardClick = (issue) => {
+    setSelectedIssue(issue);
+    setIsDetailOpen(true);
+  };
+
+  const handleCloseDetail = () => {
+    setIsDetailOpen(false);
+    setSelectedIssue(null);
+  };
+
+  const handleFlagClick = (issue) => {
+    setSelectedIssueForFlag(issue);
+    setShowFlagModal(true);
+  };
+
+  const handleFlagSubmit = async (flagReason) => {
+    try {
+      setFlagLoading(true);
+      const coords = JSON.parse(localStorage.getItem('currentLocation'));
+      const longitude = coords?.longitude;
+      const latitude = coords?.latitude;
+      
+      const response = await axiosInstance.post(`/issue/${selectedIssueForFlag._id}/${flagReason}?lng=${longitude}&lat=${latitude}`);
+       console.log(response.data)
+      setShowFlagModal(false);
+      setSelectedIssueForFlag(null);
+      
+      // Refresh issues
+      const currentLocation = getCurrentLocationStored();
+      const chosenLoc = getChosenLocation();
+      let locationData = null;
+      
+      if (currentLocation?.latitude && currentLocation?.longitude) {
+        locationData = {
+          latitude: currentLocation.latitude,
+          longitude: currentLocation.longitude,
+          ...chosenLoc
+        };
+      } else if (chosenLoc) {
+        locationData = chosenLoc;
+      }
+      
+      if (locationData) {
+        dispatch(fetchIssues(locationData));
+      }
+    } catch (error) {
+      console.error('Error flagging issue:', error);
+      showToast({icon:"warning",title:error.response.data.message || "Something went wrong"})
+    } finally {
+      setFlagLoading(false);
+    }
+  };
+
+  
 
   const handleLocationUpdate = () => {
     const updatedLocation = getChosenLocation();
@@ -193,23 +258,9 @@ const Feed = () => {
             issues.map((issue) => (
               <IssueCard
                 key={issue._id || issue.id}
-                status={issue.status || "Open"}
-                color={issue.status === "Resolved" ? "green" : issue.status === "Under Review" ? "yellow" : "red"}
-                category={issue.category || "General"}
-                title={issue.title}
-                description={issue.description}
-                location={issue.location?.address || issue.location}
-                confirmed={issue.confirmationCount || 0}
-                impact={issue.impactScore || 0}
-                action={issue.status === "Open" ? "Confirm" : "Authority Reviewing"}
-                primary={issue.status === "Open"}
-                verified={issue.isVerified}
-                priority={issue.priority}
-                reportedBy={{ name: issue.isAnonymous ? "Anonymous User" : issue.reportedBy?.name }}
-                isAnonymous={issue.isAnonymous}
-                media={issue.media?.map(m => ({ url: m.url || m })) || []}
-                impactScore={issue.impactScore}
-                confirmationCount={issue.confirmationCount}
+                issue={issue}
+                onClick={() => handleCardClick(issue)}
+                onFlagClick={() => handleFlagClick(issue)}
               />
             ))
           )}
@@ -223,6 +274,22 @@ const Feed = () => {
           handleLocationUpdate()
         }}
         forceLocation={location.pathname === '/dashboard' && !chosenLocation}
+      />
+      
+      <IssueDetail
+        issue={selectedIssue}
+        isOpen={isDetailOpen}
+        onClose={handleCloseDetail}
+      />
+      
+      <FlagModal
+        isOpen={showFlagModal}
+        onClose={() => {
+          setShowFlagModal(false);
+          setSelectedIssueForFlag(null);
+        }}
+        onSubmit={handleFlagSubmit}
+        isLoading={flagLoading}
       />
     </div>
   );

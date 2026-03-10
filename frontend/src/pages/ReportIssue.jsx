@@ -51,6 +51,7 @@ export default function ReportIssue() {
   });
   const [errors, setErrors] = useState({});
   const [submitError, setSubmitError] = useState('');
+  const [submitSuccess, setSubmitSuccess] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [showLocationModal, setShowLocationModal] = useState(false);
   const [isUploading, setIsUploading] = useState(false);
@@ -118,7 +119,8 @@ export default function ReportIssue() {
       return;
     }
     
-    const validTypes = ['image/png', 'image/jpg', 'image/jpeg', 'video/mp4'];
+    // Only allow image files (PNG, JPEG, JPG)
+    const validTypes = ['image/png', 'image/jpg', 'image/jpeg'];
     
     // Validate each new file
     const invalidFiles = files.filter(file => {
@@ -128,12 +130,26 @@ export default function ReportIssue() {
     
     if (invalidFiles.length > 0) {
       const errorMessages = invalidFiles.map(file => {
-        return `${file.name} is not a supported format`;
+        return `${file.name} is not a supported format. Only PNG, JPG, JPEG images are allowed.`;
       });
       
       setErrors(prev => ({ 
         ...prev, 
         media: errorMessages.join(', ')
+      }));
+      return;
+    }
+    
+    // Check combined file size limit (30MB)
+    const currentTotalSize = formData.media.reduce((total, file) => total + file.size, 0);
+    const newFilesSize = files.reduce((total, file) => total + file.size, 0);
+    const combinedTotalSize = currentTotalSize + newFilesSize;
+    const maxTotalSize = 30 * 1024 * 1024; // 30MB in bytes
+    
+    if (combinedTotalSize > maxTotalSize) {
+      setErrors(prev => ({ 
+        ...prev, 
+        media: `Combined file size exceeds 30MB limit. Current: ${(currentTotalSize / (1024 * 1024)).toFixed(2)}MB, Adding: ${(newFilesSize / (1024 * 1024)).toFixed(2)}MB, Total would be: ${(combinedTotalSize / (1024 * 1024)).toFixed(2)}MB`
       }));
       return;
     }
@@ -198,12 +214,20 @@ export default function ReportIssue() {
         },
       });
       
-      if (response.data && response.data.data && response.data.data.length > 0) {
-        const uploadedUrls = response.data.data.map(item => item.publicUrl);
+      if (response.data && response.data.success && response.data.media && response.data.media.length > 0) {
+        // Use the media URLs from the API response
+        const uploadedUrls = response.data.media;
         setFormData(prev => ({
           ...prev,
-          mediaUrls: uploadedUrls
+          mediaUrls: uploadedUrls,
+          media: [] // Clear the local files after successful upload
         }));
+        
+        // Clear preview URLs to free up memory
+        previewUrls.forEach(url => URL.revokeObjectURL(url));
+        setPreviewUrls([]);
+      } else {
+        setUploadError('Failed to upload files. Please try again.');
       }
     } catch (error) {
       console.error('Error uploading files:', error);
@@ -217,6 +241,7 @@ export default function ReportIssue() {
     e.preventDefault();
     setIsSubmitting(true);
     setSubmitError('');
+    setSubmitSuccess(false);
    
     
     const validateForm = () => {
@@ -272,6 +297,7 @@ export default function ReportIssue() {
       
       if (response.data) {
        
+        setSubmitSuccess(true);
         setFormData({
           title: '',
           category: '',
@@ -300,7 +326,7 @@ export default function ReportIssue() {
     
     } catch (error) {
       console.error('Error submitting issue:', error);
-      setSubmitError('An error occurred. Please try again.');
+      setSubmitError(error.response.data.message);
     } finally {
       setIsSubmitting(false);
     }
@@ -435,25 +461,14 @@ export default function ReportIssue() {
                   </label>
                   <input
                     type="text"
-                    placeholder="e.g., Mumbai"
+                    placeholder="e.g. Mumbai"
                     value={formData.location.city}
                     onChange={(e) => handleInputChange('location.city', e.target.value)}
                     className="w-full rounded-xl border-2 border-border bg-background px-4 py-3 outline-none transition-all focus:border-cyan-600 focus:ring-2 focus:ring-cyan-600/20"
                   />
                 </div>
 
-                <div>
-                  <label className="mb-2 block text-sm font-semibold text-foreground">
-                    Pin Code
-                  </label>
-                  <input
-                    type="text"
-                    placeholder="e.g., 400001"
-                    value={formData.location.pinCode}
-                    onChange={(e) => handleInputChange('location.pinCode', e.target.value)}
-                    className="w-full rounded-xl border-2 border-border bg-background px-4 py-3 outline-none transition-all focus:border-cyan-600 focus:ring-2 focus:ring-cyan-600/20"
-                  />
-                </div>
+                
 
                 <div>
                   <label className="mb-2 block text-sm font-semibold text-foreground">
@@ -461,9 +476,21 @@ export default function ReportIssue() {
                   </label>
                   <input
                     type="text"
-                    placeholder="e.g., Maharashtra"
+                    placeholder="e.g. Assam"
                     value={formData.location.state}
                     onChange={(e) => handleInputChange('location.state', e.target.value)}
+                    className="w-full rounded-xl border-2 border-border bg-background px-4 py-3 outline-none transition-all focus:border-cyan-600 focus:ring-2 focus:ring-cyan-600/20"
+                  />
+                </div>
+                <div>
+                  <label className="mb-2 block text-sm font-semibold text-foreground">
+                    Pin Code
+                  </label>
+                  <input
+                    type="text"
+                    placeholder="e.g. 400001"
+                    value={formData.location.pinCode}
+                    onChange={(e) => handleInputChange('location.pinCode', e.target.value)}
                     className="w-full rounded-xl border-2 border-border bg-background px-4 py-3 outline-none transition-all focus:border-cyan-600 focus:ring-2 focus:ring-cyan-600/20"
                   />
                 </div>
@@ -509,7 +536,7 @@ export default function ReportIssue() {
             <div className="space-y-6">
               <div>
                 <label className="mb-2 block text-sm font-semibold text-foreground">
-                  Add Photos/Videos
+                  Add Photos
                   <span className="font-normal text-red-600"> *</span>
                 </label>
                 <div className="group relative">
@@ -517,9 +544,10 @@ export default function ReportIssue() {
                     <input
                       type="file"
                       className="absolute inset-0 h-full w-full cursor-pointer opacity-0"
-                      accept="image/png, image/jpg, image/jpeg, video/mp4"
+                      accept="image/png, image/jpg, image/jpeg"
                       multiple
                       onChange={handleFileChange}
+                      disabled={formData.mediaUrls.length > 0} // Disable input after successful upload
                     />
                     <div className="flex h-full flex-col items-center justify-center gap-2 text-center">
                       {formData.media.length > 0 ? (
@@ -550,10 +578,10 @@ export default function ReportIssue() {
                         <>
                           <Camera className="h-8 w-8 text-muted-foreground transition-colors group-hover:text-primary" />
                           <span className="text-sm font-medium text-muted-foreground transition-colors group-hover:text-foreground">
-                            Upload Photos/Videos
+                            Upload Photos
                           </span>
                           <span className="text-xs text-muted-foreground">
-                            PNG, JPG, JPEG, MP4 etc (max 3 files)
+                            PNG, JPG, JPEG images only (max 3 files, 30MB total)
                           </span>
                         </>
                       )}
@@ -565,7 +593,7 @@ export default function ReportIssue() {
                 </div>
                 
                 {/* Upload Button or Success Message */}
-                {formData.media.length > 0 && formData.mediaUrls.length === 0 && (
+                {formData.media.length > 0 && (
                   <div className="mt-4">
                     <button
                       type="button"
@@ -587,18 +615,25 @@ export default function ReportIssue() {
                 {/* Success Message - Show when files are uploaded successfully */}
                 {formData.mediaUrls.length > 0 && (
                   <div className="mt-4">
-                    <div className="w-full rounded-xl py-3 px-4 border-2 text-center">
-                        <span className="text-green-600 text-sm ">
-                          File upload successful
+                    <div className="w-full rounded-xl py-6 px-4  text-center">
+                      <div className="flex flex-col items-center gap-2">
+                        <svg className="w-8 h-8 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+                        </svg>
+                        <span className="text-green-600 text-sm font-semibold">
+                          Images uploaded successfully
                         </span>
-                     
+                        <span className="text-green-500 text-xs">
+                          {formData.mediaUrls.length} image(s) ready to submit
+                        </span>
+                      </div>
                     </div>
                   </div>
                 )}
               </div>
 
               {/* File Preview Section - Hide when files are uploaded successfully */}
-              {formData.media.length > 0 && formData.mediaUrls.length === 0 && (
+              {formData.media.length > 0 && (
                 <div className="mt-6">
                   <h3 className="mb-3 text-sm font-semibold text-foreground">
                     Selected Files ({formData.media.length}/3)
@@ -607,41 +642,21 @@ export default function ReportIssue() {
                     {formData.media.map((file, index) => (
                       <div key={index} className="relative group">
                         <div className="aspect-square rounded-lg overflow-hidden bg-muted border-2 border-border transition-all hover:border-cyan-600">
-                          {file.type.startsWith('video/') ? (
-                            <video
-                              src={previewUrls[index]}
-                              className="w-full h-full object-cover"
-                              muted
-                              loop
-                              onMouseEnter={(e) => e.target.play()}
-                              onMouseLeave={(e) => e.target.pause()}
-                            />
-                          ) : (
-                            <img
-                              src={previewUrls[index]}
-                              alt={`Preview ${index + 1}`}
-                              className="w-full h-full object-cover"
-                            />
-                          )}
+                          <img
+                            src={previewUrls[index]}
+                            alt={`Preview ${index + 1}`}
+                            className="w-full h-full object-cover"
+                          />
                         </div>
                         
                         {/* File type indicator */}
                         <div className="absolute top-2 left-2">
-                          {file.type.startsWith('video/') ? (
-                            <div className="bg-black/70 text-white text-xs px-2 py-1 rounded flex items-center gap-1">
-                              <svg className="w-3 h-3" fill="currentColor" viewBox="0 0 20 20">
-                                <path d="M2 6a2 2 0 012-2h6a2 2 0 012 2v8a2 2 0 01-2 2H4a2 2 0 01-2-2V6zM14.553 7.106A1 1 0 0014 8v4a1 1 0 00.553.894l2 1A1 1 0 0018 13V7a1 1 0 00-1.447-.894l-2 1z"/>
-                              </svg>
-                              Video
-                            </div>
-                          ) : (
-                            <div className="bg-black/70 text-white text-xs px-2 py-1 rounded flex items-center gap-1">
-                              <svg className="w-3 h-3" fill="currentColor" viewBox="0 0 20 20">
-                                <path fillRule="evenodd" d="M4 3a2 2 0 00-2 2v10a2 2 0 002 2h12a2 2 0 002-2V5a2 2 0 00-2-2H4zm12 12H4l4-8 3 6 2-4 3 6z" clipRule="evenodd"/>
-                              </svg>
-                              Image
-                            </div>
-                          )}
+                          <div className="bg-black/70 text-white text-xs px-2 py-1 rounded flex items-center gap-1">
+                            <svg className="w-3 h-3" fill="currentColor" viewBox="0 0 20 20">
+                              <path fillRule="evenodd" d="M4 3a2 2 0 00-2 2v10a2 2 0 002 2h12a2 2 0 002-2V5a2 2 0 00-2-2H4zm12 12H4l4-8 3 6 2-4 3 6z" clipRule="evenodd"/>
+                            </svg>
+                            Image
+                          </div>
                         </div>
                         
                         {/* Remove button */}
@@ -698,6 +713,18 @@ export default function ReportIssue() {
               {submitError && (
                 <div className="rounded-lg bg-red-50 border border-red-200 p-3">
                   <p className="text-xs text-red-600">{submitError}</p>
+                </div>
+              )}
+
+              {submitSuccess && (
+                <div className="rounded-lg bg-green-50 border border-green-200 p-3">
+                  <div className="flex items-center gap-2">
+                    <svg className="w-4 h-4 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+                    </svg>
+                    <p className="text-xs text-green-600 font-medium">Issue submitted successfully!</p>
+                  </div>
+                  <p className="text-xs text-green-500 mt-1">Your report has been received and will be reviewed shortly.</p>
                 </div>
               )}
 
