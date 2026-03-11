@@ -9,7 +9,7 @@ const IssueCard = ({ issue, onClick, onFlagClick }) => {
   const [currentImageIndex, setCurrentImageIndex] = useState(0);
   const [confirmLoading, setConfirmLoading] = useState(false);
   const [showShareModal, setShowShareModal] = useState(false);
-  const [isPaused, setIsPaused] = useState(false); // New state for hover tracking
+  const [isPaused, setIsPaused] = useState(false);
 
   const {
     status,
@@ -45,7 +45,7 @@ const IssueCard = ({ issue, onClick, onFlagClick }) => {
     return () => {
       if (interval) clearInterval(interval);
     };
-  }, [hasMultipleMedia, mediaCount, isPaused]); // Re-run if paused state changes
+  }, [hasMultipleMedia, mediaCount, isPaused]);
   // ----------------------------------------------
 
   const getColorFromStatus = (status) => {
@@ -123,38 +123,38 @@ const IssueCard = ({ issue, onClick, onFlagClick }) => {
 
   return (
     <div
-      className="glass-card p-5 rounded-xl hover:shadow-lg transition-all cursor-pointer"
+      className="glass-card p-4 md:p-5 rounded-xl hover:shadow-lg transition-all cursor-pointer flex flex-col h-full"
       onClick={onClick}
     >
-      <div className="flex justify-between mb-3">
-        <div className="flex gap-2 flex-wrap">
-          <span className={`text-xs px-3 py-1 rounded-full ${colors[color]}`}>{status}</span>
-          <span className="text-xs px-3 py-1 rounded-full bg-muted text-muted-foreground border border-border">{category}</span>
+      <div className="flex justify-between items-start mb-3 gap-2">
+        <div className="flex gap-1.5 md:gap-2 flex-wrap">
+          <span className={`text-[10px] md:text-xs px-2.5 py-1 rounded-full ${colors[color]}`}>{status}</span>
+          <span className="text-[10px] md:text-xs px-2.5 py-1 rounded-full bg-muted text-muted-foreground border border-border">{category}</span>
           {priority && (
-            <span className={`text-xs px-3 py-1 rounded-full ${priorityColors[priority]} flex items-center gap-1`}>
+            <span className={`text-[10px] md:text-xs px-2.5 py-1 rounded-full ${priorityColors[priority]} flex items-center gap-1`}>
               <AlertTriangle size={12} />
               {priority}
             </span>
           )}
         </div>
-        <div className="flex items-center gap-2">
-          <button onClick={handleShare} className="p-2 rounded-lg text-muted-foreground hover:text-foreground hover:bg-muted transition-all">
-            <Share2 size={16} />
+        <div className="flex items-center gap-1 md:gap-2 flex-shrink-0">
+          <button onClick={handleShare} className="p-1.5 md:p-2 rounded-lg text-muted-foreground hover:text-foreground hover:bg-muted transition-all">
+            <Share2 size={16} className="w-4 h-4 md:w-5 md:h-5" />
           </button>
-          <span className="text-xs text-muted-foreground">{formatDate(dateOfFormation || createdAt)}</span>
+          <span className="text-[10px] md:text-xs text-muted-foreground whitespace-nowrap">{formatDate(dateOfFormation || createdAt)}</span>
         </div>
       </div>
 
-      <h4 className="font-semibold text-foreground mb-2">{title}</h4>
-      <p className="text-sm text-muted-foreground mb-3 leading-relaxed">{truncateDescription(description)}</p>
+      <h4 className="font-semibold text-base md:text-lg text-foreground mb-1.5 md:mb-2 line-clamp-2">{title}</h4>
+      <p className="text-xs md:text-sm text-muted-foreground mb-3 leading-relaxed flex-grow">{truncateDescription(description)}</p>
 
       {/* Media Container with Pause listeners */}
       <div
-        className="relative group mb-3 overflow-hidden rounded-lg bg-muted"
+        className="relative group mb-3 md:mb-4 overflow-hidden rounded-lg bg-muted flex-shrink-0"
         onMouseEnter={() => setIsPaused(true)}   // PAUSE ON HOVER
         onMouseLeave={() => setIsPaused(false)}  // RESUME ON LEAVE
       >
-        <div className="relative h-48 w-full overflow-hidden">
+        <div className="relative h-48 sm:h-56 w-full overflow-hidden">
           {isVideo ? (
             <video key={displayImage} src={displayImage} className="w-full h-full object-cover" controls poster={displayImage} />
           ) : (
@@ -167,45 +167,45 @@ const IssueCard = ({ issue, onClick, onFlagClick }) => {
           <>
             <button
               onClick={(e) => { e.stopPropagation(); handlePrevious(); }}
-              className="absolute left-3 top-1/2 -translate-y-1/2 text-white p-2 opacity-0 group-hover:opacity-100 transition-all duration-300 hover:scale-110 active:scale-95 z-10 drop-shadow-lg"
+              className="absolute left-2 md:left-3 top-1/2 -translate-y-1/2 text-white p-1.5 md:p-2 opacity-100 md:opacity-0 md:group-hover:opacity-100 transition-all duration-300 hover:scale-110 active:scale-95 z-10 drop-shadow-lg bg-black/20 md:bg-transparent rounded-full"
             >
-              <ChevronLeft size={28} strokeWidth={2.5} />
+              <ChevronLeft size={24} className="md:w-7 md:h-7" strokeWidth={2.5} />
             </button>
             <button
               onClick={(e) => { e.stopPropagation(); handleNext(); }}
-              className="absolute right-3 top-1/2 -translate-y-1/2 text-white p-2 opacity-0 group-hover:opacity-100 transition-all duration-300 hover:scale-110 active:scale-95 z-10 drop-shadow-lg"
+              className="absolute right-2 md:right-3 top-1/2 -translate-y-1/2 text-white p-1.5 md:p-2 opacity-100 md:opacity-0 md:group-hover:opacity-100 transition-all duration-300 hover:scale-110 active:scale-95 z-10 drop-shadow-lg bg-black/20 md:bg-transparent rounded-full"
             >
-              <ChevronRight size={28} strokeWidth={2.5} />
+              <ChevronRight size={24} className="md:w-7 md:h-7" strokeWidth={2.5} />
             </button>
           </>
         )}
 
         {hasMedia && (
-          <div className="absolute top-3 right-3 bg-black/60 backdrop-blur-sm text-white px-2 py-1 rounded-full text-xs font-medium z-10">
+          <div className="absolute top-2 right-2 md:top-3 md:right-3 bg-black/60 backdrop-blur-sm text-white px-2 py-0.5 md:py-1 rounded-full text-[10px] md:text-xs font-medium z-10">
             {currentImageIndex + 1} / {mediaCount}
           </div>
         )}
 
         {hasMultipleMedia && (
-          <div className="absolute bottom-3 left-1/2 -translate-x-1/2 flex items-center gap-2 z-10">
+          <div className="absolute bottom-2 md:bottom-3 left-1/2 -translate-x-1/2 flex items-center gap-1.5 md:gap-2 z-10">
             {media.map((_, index) => (
               <button
                 key={index}
                 onClick={(e) => { e.stopPropagation(); setCurrentImageIndex(index); }}
-                className={`transition-all duration-300 rounded-full ${index === currentImageIndex ? "w-6 h-2 bg-white shadow-lg" : "w-2 h-2 bg-white/60 hover:bg-white/80"}`}
+                className={`transition-all duration-300 rounded-full ${index === currentImageIndex ? "w-4 md:w-6 h-1.5 md:h-2 bg-white shadow-lg" : "w-1.5 h-1.5 md:w-2 md:h-2 bg-white/60 hover:bg-white/80"}`}
               />
             ))}
           </div>
         )}
       </div>
 
-      {/* Bottom Section */}
-      <div className="flex items-center justify-between text-sm text-muted-foreground mb-4">
-        <div className="flex items-center gap-2">
-          <MapPin size={14} />
-          {typeof location === 'string' ? location : location?.address || 'Unknown location'}
+      {/* Info Section (Location & User) */}
+      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2 text-[11px] md:text-sm text-muted-foreground mb-3 md:mb-4">
+        <div className="flex items-center gap-1.5 md:gap-2 line-clamp-1">
+          <MapPin size={14} className="flex-shrink-0" />
+          <span className="truncate">{typeof location === 'string' ? location : location?.address || 'Unknown location'}</span>
         </div>
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-2 flex-shrink-0">
           {isAnonymous ? (
             <span className="flex items-center gap-1 text-muted-foreground"><User size={14} /> Anonymous</span>
           ) : reportedBy?.name ? (
@@ -215,16 +215,23 @@ const IssueCard = ({ issue, onClick, onFlagClick }) => {
         </div>
       </div>
 
-      <div className="flex justify-between items-center">
-        <div className="flex gap-6 text-sm">
+      {/* Footer Section (Stats & Buttons) */}
+      <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3 pt-3 border-t border-border/50 mt-auto">
+        <div className="flex gap-4 md:gap-6 text-xs md:text-sm w-full sm:w-auto justify-between sm:justify-start">
           <span className="text-foreground"><strong>{confirmationCount || 0}</strong> Confirmed</span>
           <span className="text-foreground"><strong>{impactScore || impact || 0}</strong> Impact</span>
         </div>
-        <div className="flex gap-2">
-          <button onClick={handleFlagClick} className="px-3 py-2 rounded-xl text-sm font-medium transition-all bg-red-100 text-red-700 border border-red-200 hover:bg-red-200 flex items-center gap-1">
+        <div className="flex gap-2 w-full sm:w-auto">
+          <button 
+            onClick={handleFlagClick} 
+            className="flex-1 sm:flex-none justify-center px-3 py-1.5 md:py-2 rounded-xl text-xs md:text-sm font-medium transition-all bg-red-100 text-red-700 border border-red-200 hover:bg-red-200 flex items-center gap-1"
+          >
             <Flag size={14} /> Flag
           </button>
-          <button onClick={handleConfirm} className={`px-4 py-2 rounded-xl text-sm font-medium transition-all ${status === 'Open' ? "btn-gradient" : "bg-secondary/20 text-secondary border border-secondary/30 hover:bg-secondary/30"}`}>
+          <button 
+            onClick={handleConfirm} 
+            className={`flex-1 sm:flex-none justify-center px-4 py-1.5 md:py-2 rounded-xl text-xs md:text-sm font-medium transition-all ${status === 'Open' ? "btn-gradient" : "bg-secondary/20 text-secondary border border-secondary/30 hover:bg-secondary/30"}`}
+          >
             {confirmLoading ? "Confirming..." : "I Confirm"}
           </button>
         </div>

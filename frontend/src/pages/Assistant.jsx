@@ -10,10 +10,7 @@ const Assistant = () => {
   const [messages, setMessages] = useState([])
   const [isTyping, setIsTyping] = useState(false)
   const messagesEndRef = useRef(null);
-  const [theme]=useState(localStorage.getItem('theme'))
-
-  
-
+  const [theme] = useState(localStorage.getItem('theme'))
 
   const scrollToBottom = () => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' })
@@ -57,64 +54,67 @@ const Assistant = () => {
   }
 
   return (
-    <div className="bg-texture min-h-screen flex flex-col h-screen">
+    // Added pb-16 on mobile to clear the bottom taskbar, removed it on desktop
+    <div className="bg-texture flex flex-col h-[100dvh] pb-16 md:pb-0 md:h-screen">
+      
       {/* Chat Header */}
-      <div className="glass-card border-b border-border/50 sticky top-0 z-10 mx-4 my-2 rounded-lg">
-        <div className="flex items-center justify-between p-4">
-          <div className="flex items-center space-x-3">
+      <div className="glass-card border-b border-border/50 sticky top-0 z-10 mx-2 my-2 md:mx-4 md:my-2 rounded-lg">
+        <div className="flex items-center justify-between p-3 md:p-4">
+          <div className="flex items-center space-x-2 md:space-x-3">
             <div className="relative">
-              <Avatar className="h-10 w-10">
+              <Avatar className="h-8 w-8 md:h-10 md:w-10">
                 <AvatarFallback className="bg-gradient-to-br from-primary to-secondary text-white">
-                  <Bot className="h-5 w-5" />
+                  <Bot className="h-4 w-4 md:h-5 md:w-5" />
                 </AvatarFallback>
               </Avatar>
-              
             </div>
             <div>
-              <h3 className="font-semibold text-foreground">AI Assistant</h3>
+              <h3 className="font-semibold text-foreground text-sm md:text-base">AI Assistant</h3>
               <div className="flex items-center space-x-2">
                 <div className="flex items-center">
-                  <div className="h-2 w-2 bg-emerald-500 rounded-full animate-pulse"></div>
-                  <span className="text-xs text-muted-foreground ml-1">Online</span>
+                  <div className="h-1.5 w-1.5 md:h-2 md:w-2 bg-emerald-500 rounded-full animate-pulse"></div>
+                  <span className="text-[10px] md:text-xs text-muted-foreground ml-1">Online</span>
                 </div>
-               
               </div>
             </div>
           </div>
           
           <div className="flex items-center space-x-2">
-            <button className='px-4 py-2 btn-gradient flex gap-2 border rounded-lg text-white'>
-                 <Plus/> New Chat
+            <button className='px-3 py-1.5 md:px-4 md:py-2 text-xs md:text-sm btn-gradient flex items-center gap-1.5 md:gap-2 border rounded-lg text-white'>
+                 <Plus className="w-4 h-4" />
+                 {/* Text is hidden on very small screens to prevent layout breaking */}
+                 <span className="hidden sm:inline">New Chat</span>
             </button>
           </div>
         </div>
       </div>
 
       {/* Messages Container */}
-      <div className="flex-1 overflow-y-auto thin-scrollbar p-4">
+      <div className="flex-1 overflow-y-auto thin-scrollbar p-2 md:p-4">
         <div className="max-w-4xl mx-auto">
+          
           {/* Greeting Message - Shows when no messages */}
           {messages.length === 0 && !isTyping && (
-            <div className="flex flex-col items-center justify-center text-center py-20">
+            <div className="flex flex-col items-center justify-center text-center py-10 md:py-20 px-4">
               <div className="mb-6">
-                <div className="w-20 h-20 bg-gradient-to-br from-primary to-secondary rounded-full flex items-center justify-center mx-auto mb-4">
-                  <Bot className="h-10 w-10 text-white" />
+                <div className="w-16 h-16 md:w-20 md:h-20 bg-gradient-to-br from-primary to-secondary rounded-full flex items-center justify-center mx-auto mb-4">
+                  <Bot className="h-8 w-8 md:h-10 md:w-10 text-white" />
                 </div>
-                <h2 className="text-2xl font-semibold text-foreground mb-2">Hello! I'm your AI Assistant</h2>
-                <p className="text-muted-foreground text-lg max-w-md mx-auto">
+                <h2 className="text-xl md:text-2xl font-semibold text-foreground mb-2">Hello! I'm your AI Assistant</h2>
+                <p className="text-muted-foreground text-sm md:text-lg max-w-md mx-auto">
                   How can I help you today? Feel free to ask me anything or share what's on your mind.
                 </p>
               </div>
               
               {/* Quick suggestion buttons */}
-              <div className="flex flex-wrap gap-3 justify-center mt-8">
-                <button className="px-4 py-2 bg-card/50 backdrop-blur-sm border border-border/50 rounded-full text-foreground hover:bg-card transition-colors">
+              <div className="flex flex-wrap gap-2 md:gap-3 justify-center mt-4 md:mt-8">
+                <button className="px-3 py-1.5 md:px-4 md:py-2 text-xs md:text-sm bg-card/50 backdrop-blur-sm border border-border/50 rounded-full text-foreground hover:bg-card transition-colors">
                   💡 Help me with a problem
                 </button>
-                <button className="px-4 py-2 bg-card/50 backdrop-blur-sm border border-border/50 rounded-full text-foreground hover:bg-card transition-colors">
+                <button className="px-3 py-1.5 md:px-4 md:py-2 text-xs md:text-sm bg-card/50 backdrop-blur-sm border border-border/50 rounded-full text-foreground hover:bg-card transition-colors">
                   📝 Report an issue
                 </button>
-                <button className="px-4 py-2 bg-card/50 backdrop-blur-sm border border-border/50 rounded-full text-foreground hover:bg-card transition-colors">
+                <button className="px-3 py-1.5 md:px-4 md:py-2 text-xs md:text-sm bg-card/50 backdrop-blur-sm border border-border/50 rounded-full text-foreground hover:bg-card transition-colors">
                   🤖 Just want to chat
                 </button>
               </div>
@@ -126,40 +126,40 @@ const Assistant = () => {
               key={message.id}
               className={`flex ${message.type === 'user' ? 'justify-end' : 'justify-start'} animate-fade-in-up mb-4`}
             >
-              <div className={`flex items-end space-x-2 max-w-[80%] ${message.type === 'user' ? 'flex-row-reverse space-x-reverse' : ''}`}>
+              <div className={`flex items-end space-x-2 max-w-[90%] md:max-w-[80%] ${message.type === 'user' ? 'flex-row-reverse space-x-reverse' : ''}`}>
                 {message.type === 'assistant' && (
-                  <Avatar className="h-8 w-8 flex-shrink-0">
+                  <Avatar className="h-6 w-6 md:h-8 md:w-8 flex-shrink-0">
                     <AvatarFallback className="bg-gradient-to-br from-primary to-secondary text-white">
-                      <Bot className="h-4 w-4" />
+                      <Bot className="h-3 w-3 md:h-4 md:w-4" />
                     </AvatarFallback>
                   </Avatar>
                 )}
                 
                 <div className={`relative group`}>
-                  <Card className={`glass-card p-3 ${
+                  <Card className={`glass-card p-2.5 md:p-3 ${
                     message.type === 'user' 
                       ? 'bg-gradient-to-br from-primary to-secondary text-primary-foreground' 
                       : 'bg-card border-border/50'
                   }`}>
-                    <p className={`text-sm ${message.type === 'user' ? 'text-white' : 'text-foreground'}`}>
+                    <p className={`text-[13px] md:text-sm ${message.type === 'user' ? 'text-white' : 'text-foreground'}`}>
                       {message.content}
                     </p>
-                    <div className={`flex items-center justify-between mt-1 text-xs ${
+                    <div className={`flex items-center justify-between mt-1 text-[10px] md:text-xs ${
                       message.type === 'user' ? 'text-primary-foreground/70' : 'text-muted-foreground'
                     }`}>
                       <span>{formatTime(message.timestamp)}</span>
                       {message.type === 'user' && (
                         <div className="flex items-center space-x-1">
-                          {message.status === 'sent' && <span className="text-xs">✓</span>}
-                          {message.status === 'delivered' && <span className="text-xs">✓✓</span>}
+                          {message.status === 'sent' && <span>✓</span>}
+                          {message.status === 'delivered' && <span>✓✓</span>}
                         </div>
                       )}
                     </div>
                   </Card>
                   
                   {/* Message hover effects */}
-                  <div className={`absolute -top-2 ${message.type === 'user' ? '-left-2' : '-right-2'} opacity-0 group-hover:opacity-100 transition-opacity duration-200`}>
-                    <div className={`h-2 w-2 rounded-full bg-gradient-to-r ${
+                  <div className={`absolute -top-1 md:-top-2 ${message.type === 'user' ? '-left-1 md:-left-2' : '-right-1 md:-right-2'} opacity-0 group-hover:opacity-100 transition-opacity duration-200`}>
+                    <div className={`h-1.5 w-1.5 md:h-2 md:w-2 rounded-full bg-gradient-to-r ${
                       message.type === 'user' 
                         ? 'from-primary to-secondary' 
                         : 'from-accent to-primary'
@@ -168,9 +168,9 @@ const Assistant = () => {
                 </div>
 
                 {message.type === 'user' && (
-                  <Avatar className="h-8 w-8 flex-shrink-0">
+                  <Avatar className="h-6 w-6 md:h-8 md:w-8 flex-shrink-0">
                     <AvatarFallback className="bg-muted">
-                      <User className="h-4 w-4" />
+                      <User className="h-3 w-3 md:h-4 md:w-4" />
                     </AvatarFallback>
                   </Avatar>
                 )}
@@ -181,20 +181,20 @@ const Assistant = () => {
           {/* Typing Indicator */}
           {isTyping && (
             <div className="flex justify-start animate-fade-in-up">
-              <div className="flex items-end space-x-2 max-w-[80%]">
-                <Avatar className="h-8 w-8 flex-shrink-0">
+              <div className="flex items-end space-x-2 max-w-[90%] md:max-w-[80%]">
+                <Avatar className="h-6 w-6 md:h-8 md:w-8 flex-shrink-0">
                   <AvatarFallback className="bg-gradient-to-br from-primary to-secondary text-white">
-                    <Bot className="h-4 w-4" />
+                    <Bot className="h-3 w-3 md:h-4 md:w-4" />
                   </AvatarFallback>
                 </Avatar>
-                <Card className="glass-card bg-card border-border/50 p-3">
+                <Card className="glass-card bg-card border-border/50 p-2.5 md:p-3">
                   <div className="flex items-center space-x-1">
                     <div className="flex space-x-1">
-                      <div className="h-2 w-2 bg-primary rounded-full animate-bounce" style={{ animationDelay: '0ms' }}></div>
-                      <div className="h-2 w-2 bg-primary rounded-full animate-bounce" style={{ animationDelay: '150ms' }}></div>
-                      <div className="h-2 w-2 bg-primary rounded-full animate-bounce" style={{ animationDelay: '300ms' }}></div>
+                      <div className="h-1.5 w-1.5 md:h-2 md:w-2 bg-primary rounded-full animate-bounce" style={{ animationDelay: '0ms' }}></div>
+                      <div className="h-1.5 w-1.5 md:h-2 md:w-2 bg-primary rounded-full animate-bounce" style={{ animationDelay: '150ms' }}></div>
+                      <div className="h-1.5 w-1.5 md:h-2 md:w-2 bg-primary rounded-full animate-bounce" style={{ animationDelay: '300ms' }}></div>
                     </div>
-                    <span className="text-xs text-muted-foreground ml-2">Assistant is typing...</span>
+                    <span className="text-[10px] md:text-xs text-muted-foreground ml-2">Assistant is typing...</span>
                   </div>
                 </Card>
               </div>
@@ -207,7 +207,6 @@ const Assistant = () => {
 
       {/* Chat Input Component */}
       <ChatInput onSendMessage={handleSendMessage} />
-
       
     </div>
   )

@@ -7,7 +7,7 @@ import {
 } from "lucide-react";
 import { useState, useEffect } from "react";
 import { useDispatch, useSelector } from "react-redux";
-import { useNavigate, useLocation } from 'react-router-dom'
+import { useNavigate, useLocation } from 'react-router-dom';
 import { getChosenLocation, formatLocationDisplay, getCurrentLocationStored } from "../utils/locationUtils";
 import LocationModal from "../components/LocationModal";
 import IssueCard from "../components/IssueCard";
@@ -16,7 +16,6 @@ import FlagModal from "../components/modals/FlagModal";
 import axiosInstance from "../utils/axios";
 import { fetchIssues, clearIssues } from "../reducer/issueFeedReducer";
 import { showToast } from "../utils/toast";
-
 
 const Feed = () => {
   const [chosenLocation, setChosenLocation] = useState(() => getChosenLocation());
@@ -89,8 +88,6 @@ const Feed = () => {
     }
   };
 
-  
-
   const handleLocationUpdate = () => {
     const updatedLocation = getChosenLocation();
     const currentLocation = getCurrentLocationStored();
@@ -143,79 +140,87 @@ const Feed = () => {
   }, [dispatch]);
 
   return (
-    <div className="bg-texture min-h-screen ">
-      {/* HEADER (same as previous – NOT navbar) */}
-      <div className="px-6 py-4 sticky top-2 glass-card z-50 rounded-lg border-0 border-b border-border mx-4">
+    // Added pb-20 on mobile to clear the bottom taskbar, pb-8 on desktop for normal padding
+    <div className="bg-texture min-h-[100dvh] pb-20 md:pb-8">
+      
+      {/* HEADER (Sticky) */}
+      <div className="px-3 md:px-6 py-3 md:py-4 sticky top-2 glass-card z-40 rounded-lg border-0 border-b border-border mx-2 md:mx-4 shadow-sm">
         <div className="flex justify-between items-center">
-          <div>
-            <h2 className="text-lg font-bold text-foreground">{displayLocation}</h2>
-            <div className="flex items-center gap-1 text-sm text-muted-foreground">
-              <MapPin size={14} />
-              {chosenLocation?.country || "Uttar Pradesh, India"}
+          <div className="min-w-0 pr-2">
+            <h2 className="text-base md:text-lg font-bold text-foreground truncate">{displayLocation}</h2>
+            <div className="flex items-center gap-1 text-[11px] md:text-sm text-muted-foreground truncate">
+              <MapPin size={14} className="flex-shrink-0" />
+              <span className="truncate">{chosenLocation?.country || "Uttar Pradesh, India"}</span>
               <button 
-                className="ml-2 text-accent font-medium transition-colors hover:text-accent/80"
+                className="ml-1 md:ml-2 text-accent font-medium transition-colors hover:text-accent/80 flex-shrink-0"
                 onClick={() => setShowLocationModal(true)}
               >
-                Change Area
+                Change
               </button>
             </div>
           </div>
 
-          <div className="flex items-center gap-3">
-            <span className="text-sm bg-cyan-800 text-accent-foreground px-3 py-2 rounded-full border border-accent/30">
-              ● {activeIssuesCount} Active {activeIssuesCount === 1 ? 'Issue' : 'Issues'} in your area
+          <div className="flex items-center gap-2 md:gap-3 flex-shrink-0">
+            {/* Hidden on mobile, visible on larger screens */}
+            <span className="hidden lg:block text-xs md:text-sm bg-cyan-800 text-accent-foreground px-3 py-1.5 md:py-2 rounded-full border border-accent/30">
+              ● {activeIssuesCount} Active {activeIssuesCount === 1 ? 'Issue' : 'Issues'}
             </span>
-            <button className="btn-gradient flex items-center gap-2 px-4 py-2 rounded-xl" onClick={()=>navigate("/dashboard/report")}>
+            <button 
+              className="btn-gradient flex items-center gap-1.5 md:gap-2 px-3 md:px-4 py-1.5 md:py-2 rounded-xl whitespace-nowrap" 
+              onClick={()=>navigate("/dashboard/report")}
+            >
               <Plus size={16} />
-              New Issue
+              <span className="hidden sm:inline text-sm">New Issue</span>
+              <span className="sm:hidden text-xs">Report</span>
             </button>
           </div>
         </div>
       </div>
 
       {/* HERO SECTION */}
-      <div className="mt-6 mx-6 rounded-2xl glass-card p-8 text-card-foreground">
+      <div className="mt-4 md:mt-6 mx-2 md:mx-6 rounded-2xl glass-card p-5 md:p-8 text-card-foreground">
         <div className="w-full flex justify-between items-center">
           <div>
-            <h1 className="text-3xl font-bold mb-4 text-gradient">
+            <h1 className="text-2xl md:text-3xl font-bold mb-2 md:mb-4 text-gradient">
               Community-Verified Local Issues
             </h1>
-            <p className="text-sm text-muted-foreground mb-6 max-w-md leading-relaxed">
+            <p className="text-xs md:text-sm text-muted-foreground mb-4 md:mb-6 max-w-md leading-relaxed">
               Track, report, and resolve civic issues in your neighborhood
               with the power of community verification.
             </p>
 
-            <div className="flex gap-4">
+            <div className="flex flex-wrap gap-2 md:gap-4">
               <HeroBadge label="24 Resolved This Month" />
               <HeroBadge label="1,247 Active Citizens" />
             </div>
           </div>
 
-          <div className="hidden md:block">
+          <div className="hidden lg:block">
             <img
               src="https://images.unsplash.com/photo-1496181133206-80ce9b88a853?w=600&auto=format&fit=crop&q=60&ixlib=rb-4.1.0&ixid=M3wxMjA3fDB8MHxzZWFyY2h8NHx8Y29tcHV0ZXJ8ZW58MHx8MHx8fDA%3D"
               alt="hero"
-              className="rounded-xl shadow-lg h-56"
+              className="rounded-xl shadow-lg h-48 xl:h-56 object-cover"
             />
           </div>
         </div>
       </div>
 
       {/* STATS */}
-      <div className="-mt-6 px-6">
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+      {/* Relative positioning ensures it sits above the hero card when overlapping on desktop */}
+      <div className="mt-4 md:-mt-6 px-2 md:px-6 relative z-10">
+        <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 md:gap-6">
           <StatCard
-            icon={<CheckCircle2 className="text-secondary" />}
+            icon={<CheckCircle2 className="text-secondary w-5 h-5 md:w-6 md:h-6" />}
             label="Resolved This Month"
             value="24"
           />
           <StatCard
-            icon={<Clock className="text-secondary" />}
+            icon={<Clock className="text-secondary w-5 h-5 md:w-6 md:h-6" />}
             label="Pending Verification"
             value="8"
           />
           <StatCard
-            icon={<Users className="text-accent" />}
+            icon={<Users className="text-accent w-5 h-5 md:w-6 md:h-6" />}
             label="Community Impact"
             value="High"
           />
@@ -223,33 +228,33 @@ const Feed = () => {
       </div>
 
       {/* PRIORITY ISSUES */}
-      <div className="px-6 mt-12">
-        <div className="flex justify-between items-center mb-6">
-          <h3 className="text-xl font-bold text-foreground">
+      <div className="px-2 md:px-6 mt-8 md:mt-12">
+        <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 sm:gap-0 mb-6">
+          <h3 className="text-lg md:text-xl font-bold text-foreground">
             Priority Issues in Your Area
           </h3>
-          <div className="flex gap-2">
-            <button className="px-4 py-2 rounded-xl border border-border bg-card text-card-foreground text-sm hover:bg-muted transition-colors">
+          <div className="flex flex-wrap gap-2">
+            <button className="px-3 md:px-4 py-1.5 md:py-2 rounded-xl border border-border bg-card text-card-foreground text-xs md:text-sm hover:bg-muted transition-colors">
               Newest
             </button>
-            <button className="btn-gradient px-4 py-2 rounded-xl text-sm">
+            <button className="btn-gradient px-3 md:px-4 py-1.5 md:py-2 rounded-xl text-xs md:text-sm">
               Most Impactful
             </button>
           </div>
         </div>
 
-         <div className="grid grid-cols-1 md:grid-cols-2 gap-6 my-10">
+         <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 md:gap-6 my-6 md:my-10">
           {loading ? (
-            <div className="col-span-full flex justify-center items-center py-20">
-              <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-accent"></div>
+            <div className="col-span-full flex justify-center items-center py-10 md:py-20">
+              <div className="animate-spin rounded-full h-10 w-10 md:h-12 md:w-12 border-b-2 border-accent"></div>
             </div>
           ) : error ? (
-            <div className="col-span-full text-center py-20">
-              <p className="text-destructive">Failed to load issues. Please try again.</p>
+            <div className="col-span-full text-center py-10 md:py-20">
+              <p className="text-destructive text-sm md:text-base">Failed to load issues. Please try again.</p>
             </div>
           ) : issues.length === 0 ? (
-            <div className="col-span-full text-center ">
-              <p className="text-muted-foreground ">No Issues found in your area</p>
+            <div className="col-span-full text-center py-10">
+              <p className="text-muted-foreground text-sm md:text-base">No Issues found in your area</p>
             </div>
           ) : (
             issues.map((issue) => (
@@ -297,18 +302,17 @@ export default Feed;
 /* ---------------- COMPONENTS ---------------- */
 
 const HeroBadge = ({ label }) => (
-  <div className="glass-card px-4 py-2 rounded-full text-sm text-foreground/80 backdrop-blur">
+  <div className="glass-card px-3 py-1.5 md:px-4 md:py-2 rounded-full text-[11px] md:text-sm text-foreground/80 backdrop-blur whitespace-nowrap">
     {label}
   </div>
 );
 
 const StatCard = ({ icon, label, value }) => (
-  <div className="glass-card p-5 rounded-xl flex gap-4 items-center hover:shadow-lg transition-all">
-    <div className="p-3 bg-muted rounded-full">{icon}</div>
+  <div className="glass-card p-4 md:p-5 rounded-xl flex gap-3 md:gap-4 items-center hover:shadow-md md:hover:shadow-lg transition-all bg-card/80 backdrop-blur-md">
+    <div className="p-2.5 md:p-3 bg-muted rounded-full">{icon}</div>
     <div>
-      <p className="text-sm text-muted-foreground">{label}</p>
-      <p className="text-2xl font-bold text-foreground">{value}</p>
+      <p className="text-[11px] md:text-sm text-muted-foreground">{label}</p>
+      <p className="text-xl md:text-2xl font-bold text-foreground">{value}</p>
     </div>
   </div>
 );
-
