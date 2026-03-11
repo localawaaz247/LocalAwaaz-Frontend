@@ -457,6 +457,18 @@ export default function ReportIssue() {
               <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                 <div>
                   <label className="mb-2 block text-sm font-semibold text-foreground">
+                    State
+                  </label>
+                  <input
+                    type="text"
+                    placeholder="e.g. Assam"
+                    value={formData.location.state}
+                    onChange={(e) => handleInputChange('location.state', e.target.value)}
+                    className="w-full rounded-xl border-2 border-border bg-background px-4 py-3 outline-none transition-all focus:border-cyan-600 focus:ring-2 focus:ring-cyan-600/20"
+                  />
+                </div>
+                <div>
+                  <label className="mb-2 block text-sm font-semibold text-foreground">
                     City
                   </label>
                   <input
@@ -470,18 +482,6 @@ export default function ReportIssue() {
 
                 
 
-                <div>
-                  <label className="mb-2 block text-sm font-semibold text-foreground">
-                    State
-                  </label>
-                  <input
-                    type="text"
-                    placeholder="e.g. Assam"
-                    value={formData.location.state}
-                    onChange={(e) => handleInputChange('location.state', e.target.value)}
-                    className="w-full rounded-xl border-2 border-border bg-background px-4 py-3 outline-none transition-all focus:border-cyan-600 focus:ring-2 focus:ring-cyan-600/20"
-                  />
-                </div>
                 <div>
                   <label className="mb-2 block text-sm font-semibold text-foreground">
                     Pin Code
