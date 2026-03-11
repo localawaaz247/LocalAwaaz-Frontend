@@ -21,13 +21,12 @@ const Profile = () => {
       dispatch(getProfileDetails());
     }
   }, []);
-  
+
   return (
-    // Added min-h-[100dvh] and pb-20 to clear the mobile bottom taskbar
     <div className="w-full bg-texture min-h-[100dvh] pb-20 md:pb-8">
       {!profileData ? (
-        <div className="flex items-center justify-center min-h-screen"> 
-            <p className="text-muted-foreground">Loading profile...</p>
+        <div className="flex items-center justify-center min-h-screen">
+          <p className="text-muted-foreground">Loading profile...</p>
         </div>
       ) : (
         <>
@@ -37,15 +36,25 @@ const Profile = () => {
           {/* Profile Card */}
           <div className="max-w-6xl mx-auto -mt-12 md:-mt-16 px-3 md:px-6 relative z-10">
             <div className="glass-card rounded-xl p-4 md:p-6">
-              
+
               {/* Top Section */}
               <div className="flex flex-col sm:flex-row justify-between items-start gap-4 sm:gap-0">
                 <div className="flex gap-3 md:gap-4 items-start w-full">
-                  {/* Initials Badge */}
-                  <div className="w-12 h-12 md:w-14 md:h-14 rounded-xl bg-primary/10 flex items-center justify-center border border-primary/20 flex-shrink-0">
-                    <span className="text-primary font-semibold text-base md:text-lg">
-                      {profileData?.name?.charAt(0)?.toUpperCase() || 'U'}
-                    </span>
+
+                  {/* Profile Picture or Initials Badge */}
+                  <div className="w-12 h-12 md:w-14 md:h-14 rounded-xl bg-primary/10 flex items-center justify-center border border-primary/20 flex-shrink-0 overflow-hidden">
+                    {profileData?.profilePic ? (
+                      <img
+                        src={profileData.profilePic}
+                        alt={`${profileData.name}'s profile`}
+                        className="w-full h-full object-cover"
+                        referrerPolicy="no-referrer"
+                      />
+                    ) : (
+                      <span className="text-primary font-semibold text-base md:text-lg">
+                        {profileData?.name?.charAt(0)?.toUpperCase() || 'U'}
+                      </span>
+                    )}
                   </div>
 
                   {/* Info */}
@@ -73,15 +82,15 @@ const Profile = () => {
                   </div>
                 </div>
 
-                {/* Actions - Full width on mobile, auto on tablet+ */}
+                {/* Actions */}
                 <div className="flex gap-2 w-full sm:w-auto mt-2 sm:mt-0 flex-shrink-0">
-                  <button 
+                  <button
                     onClick={() => setIsEditModalOpen(true)}
                     className="btn-gradient flex-1 sm:flex-none px-4 py-2 rounded-xl text-xs md:text-sm font-medium transition-transform hover:scale-[1.02] active:scale-[0.98]"
                   >
                     Edit Profile
                   </button>
-                  <button 
+                  <button
                     onClick={() => setIsSettingsModalOpen(true)}
                     className="w-9 h-9 md:w-10 md:h-10 bg-card border border-border rounded-xl flex items-center justify-center hover:bg-muted transition-colors"
                   >
@@ -128,45 +137,41 @@ const Profile = () => {
                 </div>
               </div>
 
-              {/* Tabs - Scrollable horizontally on small screens */}
+              {/* Tabs */}
               <div className="mt-6 md:mt-8 border-b border-border flex gap-4 md:gap-6 text-xs md:text-sm overflow-x-auto no-scrollbar whitespace-nowrap">
-                <button 
+                <button
                   onClick={() => setActiveTab('posted')}
-                  className={`pb-2.5 md:pb-3 border-b-2 transition-colors flex-shrink-0 ${
-                    activeTab === 'posted' 
-                      ? 'border-primary text-primary font-semibold' 
+                  className={`pb-2.5 md:pb-3 border-b-2 transition-colors flex-shrink-0 ${activeTab === 'posted'
+                      ? 'border-primary text-primary font-semibold'
                       : 'border-transparent text-muted-foreground hover:text-foreground'
-                  }`}
+                    }`}
                 >
                   Issues Posted
                 </button>
-                <button 
+                <button
                   onClick={() => setActiveTab('confirmed')}
-                  className={`pb-2.5 md:pb-3 border-b-2 transition-colors flex-shrink-0 ${
-                    activeTab === 'confirmed' 
-                      ? 'border-primary text-primary font-semibold' 
+                  className={`pb-2.5 md:pb-3 border-b-2 transition-colors flex-shrink-0 ${activeTab === 'confirmed'
+                      ? 'border-primary text-primary font-semibold'
                       : 'border-transparent text-muted-foreground hover:text-foreground'
-                  }`}
+                    }`}
                 >
                   Issues Confirmed
                 </button>
-                <button 
+                <button
                   onClick={() => setActiveTab('comments')}
-                  className={`pb-2.5 md:pb-3 border-b-2 transition-colors flex-shrink-0 ${
-                    activeTab === 'comments' 
-                      ? 'border-primary text-primary font-semibold' 
+                  className={`pb-2.5 md:pb-3 border-b-2 transition-colors flex-shrink-0 ${activeTab === 'comments'
+                      ? 'border-primary text-primary font-semibold'
                       : 'border-transparent text-muted-foreground hover:text-foreground'
-                  }`}
+                    }`}
                 >
                   Comments
                 </button>
-                <button 
+                <button
                   onClick={() => setActiveTab('saved')}
-                  className={`pb-2.5 md:pb-3 border-b-2 transition-colors flex-shrink-0 ${
-                    activeTab === 'saved' 
-                      ? 'border-primary text-primary font-semibold' 
+                  className={`pb-2.5 md:pb-3 border-b-2 transition-colors flex-shrink-0 ${activeTab === 'saved'
+                      ? 'border-primary text-primary font-semibold'
                       : 'border-transparent text-muted-foreground hover:text-foreground'
-                  }`}
+                    }`}
                 >
                   Saved Issues
                 </button>
@@ -183,14 +188,14 @@ const Profile = () => {
           </div>
         </>
       )}
-      
-      <EditProfileModal 
-        isOpen={isEditModalOpen} 
-        onClose={() => setIsEditModalOpen(false)} 
+
+      <EditProfileModal
+        isOpen={isEditModalOpen}
+        onClose={() => setIsEditModalOpen(false)}
       />
-      <SettingsModal 
-        isOpen={isSettingsModalOpen} 
-        onClose={() => setIsSettingsModalOpen(false)} 
+      <SettingsModal
+        isOpen={isSettingsModalOpen}
+        onClose={() => setIsSettingsModalOpen(false)}
       />
     </div>
   );

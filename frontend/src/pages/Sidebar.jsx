@@ -20,9 +20,12 @@ import { useDispatch, useSelector } from "react-redux";
 import { logout } from "../reducer/authReducer";
 import { useNotifications } from "../hooks/useNotifications";
 
+import SettingsModal from "../components/modals/SettingsModal";
+
 const Sidebar = () => {
   const location = useLocation();
   const [openModal, setOpenModal] = useState(false);
+  const [isSettingsOpen, setIsSettingsOpen] = useState(false);
   const [isDarkMode, setIsDarkMode] = useState(() => {
     const savedTheme = localStorage.getItem('theme');
     const systemPrefersDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
@@ -35,6 +38,7 @@ const Sidebar = () => {
 
   const user = useSelector((state) => state.auth?.user);
   const name = user?.name;
+  const profilePic = user?.profilePic; // Extract profilePic from auth state
   const { unreadCount, markAsRead } = useNotifications(user);
 
   // Function to get initials from name
@@ -99,7 +103,6 @@ const Sidebar = () => {
 
   return (
     <>
-      {/* Dynamic Global Style: Prevents the feed content from sliding under the fixed navbars */}
       <style>{`
         @media (max-width: 767px) {
           body { padding-bottom: 4rem; }
@@ -146,10 +149,14 @@ const Sidebar = () => {
                 className="flex items-center justify-center p-2"
                 onClick={() => setOpenModal(true)}
               >
-                <div className={`w-8 h-8 rounded-full border text-xs flex justify-center items-center transition-colors 
+                <div className={`w-8 h-8 rounded-full border text-xs flex justify-center items-center overflow-hidden transition-colors 
                   ${openModal ? 'border-primary text-primary' : 'border-foreground/30 text-foreground'}`}
                 >
-                  {getInitials(name)}
+                  {profilePic ? (
+                    <img src={profilePic} alt={name} className="w-full h-full object-cover" referrerPolicy="no-referrer" />
+                  ) : (
+                    getInitials(name)
+                  )}
                 </div>
               </button>
             </div>
@@ -161,8 +168,12 @@ const Sidebar = () => {
               className="flex items-center gap-3 w-full border-t pt-6 border-foreground/30 hover:opacity-80 transition-opacity"
               onClick={() => setOpenModal(true)}
             >
-              <div className="w-8 h-8 rounded-full border text-gradient border-accent text-xs flex justify-center items-center">
-                {getInitials(name)}
+              <div className="w-8 h-8 rounded-full border border-accent text-xs flex justify-center items-center overflow-hidden">
+                {profilePic ? (
+                  <img src={profilePic} alt={name} className="w-full h-full object-cover" referrerPolicy="no-referrer" />
+                ) : (
+                  <span className="text-gradient">{getInitials(name)}</span>
+                )}
               </div>
               <span className="text-gradient font-semibold truncate">{name}</span>
             </button>
@@ -226,7 +237,10 @@ const Sidebar = () => {
 
               <button
                 className="w-full flex items-center gap-3 px-4 py-3 rounded-xl text-foreground/80 hover:text-foreground hover:bg-black/10 dark:hover:bg-black/40 transition-all duration-200 text-left"
-                onClick={() => setOpenModal(false)}
+                onClick={() => {
+                  setOpenModal(false);
+                  setIsSettingsOpen(true);
+                }}
               >
                 <Settings className="w-5 h-5" />
                 <span className="text-sm md:text-base font-medium">Settings</span>
@@ -264,8 +278,14 @@ const Sidebar = () => {
               </div>
             </div>
           </div>
-        </div >
+        </div>
       )}
+
+      {/* Render the Settings Modal */}
+      <SettingsModal
+        isOpen={isSettingsOpen}
+        onClose={() => setIsSettingsOpen(false)}
+      />
     </>
   );
 };
