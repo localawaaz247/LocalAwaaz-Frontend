@@ -17,12 +17,12 @@ import GoogleCallback from "./pages/GoogleCallback";
 import IssueDetailPage from "./pages/IssueDetailPage";
 import { ProtectedRoute } from "./components/ProtectedRoute";
 import { PublicRoute } from "./components/PublicRoute";
-import FAQ from "./pages/faq";
 import Careers from "./pages/Careers";
 import Press from "./pages/Press";
 import Privacy from "./pages/Privacy";
 import TermsOfService from "./pages/TermsOfService";
 import Cookies from "./pages/Cookies";
+import FAQ from "./pages/FAQ";
 
 
 
