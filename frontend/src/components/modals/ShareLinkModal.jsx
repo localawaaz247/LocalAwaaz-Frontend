@@ -1,113 +1,73 @@
-import React, { useState } from "react";
-import { Share2, Copy, Check } from "lucide-react";
+import React, { useState } from 'react';
+import { X, Copy, Check, Share2 } from 'lucide-react';
 
 const ShareLinkModal = ({ isOpen, onClose, shareLink }) => {
   const [copied, setCopied] = useState(false);
 
-  const handleCopy = async () => {
-    try {
-      await navigator.clipboard.writeText(shareLink);
-      setCopied(true);
-      
-      // Close modal after short delay to show "Copied!" feedback
-      setTimeout(() => {
-        handleClose();
-      }, 800);
-    } catch (err) {
-      // Fallback for older browsers
-      const textArea = document.createElement('textarea');
-      textArea.value = shareLink;
-      document.body.appendChild(textArea);
-      textArea.select();
-      document.execCommand('copy');
-      document.body.removeChild(textArea);
-      
-      setCopied(true);
-      setTimeout(() => {
-        handleClose();
-      }, 800);
-    }
-  };
-
-  const handleClose = () => {
-    setCopied(false);
-    onClose();
-  };
-
   if (!isOpen) return null;
+
+  const handleCopy = () => {
+    navigator.clipboard.writeText(shareLink);
+    setCopied(true);
+    setTimeout(() => setCopied(false), 2000);
+  };
 
   return (
     <div 
-      className="fixed inset-0 bg-black/20 backdrop-blur-sm flex items-center justify-center z-50 p-4"
-      onClick={(e) => {
-        e.stopPropagation();
-        handleClose();
-      }}
+      className="fixed inset-0 z-[100] flex items-center justify-center bg-black/60 backdrop-blur-sm p-4" 
+      onClick={onClose}
     >
       <div 
-        className="glass-card rounded-2xl p-6 w-full max-w-md shadow-2xl"
+        className="bg-card border border-border/50 rounded-2xl w-full max-w-md shadow-2xl overflow-hidden animate-fade-in-up"
         onClick={(e) => e.stopPropagation()}
       >
-        <div className="flex justify-between items-center mb-6">
-          <div className="flex items-center gap-3">
-            <div className="w-10 h-10 rounded-full bg-primary/10 flex items-center justify-center">
-              <Share2 className="w-5 h-5 text-primary" />
+        {/* Header */}
+        <div className="flex justify-between items-center p-4 md:p-5 border-b border-border/50 bg-muted/20">
+          <h3 className="text-base md:text-lg font-semibold text-foreground flex items-center gap-2">
+            <div className="p-1.5 bg-primary/10 rounded-full">
+              <Share2 size={16} className="text-primary" />
             </div>
-            <h2 className="text-xl font-bold text-foreground">Share Issue</h2>
-          </div>
-          <button
-            onClick={handleClose}
-            className="w-8 h-8 rounded-lg bg-card/50 border border-border/50 flex items-center justify-center hover:bg-muted/50 transition-all duration-200 hover:scale-105"
+            Share Issue
+          </h3>
+          <button 
+            onClick={onClose} 
+            className="p-1.5 rounded-full text-muted-foreground hover:text-foreground hover:bg-muted transition-colors"
           >
-            ✕
+            <X size={18} />
           </button>
         </div>
-
-        <div className="space-y-4">
-          <div className="text-center mb-4">
-            <p className="text-sm text-muted-foreground">
-              Share this link with others to let them view this issue
-            </p>
-          </div>
-
-          <div className="space-y-2">
-            <label className="text-sm font-semibold text-foreground">
-              Share Link
-            </label>
-            <div className="flex gap-2">
-              <input
-                type="text"
-                value={shareLink}
-                readOnly
-                className="flex-1 px-4 py-3 bg-card/50 border border-border/50 rounded-xl text-foreground text-sm font-mono"
-                onClick={(e) => e.target.select()}
+        
+        {/* Body */}
+        <div className="p-4 md:p-5">
+          <p className="text-sm text-muted-foreground mb-4 text-center md:text-left">
+            Share this link with others to let them view this issue.
+          </p>
+          
+          <div className="mb-2">
+            <label className="block text-xs font-semibold text-foreground mb-1.5">Share Link</label>
+            {/* THIS IS THE RESPONSIVE FIX: flex-col on mobile, flex-row on sm screens */}
+            <div className="flex flex-col sm:flex-row items-center gap-2">
+              <input 
+                type="text" 
+                readOnly 
+                value={shareLink} 
+                className="w-full bg-muted/50 border border-border/50 rounded-xl px-3 py-2.5 text-sm text-foreground outline-none focus:border-primary/50"
               />
-              <button
+              <button 
                 onClick={handleCopy}
-                className={`px-4 py-3 rounded-xl font-semibold transition-all duration-200 flex items-center gap-2 hover:scale-[1.02] ${
+                className={`w-full sm:w-auto flex-shrink-0 flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl text-sm font-medium transition-all ${
                   copied 
-                    ? 'bg-green-600 text-white hover:bg-green-700' 
-                    : 'btn-gradient text-white hover:scale-[1.02]'
+                    ? 'bg-green-500/10 text-green-500 border border-green-500/20' 
+                    : 'btn-gradient text-white hover:opacity-90 shadow-sm'
                 }`}
               >
-                {copied ? (
-                  <>
-                    <Check size={16} />
-                    Copied!
-                  </>
-                ) : (
-                  <>
-                    <Copy size={16} />
-                    Copy
-                  </>
-                )}
+                {copied ? <><Check size={16} /> Copied</> : <><Copy size={16} /> Copy</>}
               </button>
             </div>
           </div>
-
-          <div className="text-center text-xs text-muted-foreground mt-4">
-            Anyone with this link can view this issue
-          </div>
+          <p className="text-[10px] md:text-xs text-muted-foreground text-center md:text-left mt-3">
+            Anyone with this link can view this issue.
+          </p>
         </div>
       </div>
     </div>

@@ -1,11 +1,22 @@
 import { useState, useRef, useEffect } from "react";
-import { Plus, Mic, SlidersHorizontal, ChevronDown, Send } from "lucide-react";
+import { Plus, Mic, Send, Camera, Image as ImageIcon, X, FileAudio } from "lucide-react";
 
 const ChatInput = ({ onSendMessage }) => {
   const [message, setMessage] = useState("");
-  const textareaRef = useRef(null);
+  const [showPlusMenu, setShowPlusMenu] = useState(false);
+  
+  // NEW: Hold file in state before sending
+  const [selectedFile, setSelectedFile] = useState(null);
+  const [selectedFileType, setSelectedFileType] = useState(null);
+  const [previewUrl, setPreviewUrl] = useState(null);
 
-  // Auto-resize textarea based on content
+  const textareaRef = useRef(null);
+  const plusMenuRef = useRef(null);
+  
+  const cameraInputRef = useRef(null);
+  const imageInputRef = useRef(null);
+  const audioInputRef = useRef(null);
+
   useEffect(() => {
     const textarea = textareaRef.current;
     if (textarea) {
@@ -14,11 +25,30 @@ const ChatInput = ({ onSendMessage }) => {
     }
   }, [message]);
 
+  useEffect(() => {
+    const handleClickOutside = (event) => {
+      if (plusMenuRef.current && !plusMenuRef.current.contains(event.target)) {
+        setShowPlusMenu(false);
+      }
+    };
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, []);
+
+  const clearFile = () => {
+    setSelectedFile(null);
+    setSelectedFileType(null);
+    if (previewUrl) URL.revokeObjectURL(previewUrl);
+    setPreviewUrl(null);
+  };
+
   const handleSend = () => {
-    if (message.trim()) {
-      onSendMessage(message);
+    if (message.trim() || selectedFile) {
+      // Send both text and file simultaneously
+      onSendMessage(message, selectedFile, selectedFileType);
+      
       setMessage("");
-      // Reset textarea height
+      clearFile();
       if (textareaRef.current) {
         textareaRef.current.style.height = 'auto';
       }
@@ -32,63 +62,126 @@ const ChatInput = ({ onSendMessage }) => {
     }
   };
 
+  const handleCamera = () => { cameraInputRef.current?.click(); setShowPlusMenu(false); };
+  const handleBrowseImages = () => { imageInputRef.current?.click(); setShowPlusMenu(false); };
+  const handleAudioClick = () => { audioInputRef.current?.click(); };
+
+  const handleFileChange = (e, type) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    // Size Validations
+    if (type === 'audio' && file.size > 5 * 1024 * 1024) {
+      alert("Audio file size must be less than 5 MB.");
+      e.target.value = ""; 
+      return;
+    }
+    if (type === 'image' && file.size > 30 * 1024 * 1024) {
+      alert("Image file size must be less than 30 MB.");
+      e.target.value = ""; 
+      return;
+    }
+
+    setSelectedFile(file);
+    setSelectedFileType(type);
+    
+    if (type === 'image') {
+      setPreviewUrl(URL.createObjectURL(file));
+    }
+
+    e.target.value = "";
+  };
+
   return (
-    <div className="w-full  px-6 pb-6">
-      <div className="relative max-w-4xl mx-auto ">
-        
-        {/* Glow Border */}
-        <div className="absolute inset-0 bg-gradient-to-r from-primary/20 via-accent/10 to-primary/20 blur-xl rounded-2xl"></div>
+    <div className="w-full px-4 pb-6 md:px-6">
+      <div className="relative max-w-4xl mx-auto">
+        <div className="absolute -inset-1 bg-gradient-to-r from-primary/10 via-accent/10 to-primary/10 blur-xl rounded-3xl opacity-70"></div>
 
-        {/* Input Container */}
-        <div className="relative flex flex-col gap-3 glass-card border border-border/50 rounded-2xl px-4 py-3 shadow-lg backdrop-blur-md min-h-[60px]">
+        <div className="relative bg-card/80 backdrop-blur-xl border border-border/50 rounded-[24px] p-2 shadow-sm transition-all duration-300 focus-within:bg-card/95 focus-within:border-primary/40 focus-within:shadow-md flex flex-col">
+          
+          {/* FILE PREVIEW UI */}
+          {selectedFile && (
+            <div className="flex items-center gap-3 p-2 mb-2 mx-2 mt-1 bg-muted/60 border border-border/50 rounded-xl w-max max-w-full relative group animate-fade-in-up">
+              {selectedFileType === 'image' ? (
+                <img src={previewUrl} alt="preview" className="h-12 w-12 object-cover rounded-lg shadow-sm" />
+              ) : (
+                <div className="h-12 w-12 flex items-center justify-center bg-primary/10 rounded-lg text-primary">
+                  <FileAudio size={24} />
+                </div>
+              )}
+              <div className="flex flex-col pr-6">
+                <span className="text-xs font-semibold text-foreground truncate max-w-[150px] md:max-w-[200px]">
+                  {selectedFile.name}
+                </span>
+                <span className="text-[10px] text-muted-foreground">
+                  {(selectedFile.size / 1024 / 1024).toFixed(2)} MB
+                </span>
+              </div>
+              <button 
+                onClick={clearFile} 
+                className="absolute top-1 right-1 p-1 bg-background/80 hover:bg-destructive/10 hover:text-destructive text-muted-foreground rounded-full transition-colors"
+              >
+                <X size={14} />
+              </button>
+            </div>
+          )}
 
-          {/* Textarea - takes remaining space */}
+          {/* TEXT AREA */}
           <textarea
             ref={textareaRef}
-            placeholder="Ask AI Assistant..."
+            placeholder={selectedFile ? "Add a message about this file (optional)..." : "Ask AI Assistant or select a file..."}
             value={message}
             onChange={(e) => setMessage(e.target.value)}
-            onKeyPress={handleKeyPress}
-            className="flex-1 bg-transparent outline-none text-foreground placeholder-muted-foreground text-sm resize-none overflow-hidden leading-6 min-h-[30px] max-h-32 py-1"
+            onKeyDown={handleKeyPress}
+            className="w-full bg-transparent outline-none text-foreground placeholder-muted-foreground text-[15px] resize-none overflow-x-hidden overflow-y-auto leading-relaxed max-h-32 px-3 pt-2 pb-1 custom-scrollbar"
             rows={1}
+            style={{ minHeight: "44px" }}
           />
 
-          {/* Bottom row with buttons */}
-          <div className="flex items-center justify-between">
-            {/* Left Section */}
-            <div className="flex items-center gap-3 text-muted-foreground">
-              <button className="hover:text-accent transition">
-                <Plus size={20} />
-              </button>
-
-              <button className="flex items-center gap-2 text-sm hover:text-accent transition">
-                <SlidersHorizontal size={18} />
-                Tools
-              </button>
-            </div>
-
-            {/* Right Section */}
-            <div className="flex items-center gap-3 text-muted-foreground">
-              <button className="flex items-center gap-1 text-sm hover:text-accent transition">
-                Fast
-                <ChevronDown size={16} />
-              </button>
-
-              <button className="hover:text-accent transition">
-                <Mic size={20} />
-              </button>
-
+          <div className="flex items-center justify-end gap-1.5 pt-1 pr-1">
+            <div className="relative" ref={plusMenuRef}>
               <button 
-                onClick={handleSend}
-                disabled={!message.trim()}
-                className="p-2 text-accent hover:text-accent/80 hover:bg-accent/10 rounded-lg transition-all disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:bg-transparent"
+                onClick={() => setShowPlusMenu(!showPlusMenu)}
+                className={`p-2 rounded-full transition-all duration-200 flex items-center justify-center ${showPlusMenu ? 'bg-primary/10 text-primary' : 'text-muted-foreground hover:bg-muted hover:text-foreground'}`}
               >
-                <Send size={20} />
+                <Plus size={18} strokeWidth={2.5} />
               </button>
+
+              {showPlusMenu && (
+                <div className="absolute bottom-full right-0 mb-3 w-48 bg-card/95 backdrop-blur-xl border border-border/50 rounded-2xl shadow-xl overflow-hidden animate-fade-in-up z-50 py-1.5">
+                  <button onClick={handleCamera} className="w-full flex items-center gap-3 px-4 py-2.5 hover:bg-muted/80 text-sm transition-colors text-foreground font-medium">
+                    <Camera className="w-4 h-4 text-primary" />
+                    Take Photo
+                  </button>
+                  <button onClick={handleBrowseImages} className="w-full flex items-center gap-3 px-4 py-2.5 hover:bg-muted/80 text-sm transition-colors text-foreground font-medium">
+                    <ImageIcon className="w-4 h-4 text-primary" />
+                    Browse Images
+                  </button>
+                </div>
+              )}
             </div>
+
+            <button
+              onClick={handleAudioClick}
+              className="p-2 rounded-full transition-all duration-200 flex items-center justify-center text-muted-foreground hover:bg-muted hover:text-foreground"
+            >
+              <Mic size={18} strokeWidth={2.5} />
+            </button>
+
+            <button 
+              onClick={handleSend}
+              disabled={!message.trim() && !selectedFile}
+              className="ml-1 p-2 bg-primary text-primary-foreground hover:opacity-90 rounded-full transition-all duration-200 disabled:opacity-0 disabled:scale-95 disabled:pointer-events-none flex items-center justify-center shadow-sm"
+            >
+              <Send size={16} strokeWidth={2.5} className="ml-0.5" /> 
+            </button>
           </div>
         </div>
       </div>
+
+      <input type="file" accept="image/*" capture="environment" ref={cameraInputRef} onChange={(e) => handleFileChange(e, 'image')} className="hidden" />
+      <input type="file" accept="image/*" ref={imageInputRef} onChange={(e) => handleFileChange(e, 'image')} className="hidden" />
+      <input type="file" accept="audio/*" capture="environment" ref={audioInputRef} onChange={(e) => handleFileChange(e, 'audio')} className="hidden" />
     </div>
   );
 };

@@ -10,11 +10,12 @@ import {
   TrafficCone,
   AlertTriangle,
   Camera,
-  HeartPulse,     // Added for Health
-  GraduationCap,  // Added for Education
-  ShieldAlert     // Added for Corruption
+  HeartPulse,    // Added for Health
+  GraduationCap, // Added for Education
+  ShieldAlert    // Added for Corruption
 } from "lucide-react";
 import { useState, useEffect } from "react";
+import { useLocation } from "react-router-dom"; // IMPORT REQUIRED FOR ROUTER STATE
 import { BASE_URL } from "../utils/config";
 import { saveCurrentLocation } from "../utils/locationUtils";
 import CurrentLocationModal from "../components/CurrentLocationModal";
@@ -38,6 +39,9 @@ const categories = [
 
 
 export default function ReportIssue() {
+  const routerLocation = useLocation();
+  const prefilledData = routerLocation.state?.prefilledData;
+
   const [formData, setFormData] = useState({
     title: '',
     category: '',
@@ -56,6 +60,7 @@ export default function ReportIssue() {
     mediaUrls: [],
     isAnonymous: false
   });
+
   const [errors, setErrors] = useState({});
   const [submitError, setSubmitError] = useState('');
   const [submitSuccess, setSubmitSuccess] = useState(false);
@@ -64,15 +69,50 @@ export default function ReportIssue() {
   const [isUploading, setIsUploading] = useState(false);
   const [uploadError, setUploadError] = useState('');
   const [previewUrls, setPreviewUrls] = useState([]);
- 
+
+  // --- AUTOMATICALLY PREFILL DATA FROM ASSISTANT ---
   useEffect(() => {
-    // Check if user already has a saved location, but don't auto-populate
-    // Only use it if user explicitly clicks "Get Current Location"
-    // This gives users full control
+    if (prefilledData) {
+      setFormData(prev => ({
+        ...prev,
+        title: prefilledData.title || prev.title,
+        category: prefilledData.category || prev.category,
+        description: prefilledData.description || prev.description,
+        location: {
+          ...prev.location,
+          address: prefilledData.location?.address || prev.location.address,
+          city: prefilledData.location?.city || prev.location.city,
+          state: prefilledData.location?.state || prev.location.state,
+          geoData: {
+            type: 'Point',
+            // AI returns coordinates in an array [lng, lat]
+            coordinates: prefilledData.location?.coordinates || prev.location.geoData.coordinates
+          }
+        },
+        media: prefilledData.originalFile ? [prefilledData.originalFile] : prev.media
+      }));
+
+      // Generate preview for the prefilled image
+      if (prefilledData.originalFile) {
+        try {
+          const url = URL.createObjectURL(prefilledData.originalFile);
+          setPreviewUrls([url]);
+        } catch (error) {
+          console.error("Error creating preview URL for prefilled file:", error);
+        }
+      }
+    }
+  }, [prefilledData]);
+
+  useEffect(() => {
+    // Cleanup preview URLs to avoid memory leaks
+    return () => {
+      previewUrls.forEach(url => URL.revokeObjectURL(url));
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   const handleLocationCaptured = (locationData) => {
-  
     saveCurrentLocation(locationData);
 
     setFormData(prev => ({
@@ -107,93 +147,80 @@ export default function ReportIssue() {
 
   const handleFileChange = (e) => {
     const files = Array.from(e.target.files);
-    
+
     if (!files || files.length === 0) {
-      return; // No files selected, do nothing
+      return;
     }
-    
-    // Check if we're adding to existing files or replacing them
+
     const currentFileCount = formData.media.length;
     const totalFilesAfterAdd = currentFileCount + files.length;
-    
-    // Enforce 3-file limit
+
     if (totalFilesAfterAdd > 3) {
-      setErrors(prev => ({ 
-        ...prev, 
+      setErrors(prev => ({
+        ...prev,
         media: `Cannot add ${files.length} file(s). You can only have a maximum of 3 files. Currently have ${currentFileCount}/3.`
       }));
       return;
     }
-    
-    // Only allow image files (PNG, JPEG, JPG)
+
     const validTypes = ['image/png', 'image/jpg', 'image/jpeg'];
-    
-    // Validate each new file
-    const invalidFiles = files.filter(file => {
-      if (!validTypes.includes(file.type)) return true;
-      return false;
-    });
-    
+
+    const invalidFiles = files.filter(file => !validTypes.includes(file.type));
+
     if (invalidFiles.length > 0) {
       const errorMessages = invalidFiles.map(file => {
         return `${file.name} is not a supported format. Only PNG, JPG, JPEG images are allowed.`;
       });
-      
-      setErrors(prev => ({ 
-        ...prev, 
+
+      setErrors(prev => ({
+        ...prev,
         media: errorMessages.join(', ')
       }));
       return;
     }
-    
-    // Check combined file size limit (30MB)
+
     const currentTotalSize = formData.media.reduce((total, file) => total + file.size, 0);
     const newFilesSize = files.reduce((total, file) => total + file.size, 0);
     const combinedTotalSize = currentTotalSize + newFilesSize;
-    const maxTotalSize = 30 * 1024 * 1024; // 30MB in bytes
-    
+    const maxTotalSize = 30 * 1024 * 1024; // 30MB
+
     if (combinedTotalSize > maxTotalSize) {
-      setErrors(prev => ({ 
-        ...prev, 
+      setErrors(prev => ({
+        ...prev,
         media: `Combined file size exceeds 30MB limit. Current: ${(currentTotalSize / (1024 * 1024)).toFixed(2)}MB, Adding: ${(newFilesSize / (1024 * 1024)).toFixed(2)}MB, Total would be: ${(combinedTotalSize / (1024 * 1024)).toFixed(2)}MB`
       }));
       return;
     }
-    
+
     setErrors(prev => ({ ...prev, media: '' }));
     setUploadError('');
-    
-    // Combine existing files with new files
+
     const updatedMedia = [...formData.media, ...files];
-    
-    // Create preview URLs for new files only
     const newPreviewUrls = files.map(file => URL.createObjectURL(file));
     const updatedPreviewUrls = [...previewUrls, ...newPreviewUrls];
-    
+
     setPreviewUrls(updatedPreviewUrls);
     setFormData(prev => ({
       ...prev,
       media: updatedMedia,
-      mediaUrls: [] // Reset uploaded URLs when new files are added
+      mediaUrls: []
     }));
-    
-    // Clear the file input so the same file can be selected again if needed
+
     e.target.value = '';
   };
 
   const handleRemoveFile = (indexToRemove) => {
-    // Revoke the preview URL to avoid memory leaks
     if (previewUrls[indexToRemove]) {
       URL.revokeObjectURL(previewUrls[indexToRemove]);
     }
-    
+
     const newMedia = formData.media.filter((_, index) => index !== indexToRemove);
     const newPreviewUrls = previewUrls.filter((_, index) => index !== indexToRemove);
-    
+
     setFormData(prev => ({
       ...prev,
       media: newMedia,
-      mediaUrls: [] // Reset uploaded URLs when files are removed
+      mediaUrls: []
     }));
     setPreviewUrls(newPreviewUrls);
     setUploadError('');
@@ -204,32 +231,30 @@ export default function ReportIssue() {
       setUploadError('Please select files to upload first');
       return;
     }
-    
+
     setIsUploading(true);
     setUploadError('');
-    
+
     try {
       const uploadFormData = new FormData();
-      formData.media.forEach((file, index) => {
+      formData.media.forEach((file) => {
         uploadFormData.append(`issue_media`, file);
       });
-      
+
       const response = await axiosInstance.post('/upload-issues', uploadFormData, {
         headers: {
           'Content-Type': 'multipart/form-data',
         },
       });
-      
+
       if (response.data && response.data.success && response.data.media && response.data.media.length > 0) {
-        // Use the media URLs from the API response
         const uploadedUrls = response.data.media;
         setFormData(prev => ({
           ...prev,
           mediaUrls: uploadedUrls,
-          media: [] // Clear the local files after successful upload
+          media: []
         }));
-        
-        // Clear preview URLs to free up memory
+
         previewUrls.forEach(url => URL.revokeObjectURL(url));
         setPreviewUrls([]);
       } else {
@@ -248,31 +273,36 @@ export default function ReportIssue() {
     setIsSubmitting(true);
     setSubmitError('');
     setSubmitSuccess(false);
-   
-    
+
     const validateForm = () => {
       const newErrors = {};
-      
-      // More strict title validation
+
       if (!formData.title || !formData.title.trim()) {
         newErrors.title = 'Title is required';
       } else if (formData.title.trim().length < 3) {
         newErrors.title = 'Title must be at least 3 characters long';
       }
-      
+
       if (!formData.category) newErrors.category = 'Please select a category';
-      
+
       if (!formData.description || !formData.description.trim()) {
         newErrors.description = 'Description is required';
       } else if (formData.description.trim().length < 10) {
         newErrors.description = 'Description must be at least 10 characters long';
       }
-      
+
       if (!formData.location.address.trim()) newErrors.location = 'Location is required';
       if (!formData.location.geoData.coordinates) {
         newErrors.geoData = 'GPS coordinates are required. Please click "Get Current Location".';
       }
-      
+
+      // Force user to upload images first if they have selected them locally
+      if (formData.media.length > 0 && formData.mediaUrls.length === 0) {
+        setUploadError("Please click 'Upload Files' before submitting your issue.");
+        setIsSubmitting(false);
+        return false;
+      }
+
       if (Object.keys(newErrors).length > 0) {
         setErrors(newErrors);
         setIsSubmitting(false);
@@ -284,8 +314,6 @@ export default function ReportIssue() {
     if (!validateForm()) return;
 
     try {
-
-      // Prepare data for JSON submission
       let dataToSend = {
         title: formData.title,
         category: formData.category,
@@ -294,15 +322,13 @@ export default function ReportIssue() {
         isAnonymous: formData.isAnonymous
       };
 
-      // Add uploaded media URLs if available
       if (formData.mediaUrls.length > 0) {
         dataToSend.media = formData.mediaUrls;
       }
 
       const response = await axiosInstance.post(`/issue`, dataToSend);
-      
+
       if (response.data) {
-       
         setSubmitSuccess(true);
         setFormData({
           title: '',
@@ -322,17 +348,15 @@ export default function ReportIssue() {
           mediaUrls: [],
           isAnonymous: false
         });
-        // Clear preview URLs
         previewUrls.forEach(url => URL.revokeObjectURL(url));
         setPreviewUrls([]);
         setErrors({});
-        // Remove current location from localStorage
         localStorage.removeItem('currentLocation');
       }
-    
+
     } catch (error) {
       console.error('Error submitting issue:', error);
-      setSubmitError(error.response.data.message);
+      setSubmitError(error.response?.data?.message || "Something went wrong.");
     } finally {
       setIsSubmitting(false);
     }
@@ -379,7 +403,7 @@ export default function ReportIssue() {
       {/* Main Card */}
       <div className="mx-auto mt-6 md:mt-10 max-w-7xl px-2 md:px-4">
         <div className="glass-card p-4 md:p-8 shadow-xl rounded-2xl md:rounded-3xl">
-          
+
           {/* Categories */}
           <div className="mb-6 md:mb-8">
             <h2 className="mb-1 md:mb-2 text-xl md:text-2xl font-bold text-foreground">Select Issue Category<span className="text-red-600"> *</span></h2>
@@ -394,9 +418,8 @@ export default function ReportIssue() {
               <div
                 key={value}
                 onClick={() => handleInputChange('category', value)}
-                className={`group flex cursor-pointer flex-col items-center gap-2 md:gap-3 rounded-xl border-2 border-border bg-card p-3 md:p-4 text-xs md:text-sm text-card-foreground transition-all hover:-translate-y-1 hover:border-cyan-600 hover:bg-muted hover:shadow-lg ${
-                  formData.category === value ? 'border-cyan-600 bg-muted' : ''
-                }`}
+                className={`group flex cursor-pointer flex-col items-center gap-2 md:gap-3 rounded-xl border-2 border-border bg-card p-3 md:p-4 text-xs md:text-sm text-card-foreground transition-all hover:-translate-y-1 hover:border-cyan-600 hover:bg-muted hover:shadow-lg ${formData.category === value ? 'border-cyan-600 bg-muted' : ''
+                  }`}
               >
                 <div className="rounded-lg bg-muted p-2 md:p-3 transition-colors group-hover:bg-cyan-600/10 group-hover:text-cyan-600">
                   <Icon className="h-5 w-5 md:h-6 md:w-6 text-muted-foreground transition-colors group-hover:text-cyan-600" />
@@ -408,7 +431,7 @@ export default function ReportIssue() {
 
           {/* Form */}
           <div className="mt-8 md:mt-10 grid gap-6 md:gap-8 lg:grid-cols-3">
-            
+
             {/* Left Column (Inputs) */}
             <div className="space-y-4 md:space-y-6 lg:col-span-2">
               <div>
@@ -563,8 +586,8 @@ export default function ReportIssue() {
                           <div className="text-[10px] md:text-xs text-muted-foreground max-w-[200px] md:max-w-xs">
                             {formData.media.map((file, index) => (
                               <div key={index} className="truncate">
-                                {file.name.length > 20 
-                                  ? `${file.name.substring(0, 20)}...` 
+                                {file.name.length > 20
+                                  ? `${file.name.substring(0, 20)}...`
                                   : file.name} ({(file.size / (1024 * 1024)).toFixed(2)} MB)
                               </div>
                             ))}
@@ -582,7 +605,7 @@ export default function ReportIssue() {
                             Upload Photos
                           </span>
                           <span className="text-[10px] md:text-xs text-muted-foreground mt-1 px-2">
-                            PNG, JPG, JPEG only<br/>(max 3 files, 30MB total)
+                            PNG, JPG, JPEG only<br />(max 3 files, 30MB total)
                           </span>
                         </>
                       )}
@@ -592,7 +615,7 @@ export default function ReportIssue() {
                     <p className="mt-2 text-xs text-red-600">{errors.media}</p>
                   )}
                 </div>
-                
+
                 {/* Upload Button or Success Message */}
                 {formData.media.length > 0 && (
                   <div className="mt-4">
@@ -604,7 +627,7 @@ export default function ReportIssue() {
                     >
                       {isUploading ? 'Uploading...' : 'Upload Files'}
                     </button>
-                    
+
                     {uploadError && (
                       <div className="mt-2 rounded-lg bg-red-500/10 border border-red-500/20 p-3">
                         <p className="text-xs text-red-500 font-medium">{uploadError}</p>
@@ -612,7 +635,7 @@ export default function ReportIssue() {
                     )}
                   </div>
                 )}
-                
+
                 {/* Success Message - Show when files are uploaded successfully */}
                 {formData.mediaUrls.length > 0 && (
                   <div className="mt-4">
@@ -649,7 +672,7 @@ export default function ReportIssue() {
                             className="w-full h-full object-cover"
                           />
                         </div>
-                        
+
                         {/* Remove button */}
                         <button
                           type="button"
@@ -660,7 +683,7 @@ export default function ReportIssue() {
                             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
                           </svg>
                         </button>
-                        
+
                         {/* File name tooltip - Hidden on mobile to avoid overlap */}
                         <div className="hidden md:block absolute bottom-0 left-0 right-0 bg-gradient-to-t from-black/80 to-transparent p-2 opacity-0 group-hover:opacity-100 transition-opacity z-10">
                           <p className="text-white text-[10px] truncate">
@@ -689,14 +712,14 @@ export default function ReportIssue() {
               </div>
 
               <div className="pt-2 md:pt-4 border-t border-border/50">
-                <button 
+                <button
                   onClick={handleSubmit}
                   disabled={isSubmitting}
                   className="btn-gradient w-full rounded-xl py-3 text-sm md:text-base font-semibold text-white shadow-lg transition-all hover:scale-[1.02] active:scale-[0.98] disabled:opacity-50 disabled:cursor-not-allowed"
                 >
                   {isSubmitting ? 'Submitting...' : 'Submit Issue'}
                 </button>
-                
+
                 {submitError && (
                   <div className="mt-3 rounded-lg bg-red-500/10 border border-red-500/20 p-3">
                     <p className="text-xs text-red-500 font-medium">{submitError}</p>
@@ -725,8 +748,8 @@ export default function ReportIssue() {
           </div>
         </div>
       </div>
-      
-      <CurrentLocationModal 
+
+      <CurrentLocationModal
         isOpen={showLocationModal}
         onClose={() => setShowLocationModal(false)}
         onLocationCaptured={handleLocationCaptured}

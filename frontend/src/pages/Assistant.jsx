@@ -1,200 +1,494 @@
 import React, { useState, useRef, useEffect } from 'react'
-import {  Bot, User, MoreVertical, Phone, Video, Plus } from 'lucide-react'
-import { Button } from '../components/ui/button'
+import { useNavigate } from 'react-router-dom'
+import { useSelector } from 'react-redux'
+import { Bot, User, Plus, AlertTriangle, FileEdit, SendHorizontal } from 'lucide-react'
 import { Card } from '../components/ui/card'
 import { Avatar, AvatarFallback, AvatarImage } from '../components/ui/avatar'
-
 import ChatInput from '../components/ChatInput'
+import IssueCard from '../components/IssueCard'
+import axiosInstance from '../utils/axios'
+
+const QUICK_FAQS = [
+  { icon: "📝", text: "How do I post a report?" },
+  { icon: "🕵️‍♂️", text: "Can I post anonymously?" },
+  { icon: "📍", text: "What issues are near me?" },
+  { icon: "🏆", text: "Show me the city leaderboard" }
+];
 
 const Assistant = () => {
-  const [messages, setMessages] = useState([])
-  const [isTyping, setIsTyping] = useState(false)
-  const messagesEndRef = useRef(null);
-  const [theme] = useState(localStorage.getItem('theme'))
+  const navigate = useNavigate();
+  const user = useSelector((state) => state.auth?.user);
+  
+  // --- SESSION STORAGE HYDRATION ---
+  // Load initial messages from session storage if they exist
+  const [messages, setMessages] = useState(() => {
+    const saved = sessionStorage.getItem('lokai_messages');
+    if (saved) {
+      // Re-hydrate the date objects
+      return JSON.parse(saved).map(msg => ({
+        ...msg,
+        timestamp: new Date(msg.timestamp)
+      }));
+    }
+    return [];
+  });
 
-  const scrollToBottom = () => {
-    messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' })
-  }
+  const [chatHistory, setChatHistory] = useState(() => {
+    const saved = sessionStorage.getItem('lokai_history');
+    return saved ? JSON.parse(saved) : [];
+  });
+  
+  const [isTyping, setIsTyping] = useState(false)
+  const [userLocation, setUserLocation] = useState({ lat: null, lng: null, city: '', address: '' })
+  const [pendingReport, setPendingReport] = useState(null)
+  const messagesEndRef = useRef(null);
+
+  // --- SAVE TO SESSION STORAGE ON CHANGE ---
+  useEffect(() => {
+    sessionStorage.setItem('lokai_messages', JSON.stringify(messages));
+  }, [messages]);
 
   useEffect(() => {
-    scrollToBottom()
+    sessionStorage.setItem('lokai_history', JSON.stringify(chatHistory));
+  }, [chatHistory]);
+
+  // Scroll to bottom
+  useEffect(() => {
+    messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' })
   }, [messages])
 
-  const handleSendMessage = (messageContent) => {
-    const newMessage = {
-      id: messages.length + 1,
-      type: 'user',
-      content: messageContent,
-      timestamp: new Date(),
-      status: 'sent'
+  // Get Location
+  useEffect(() => {
+    if (navigator.geolocation) {
+      navigator.geolocation.getCurrentPosition(
+        (pos) => setUserLocation(prev => ({ ...prev, lat: pos.coords.latitude, lng: pos.coords.longitude })),
+        (err) => console.warn("Geolocation blocked:", err.message)
+      );
     }
-    setMessages([...messages, newMessage])
-    
-    // Simulate assistant typing
-    setIsTyping(true)
-    setTimeout(() => {
-      setIsTyping(false)
-      const assistantResponse = {
-        id: messages.length + 2,
-        type: 'assistant',
-        content: "I understand your concern. Let me help you with that. Based on what you've described, I suggest...",
-        timestamp: new Date(),
-        status: 'delivered'
+  }, []);
+
+  // Clear Chat Function
+  const handleNewChat = () => {
+    setMessages([]);
+    setChatHistory([]);
+    setPendingReport(null);
+    sessionStorage.removeItem('lokai_messages');
+    sessionStorage.removeItem('lokai_history');
+  };
+
+  const handleSendMessage = async (textMsg, file = null, fileType = null) => {
+    let displayMsg = textMsg;
+    if (file) {
+      displayMsg = textMsg ? `[Attached ${fileType}]: ${textMsg}` : `[Attached ${fileType}]`;
+    }
+    setMessages(prev => [...prev, { id: Date.now(), type: 'user', content: displayMsg, timestamp: new Date() }]);
+    setIsTyping(true);
+
+    if (pendingReport) {
+      if (pendingReport.missing === 'image') {
+        if (!file || fileType !== 'image') {
+          setMessages(prev => [...prev, { id: Date.now(), type: 'assistant', content: "To complete your audio report, please click the '+' icon and upload an image.", timestamp: new Date() }]);
+          setIsTyping(false);
+          return;
+        }
+        const updatedDraft = { ...pendingReport.draftData, originalFile: file, previewUrl: URL.createObjectURL(file) };
+        checkLocationAndProceed(updatedDraft);
+        return;
       }
-      setMessages(prev => [...prev, assistantResponse])
-    }, 2000)
-  }
 
-  const formatTime = (date) => {
-    return date.toLocaleTimeString('en-US', { 
-      hour: '2-digit', 
-      minute: '2-digit',
-      hour12: true 
-    })
-  }
+      if (pendingReport.missing === 'location') {
+        const parts = textMsg.split(',').map(s => s.trim());
+        if (parts.length >= 3) {
+          const updatedDraft = {
+            ...pendingReport.draftData,
+            location: {
+              ...pendingReport.draftData.location,
+              state: parts[0],
+              city: parts[1],
+              pinCode: parts[2],
+              coordinates: pendingReport.draftData.location?.coordinates || [userLocation.lng, userLocation.lat]
+            }
+          };
+          showDraftCard(updatedDraft);
+          return;
+        } else {
+          setMessages(prev => [...prev, { id: Date.now(), type: 'assistant', content: "Please provide it exactly as 'State, City, Pincode' (e.g. 'Uttar Pradesh, Sultanpur, 228001').", timestamp: new Date() }]);
+          setIsTyping(false);
+          return;
+        }
+      }
+    }
 
-  return (
-    // Added pb-16 on mobile to clear the bottom taskbar, removed it on desktop
-    <div className="bg-texture flex flex-col h-[100dvh] pb-16 md:pb-0 md:h-screen">
+    if (file) {
+      try {
+        const formData = new FormData();
+        formData.append(fileType === 'image' ? 'images' : 'audio', file);
+        formData.append('lat', userLocation.lat || '');
+        formData.append('lng', userLocation.lng || '');
+        formData.append('city', userLocation.city || '');
+        formData.append('userHint', textMsg || ''); 
+        
+        const endpoint = fileType === 'image' ? `${import.meta.env.VITE_BASE_URL}/ai/analyze-image` : `${import.meta.env.VITE_BASE_URL}/ai/analyze-audio`;
+        
+        const response = await fetch(endpoint, {
+          method: 'POST',
+          headers: { 'Authorization': `Bearer ${localStorage.getItem('access_token')}` },
+          body: formData
+        });
+
+        const data = await response.json();
+
+        if (data.success) {
+          let draftData = { ...data.analysis };
+          
+          if (fileType === 'image') {
+            draftData.originalFile = file;
+            draftData.previewUrl = URL.createObjectURL(file);
+            checkLocationAndProceed(draftData);
+          } else if (fileType === 'audio') {
+            setPendingReport({ draftData, missing: 'image' });
+            setMessages(prev => [...prev, { 
+              id: Date.now(), 
+              type: 'assistant', 
+              content: "I've drafted the report from your audio! However, LocalAwaaz requires an image for all issues. Please click the '+' icon to upload an image of the problem (max 30MB).", 
+              timestamp: new Date() 
+            }]);
+          }
+        } else {
+          setMessages(prev => [...prev, { id: Date.now(), type: 'assistant', content: data.message || "I couldn't process that media properly.", timestamp: new Date() }]);
+        }
+      } catch (error) {
+        setMessages(prev => [...prev, { id: Date.now(), type: 'assistant', content: "Failed to upload and analyze media.", timestamp: new Date() }]);
+      } finally {
+        setIsTyping(false);
+      }
+      return; 
+    }
+
+    try {
+      const response = await fetch(`${import.meta.env.VITE_BASE_URL}/ai/chat`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${localStorage.getItem('access_token')}` },
+        body: JSON.stringify({
+          message: textMsg,
+          history: chatHistory,
+          lat: userLocation.lat,
+          lng: userLocation.lng,
+          city: userLocation.city
+        })
+      });
+
+      const data = await response.json();
+      if (data.latestHistory) setChatHistory(data.latestHistory);
+
+      let displayReply = data.reply;
+      if (data.toolUsed && Array.isArray(data.data) && data.data.length > 0) {
+        displayReply = "Here are the most relevant issues I found based on your request:";
+      }
+
+      setMessages(prev => [...prev, {
+        id: Date.now() + 1,
+        type: 'assistant',
+        content: displayReply,
+        toolData: data.data, 
+        toolUsed: data.toolUsed,
+        timestamp: new Date()
+      }]);
+    } catch (error) {
+      setMessages(prev => [...prev, { id: Date.now(), type: 'assistant', content: "Sorry, I am having trouble connecting to the server.", timestamp: new Date() }])
+    } finally {
+      setIsTyping(false);
+    }
+  };
+
+  const checkLocationAndProceed = (draftData) => {
+    const finalLng = draftData.location?.coordinates?.[0] || userLocation.lng;
+    const finalLat = draftData.location?.coordinates?.[1] || userLocation.lat;
+
+    if (!finalLng || !finalLat) {
+      setMessages(prev => [...prev, { 
+        id: Date.now(), 
+        type: 'assistant', 
+        content: "I need your exact GPS coordinates to submit this report. Since location services are disabled, please click 'Modify Details' to capture your location on the map.", 
+        isDraftReport: true, 
+        draftData: draftData,
+        timestamp: new Date() 
+      }]);
+      setPendingReport(null);
+      setIsTyping(false);
+      return;
+    }
+
+    if (!draftData.location?.state || !draftData.location?.city || !draftData.location?.pinCode) {
+      const draftWithCoords = { ...draftData, location: { ...draftData.location, coordinates: [finalLng, finalLat] } };
+      setPendingReport({ draftData: draftWithCoords, missing: 'location' }); 
+      setMessages(prev => [...prev, { 
+        id: Date.now(), 
+        type: 'assistant', 
+        content: "To complete your draft, I need your State, City, and Pincode. Please reply with them separated by commas (e.g. 'Uttar Pradesh, Sultanpur, 228001').", 
+        timestamp: new Date() 
+      }]);
+      setIsTyping(false);
+      return; 
+    }
+
+    showDraftCard(draftData);
+  };
+
+  const showDraftCard = (draftData) => {
+    setPendingReport(null); 
+    setMessages(prev => [...prev, {
+      id: Date.now(),
+      type: 'assistant',
+      content: "Your report is ready! What would you like to do?",
+      isDraftReport: true,
+      draftData: draftData,
+      timestamp: new Date()
+    }]);
+    setIsTyping(false);
+  };
+
+  const handleModifyDraft = (draftData) => {
+    setPendingReport(null); 
+    navigate('/dashboard/report', { state: { prefilledData: draftData } });
+  };
+
+  const handleDirectSubmit = async (draftData) => {
+    setIsTyping(true);
+    try {
+      setMessages(prev => [...prev, { id: Date.now(), type: 'assistant', content: "[1/2] Uploading media to LocalAwaaz...", timestamp: new Date() }]);
       
-      {/* Chat Header */}
-      <div className="glass-card border-b border-border/50 sticky top-0 z-10 mx-2 my-2 md:mx-4 md:my-2 rounded-lg">
-        <div className="flex items-center justify-between p-3 md:p-4">
-          <div className="flex items-center space-x-2 md:space-x-3">
-            <div className="relative">
-              <Avatar className="h-8 w-8 md:h-10 md:w-10">
-                <AvatarFallback className="bg-gradient-to-br from-primary to-secondary text-white">
-                  <Bot className="h-4 w-4 md:h-5 md:w-5" />
-                </AvatarFallback>
-              </Avatar>
+      let finalMediaUrl = [];
+      if (draftData.originalFile) {
+        const uploadFormData = new FormData();
+        uploadFormData.append('issue_media', draftData.originalFile);
+        
+        const uploadRes = await axiosInstance.post('/upload-issues', uploadFormData, {
+          headers: { 'Content-Type': 'multipart/form-data' },
+        });
+
+        if (!uploadRes.data || !uploadRes.data.success || !uploadRes.data.media) {
+          throw new Error("Failed to upload media to server");
+        }
+        finalMediaUrl = Array.isArray(uploadRes.data.media) ? uploadRes.data.media : [uploadRes.data.media];
+      }
+
+      setMessages(prev => [...prev.slice(0, -1), { id: Date.now(), type: 'assistant', content: "[2/2] Finalizing report...", timestamp: new Date() }]);
+
+      const payload = {
+        title: draftData.title,
+        category: draftData.category,
+        description: draftData.description,
+        isAnonymous: false,
+        media: finalMediaUrl,
+        location: {
+          address: draftData.location.address || 'Location not provided',
+          city: draftData.location.city,
+          state: draftData.location.state,
+          pinCode: draftData.location.pinCode,
+          geoData: {
+            type: 'Point',
+            coordinates: draftData.location.coordinates || [0, 0] 
+          }
+        }
+      };
+
+      const response = await axiosInstance.post('/issue', payload);
+
+      if (response.data && response.data.success) {
+        setMessages(prev => [...prev.slice(0, -1), { id: Date.now(), type: 'assistant', content: "Success! Your issue has been officially reported to LocalAwaaz.", timestamp: new Date() }]);
+      } else {
+        throw new Error(response.data?.message || "Server issue creation failed");
+      }
+    } catch (error) {
+      console.error("Direct Submit Error:", error);
+      const errorMsg = error.response?.data?.message || error.message;
+      setMessages(prev => [...prev.slice(0, -1), { id: Date.now(), type: 'assistant', content: `Failed to submit directly: ${errorMsg}`, timestamp: new Date() }]);
+    } finally {
+      setIsTyping(false);
+    }
+  };
+
+  const renderDataCard = (data) => {
+    if (!data || !Array.isArray(data)) return null;
+    return (
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mt-3">
+        {data.map((issue) => (
+          <IssueCard 
+            key={issue._id} 
+            issue={issue} 
+            onClick={() => navigate(`/issue/${issue._id}`)} 
+            onFlagClick={() => console.log("Flagging issue:", issue._id)}
+          />
+        ))}
+      </div>
+    );
+  }
+
+  const renderDraftCard = (draftData) => {
+    if (!draftData) return null;
+    return (
+      <div className="mt-3 bg-card border border-border/50 rounded-xl overflow-hidden shadow-md max-w-lg">
+        <div className="bg-primary/10 px-4 py-2 border-b border-border/50 flex items-center gap-2">
+          <AlertTriangle size={16} className="text-primary" />
+          <span className="text-sm font-semibold text-primary">Draft Report Generated</span>
+        </div>
+        <div className="p-4 flex flex-col gap-3 text-foreground">
+          
+          {draftData.previewUrl && (
+            <div className="mb-2 h-36 w-full rounded-lg overflow-hidden border border-border/50">
+              <img src={draftData.previewUrl} alt="Report draft" className="w-full h-full object-cover" />
             </div>
-            <div>
-              <h3 className="font-semibold text-foreground text-sm md:text-base">AI Assistant</h3>
-              <div className="flex items-center space-x-2">
-                <div className="flex items-center">
-                  <div className="h-1.5 w-1.5 md:h-2 md:w-2 bg-emerald-500 rounded-full animate-pulse"></div>
-                  <span className="text-[10px] md:text-xs text-muted-foreground ml-1">Online</span>
-                </div>
-              </div>
+          )}
+
+          <div>
+            <div className="text-[11px] text-muted-foreground uppercase tracking-wider mb-0.5">Title</div>
+            <div className="text-sm font-semibold leading-tight">{draftData.title}</div>
+          </div>
+          <div>
+            <div className="text-[11px] text-muted-foreground uppercase tracking-wider mb-1">Category</div>
+            <div className="text-sm">
+               <span className="px-2.5 py-1 bg-muted rounded-full border border-border/50">{draftData.category}</span>
             </div>
           </div>
+          <div>
+            <div className="text-[11px] text-muted-foreground uppercase tracking-wider mb-0.5">Description Draft</div>
+            <div className="text-xs leading-relaxed text-muted-foreground line-clamp-2">{draftData.description}</div>
+          </div>
           
-          <div className="flex items-center space-x-2">
-            <button className='px-3 py-1.5 md:px-4 md:py-2 text-xs md:text-sm btn-gradient flex items-center gap-1.5 md:gap-2 border rounded-lg text-white'>
-                 <Plus className="w-4 h-4" />
-                 {/* Text is hidden on very small screens to prevent layout breaking */}
-                 <span className="hidden sm:inline">New Chat</span>
+          <div className="flex items-center gap-2.5 mt-2 pt-3 border-t border-border/50">
+            <button 
+              onClick={() => handleModifyDraft(draftData)}
+              className="flex-1 py-2 px-3 flex items-center justify-center gap-2 text-xs font-medium bg-muted hover:bg-muted/80 text-foreground rounded-lg transition-colors border border-border"
+            >
+              <FileEdit size={16} /> Modify Details
+            </button>
+            <button 
+              onClick={() => handleDirectSubmit(draftData)}
+              className="flex-1 py-2 px-3 flex items-center justify-center gap-2 text-xs font-medium bg-primary hover:opacity-90 text-white rounded-lg transition-colors shadow-sm"
+            >
+              <SendHorizontal size={16} /> Submit Now
             </button>
           </div>
         </div>
       </div>
+    );
+  }
 
-      {/* Messages Container */}
+  return (
+    <div className="bg-texture flex flex-col h-[100dvh] pb-16 md:pb-0 md:h-screen">
+      
+      <div className="glass-card border-b border-border/50 sticky top-0 z-10 mx-2 my-2 md:mx-4 md:my-2 rounded-lg">
+        <div className="flex items-center justify-between p-3 md:p-4">
+          <div className="flex items-center space-x-2 md:space-x-3">
+            <Avatar className="h-8 w-8 md:h-10 md:w-10">
+              <AvatarFallback className="bg-gradient-to-br from-primary to-secondary text-white">
+                <Bot className="h-4 w-4 md:h-5 md:w-5" />
+              </AvatarFallback>
+            </Avatar>
+            <div>
+              <h3 className="font-semibold text-foreground text-sm md:text-base">LokAI Assistant</h3>
+              <div className="flex items-center space-x-2">
+                <div className="h-1.5 w-1.5 md:h-2 md:w-2 bg-emerald-500 rounded-full animate-pulse"></div>
+                <span className="text-[10px] md:text-xs text-muted-foreground">Online</span>
+              </div>
+            </div>
+          </div>
+          
+          <button 
+            onClick={handleNewChat} 
+            className='px-3 py-1.5 md:px-4 md:py-2 text-xs md:text-sm btn-gradient flex items-center gap-1.5 md:gap-2 border rounded-lg text-white'
+          >
+            <Plus className="w-4 h-4" />
+            <span className="hidden sm:inline">New Chat</span>
+          </button>
+        </div>
+      </div>
+
       <div className="flex-1 overflow-y-auto thin-scrollbar p-2 md:p-4">
         <div className="max-w-4xl mx-auto">
           
-          {/* Greeting Message - Shows when no messages */}
           {messages.length === 0 && !isTyping && (
-            <div className="flex flex-col items-center justify-center text-center py-10 md:py-20 px-4">
-              <div className="mb-6">
-                <div className="w-16 h-16 md:w-20 md:h-20 bg-gradient-to-br from-primary to-secondary rounded-full flex items-center justify-center mx-auto mb-4">
-                  <Bot className="h-8 w-8 md:h-10 md:w-10 text-white" />
-                </div>
-                <h2 className="text-xl md:text-2xl font-semibold text-foreground mb-2">Hello! I'm your AI Assistant</h2>
-                <p className="text-muted-foreground text-sm md:text-lg max-w-md mx-auto">
-                  How can I help you today? Feel free to ask me anything or share what's on your mind.
-                </p>
+            <div className="flex flex-col items-center justify-center text-center py-10 md:py-16 px-4 animate-fade-in-up">
+              <div className="w-16 h-16 md:w-20 md:h-20 bg-gradient-to-br from-primary to-secondary rounded-full flex items-center justify-center mx-auto mb-6 shadow-lg shadow-primary/20">
+                <Bot className="h-8 w-8 md:h-10 md:w-10 text-white" />
               </div>
+              <h2 className="text-xl md:text-2xl font-semibold text-foreground mb-3">Hello! I'm LokAI</h2>
+              <p className="text-muted-foreground text-sm md:text-base max-w-md mx-auto mb-8 leading-relaxed">
+                Your civic assistant. Describe an issue, check your city's leaderboard, or upload a photo/audio to instantly draft a report.
+              </p>
               
-              {/* Quick suggestion buttons */}
-              <div className="flex flex-wrap gap-2 md:gap-3 justify-center mt-4 md:mt-8">
-                <button className="px-3 py-1.5 md:px-4 md:py-2 text-xs md:text-sm bg-card/50 backdrop-blur-sm border border-border/50 rounded-full text-foreground hover:bg-card transition-colors">
-                  💡 Help me with a problem
-                </button>
-                <button className="px-3 py-1.5 md:px-4 md:py-2 text-xs md:text-sm bg-card/50 backdrop-blur-sm border border-border/50 rounded-full text-foreground hover:bg-card transition-colors">
-                  📝 Report an issue
-                </button>
-                <button className="px-3 py-1.5 md:px-4 md:py-2 text-xs md:text-sm bg-card/50 backdrop-blur-sm border border-border/50 rounded-full text-foreground hover:bg-card transition-colors">
-                  🤖 Just want to chat
-                </button>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3.5 w-full max-w-lg">
+                {QUICK_FAQS.map((faq, idx) => (
+                  <button 
+                    key={idx}
+                    onClick={() => handleSendMessage(faq.text)}
+                    className="flex items-center gap-3.5 px-5 py-3.5 bg-card/60 hover:bg-card border border-border/50 rounded-xl text-left transition-all hover:shadow-md hover:border-primary/30 group"
+                  >
+                    <span className="text-lg">{faq.icon}</span>
+                    <span className="text-xs md:text-sm font-medium text-foreground group-hover:text-primary transition-colors leading-tight">{faq.text}</span>
+                  </button>
+                ))}
               </div>
             </div>
           )}
 
           {messages.map((message) => (
-            <div
-              key={message.id}
-              className={`flex ${message.type === 'user' ? 'justify-end' : 'justify-start'} animate-fade-in-up mb-4`}
-            >
-              <div className={`flex items-end space-x-2 max-w-[90%] md:max-w-[80%] ${message.type === 'user' ? 'flex-row-reverse space-x-reverse' : ''}`}>
+            <div key={message.id} className={`flex ${message.type === 'user' ? 'justify-end' : 'justify-start'} animate-fade-in-up mb-6`}>
+              <div className={`flex items-start gap-2.5 max-w-[95%] md:max-w-[85%] ${message.type === 'user' ? 'flex-row-reverse' : ''}`}>
+                
                 {message.type === 'assistant' && (
-                  <Avatar className="h-6 w-6 md:h-8 md:w-8 flex-shrink-0">
+                  <Avatar className="h-7 w-7 md:h-9 md:w-9 flex-shrink-0 mt-1">
                     <AvatarFallback className="bg-gradient-to-br from-primary to-secondary text-white">
-                      <Bot className="h-3 w-3 md:h-4 md:w-4" />
+                      <Bot className="h-3.5 w-3.5 md:h-4.5 md:w-4.5" />
                     </AvatarFallback>
                   </Avatar>
                 )}
                 
-                <div className={`relative group`}>
-                  <Card className={`glass-card p-2.5 md:p-3 ${
+                <div className="flex flex-col gap-1 w-full">
+                  <Card className={`glass-card p-3 md:p-4 border ${
                     message.type === 'user' 
-                      ? 'bg-gradient-to-br from-primary to-secondary text-primary-foreground' 
-                      : 'bg-card border-border/50'
+                      ? 'bg-gradient-to-br from-primary to-secondary text-white border-primary/20 rounded-2xl rounded-tr-sm' 
+                      : 'bg-card/80 border-border/50 rounded-2xl rounded-tl-sm shadow-sm'
                   }`}>
-                    <p className={`text-[13px] md:text-sm ${message.type === 'user' ? 'text-white' : 'text-foreground'}`}>
+                    <p className={`text-[14px] md:text-[15px] leading-relaxed whitespace-pre-wrap ${message.type === 'user' ? 'text-white' : 'text-foreground'}`}>
                       {message.content}
                     </p>
-                    <div className={`flex items-center justify-between mt-1 text-[10px] md:text-xs ${
-                      message.type === 'user' ? 'text-primary-foreground/70' : 'text-muted-foreground'
-                    }`}>
-                      <span>{formatTime(message.timestamp)}</span>
-                      {message.type === 'user' && (
-                        <div className="flex items-center space-x-1">
-                          {message.status === 'sent' && <span>✓</span>}
-                          {message.status === 'delivered' && <span>✓✓</span>}
-                        </div>
-                      )}
-                    </div>
+
+                    {message.type === 'assistant' && message.toolData && renderDataCard(message.toolData)}
+                    {message.type === 'assistant' && message.isDraftReport && renderDraftCard(message.draftData)}
                   </Card>
-                  
-                  {/* Message hover effects */}
-                  <div className={`absolute -top-1 md:-top-2 ${message.type === 'user' ? '-left-1 md:-left-2' : '-right-1 md:-right-2'} opacity-0 group-hover:opacity-100 transition-opacity duration-200`}>
-                    <div className={`h-1.5 w-1.5 md:h-2 md:w-2 rounded-full bg-gradient-to-r ${
-                      message.type === 'user' 
-                        ? 'from-primary to-secondary' 
-                        : 'from-accent to-primary'
-                    } animate-pulse`}></div>
-                  </div>
                 </div>
 
                 {message.type === 'user' && (
-                  <Avatar className="h-6 w-6 md:h-8 md:w-8 flex-shrink-0">
-                    <AvatarFallback className="bg-muted">
-                      <User className="h-3 w-3 md:h-4 md:w-4" />
-                    </AvatarFallback>
+                  <Avatar className="h-7 w-7 md:h-9 md:w-9 flex-shrink-0 mt-1">
+                    {user?.profilePic ? (
+                      <AvatarImage src={user.profilePic} alt="User" className="object-cover" />
+                    ) : (
+                      <AvatarFallback className="bg-muted text-foreground">
+                        {user?.name ? user.name[0].toUpperCase() : <User className="h-3.5 w-3.5 md:h-4.5 md:w-4.5 text-muted-foreground" />}
+                      </AvatarFallback>
+                    )}
                   </Avatar>
                 )}
+
               </div>
             </div>
           ))}
 
-          {/* Typing Indicator */}
           {isTyping && (
-            <div className="flex justify-start animate-fade-in-up">
-              <div className="flex items-end space-x-2 max-w-[90%] md:max-w-[80%]">
-                <Avatar className="h-6 w-6 md:h-8 md:w-8 flex-shrink-0">
+            <div className="flex justify-start animate-fade-in-up mb-6">
+              <div className="flex items-start gap-2.5">
+                <Avatar className="h-7 w-7 md:h-9 md:w-9 flex-shrink-0 mt-1">
                   <AvatarFallback className="bg-gradient-to-br from-primary to-secondary text-white">
-                    <Bot className="h-3 w-3 md:h-4 md:w-4" />
+                    <Bot className="h-3.5 w-3.5 md:h-4.5 md:w-4.5" />
                   </AvatarFallback>
                 </Avatar>
-                <Card className="glass-card bg-card border-border/50 p-2.5 md:p-3">
-                  <div className="flex items-center space-x-1">
-                    <div className="flex space-x-1">
-                      <div className="h-1.5 w-1.5 md:h-2 md:w-2 bg-primary rounded-full animate-bounce" style={{ animationDelay: '0ms' }}></div>
-                      <div className="h-1.5 w-1.5 md:h-2 md:w-2 bg-primary rounded-full animate-bounce" style={{ animationDelay: '150ms' }}></div>
-                      <div className="h-1.5 w-1.5 md:h-2 md:w-2 bg-primary rounded-full animate-bounce" style={{ animationDelay: '300ms' }}></div>
-                    </div>
-                    <span className="text-[10px] md:text-xs text-muted-foreground ml-2">Assistant is typing...</span>
+                <Card className="glass-card bg-card/80 border-border/50 rounded-2xl rounded-tl-sm p-4">
+                  <div className="flex items-center gap-1.5">
+                    <div className="h-1.5 w-1.5 bg-primary rounded-full animate-bounce" style={{ animationDelay: '0ms' }}></div>
+                    <div className="h-1.5 w-1.5 bg-primary rounded-full animate-bounce" style={{ animationDelay: '150ms' }}></div>
+                    <div className="h-1.5 w-1.5 bg-primary rounded-full animate-bounce" style={{ animationDelay: '300ms' }}></div>
                   </div>
                 </Card>
               </div>
@@ -205,9 +499,7 @@ const Assistant = () => {
         </div>
       </div>
 
-      {/* Chat Input Component */}
       <ChatInput onSendMessage={handleSendMessage} />
-      
     </div>
   )
 }
