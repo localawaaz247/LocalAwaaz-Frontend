@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import { Menu, X, Sun, Moon } from 'lucide-react';
 import { useTheme } from '../hooks/useTheme';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useLocation } from 'react-router-dom';
 import logo from '/logo.png';
 import { useSelector } from 'react-redux';
 
@@ -9,8 +9,9 @@ const Navbar = () => {
   const [isScrolled, setIsScrolled] = useState(false);
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
   const { isDark, toggleTheme } = useTheme();
-  const {isAuthenticated}=useSelector((state)=>state.auth);
-  const navigate=useNavigate();
+  const { isAuthenticated } = useSelector((state) => state.auth);
+  const navigate = useNavigate();
+  const location = useLocation();
 
   useEffect(() => {
     const handleScroll = () => {
@@ -29,25 +30,33 @@ const Navbar = () => {
 
   const scrollToSection = (href) => {
     setIsMobileMenuOpen(false);
-    const element = document.querySelector(href);
-    if (element) {
-      element.scrollIntoView({ behavior: 'smooth' });
+    if (location.pathname !== '/') {
+      navigate('/');
+      setTimeout(() => {
+        const element = document.querySelector(href);
+        if (element) {
+          element.scrollIntoView({ behavior: 'smooth' });
+        }
+      }, 100);
+    } else {
+      const element = document.querySelector(href);
+      if (element) {
+        element.scrollIntoView({ behavior: 'smooth' });
+      }
     }
   };
 
   return (
     <nav
-      className={`!fixed top-0 left-0 right-0 z-50 transition-all duration-300 ${
-        isScrolled ? 'glass-card navbar-glass py-3' : 'bg-transparent py-5'
-      }`}
+      className={`!fixed top-0 left-0 right-0 z-50 transition-all duration-300 ${isScrolled ? 'glass-card navbar-glass py-3' : 'bg-transparent py-5'
+        }`}
     >
       <div className="container mx-auto px-4 md:px-6">
         <div className="flex items-center  justify-between">
-          {/* Logo */}
-          <a href="#" className="flex items-center gap-1 md:gap-2 ">
+          <a href="/" className="flex items-center gap-1 md:gap-2 ">
             <div className=" w-11 h-11 md:w-14 md:h-14 rounded-xl  flex items-center justify-center">
               <span className="text-xl font-bold text-white">
-                <img src={logo} alt='/' className='h-full w-full'/>
+                <img src={logo} alt='/' className='h-full w-full' />
               </span>
             </div>
             <span className="text-xl md:text-2xl font-bold font-display text-gradient">
@@ -55,7 +64,6 @@ const Navbar = () => {
             </span>
           </a>
 
-          {/* Desktop Navigation */}
           <div className="hidden md:flex items-center gap-8">
             {navLinks.map((link) => (
               <button
@@ -68,9 +76,7 @@ const Navbar = () => {
             ))}
           </div>
 
-          {/* CTA Buttons */}
           <div className="hidden md:flex items-center gap-3">
-            {/* Theme Toggle Button */}
             <button
               onClick={toggleTheme}
               className="p-2.5 rounded-full glass-card hover:bg-muted transition-colors duration-200"
@@ -83,14 +89,13 @@ const Navbar = () => {
               )}
             </button>
             <button
-             onClick={()=>navigate("/login")}
+              onClick={() => navigate(isAuthenticated ? "/dashboard" : "/login")}
               className="btn-gradient px-6 py-2.5 rounded-full font-semibold text-sm"
             >
               Get Started
             </button>
           </div>
 
-          {/* Mobile Menu Button */}
           <div className="md:hidden flex items-center gap-2">
             <button
               onClick={toggleTheme}
@@ -116,7 +121,6 @@ const Navbar = () => {
           </div>
         </div>
 
-        {/* Mobile Menu */}
         {isMobileMenuOpen && (
           <div className={`md:hidden mt-4 pb-4  animate-fade-in-up bg-texture px-2 rounded-lg`}>
             <div className="flex flex-col gap-2">
@@ -130,7 +134,7 @@ const Navbar = () => {
                 </button>
               ))}
               <button
-                onClick={()=>navigate(isAuthenticated? "/dashboard": "/login")}
+                onClick={() => navigate(isAuthenticated ? "/dashboard" : "/login")}
                 className="block text-center btn-gradient px-6 py-2.5 rounded-full font-semibold text-sm mt-2"
               >
                 Get Started

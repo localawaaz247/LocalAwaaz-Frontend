@@ -6,19 +6,19 @@ const contactInfo = [
     icon: Mail,
     title: 'Email Us',
     value: 'hello@localawaaz.in',
-    link: 'mailto:hello@localawaaz.in',
+    link: 'mailto:hello@localawaaz.in'
   },
   {
     icon: Phone,
     title: 'Call Us',
     value: '+91 98765 43210',
-    link: 'tel:+919876543210',
+    link: 'tel:+919876543210'
   },
   {
     icon: MapPin,
     title: 'Visit Us',
     value: 'New Delhi, India',
-    link: '#',
+    link: 'https://maps.app.goo.gl/2tNer8JENso2fgV18'
   },
 ];
 
@@ -84,7 +84,7 @@ const ContactSection = () => {
               </a>
             ))}
 
-           
+
           </div>
 
           {/* Contact Form */}
@@ -103,7 +103,7 @@ const ContactSection = () => {
                     onChange={handleChange}
                     required
                     className="w-full px-4 py-3 rounded-xl border border-border bg-background/50 focus:border-primary focus:ring-2 focus:ring-primary/20 outline-none transition-all text-foreground placeholder:text-muted-foreground"
-                    placeholder="John Doe"
+                    placeholder="Amit Maurya"
                   />
                 </div>
 
@@ -119,7 +119,7 @@ const ContactSection = () => {
                     onChange={handleChange}
                     required
                     className="w-full px-4 py-3 rounded-xl border border-border bg-background/50 focus:border-primary focus:ring-2 focus:ring-primary/20 outline-none transition-all text-foreground placeholder:text-muted-foreground"
-                    placeholder="john@example.com"
+                    placeholder="amit@domain.com"
                   />
                 </div>
 
