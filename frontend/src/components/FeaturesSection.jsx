@@ -1,11 +1,13 @@
-import { 
-  FileText, 
-  MapPin, 
-  Award, 
-  Bell, 
-  Shield, 
-  TrendingUp 
+import React from 'react';
+import {
+  FileText,
+  MapPin,
+  Award,
+  Bell,
+  Shield,
+  TrendingUp
 } from 'lucide-react';
+import Tilt from 'react-parallax-tilt';
 
 const features = [
   {
@@ -48,10 +50,10 @@ const features = [
 
 const FeaturesSection = () => {
   return (
-    <section id="features" className=" w-full py-24 px-2 md:px-6 bg-texture relative">
+    <section id="features" className="w-full py-24 px-2 md:px-6 bg-texture relative">
       {/* Decorative elements */}
-      <div className="absolute top-40 right-0 w-80 h-80 bg-primary/5 rounded-full blur-3xl" />
-      <div className="absolute bottom-20 left-0 w-96 h-96 bg-accent/5 rounded-full blur-3xl" />
+      <div className="absolute top-40 right-0 w-80 h-80 bg-primary/5 rounded-full blur-3xl pointer-events-none" />
+      <div className="absolute bottom-20 left-0 w-96 h-96 bg-accent/5 rounded-full blur-3xl pointer-events-none" />
 
       <div className="container mx-auto px-4 md:px-6 relative z-10">
         {/* Section Header */}
@@ -61,7 +63,7 @@ const FeaturesSection = () => {
           </span>
           <h2 className="text-3xl md:text-4xl lg:text-5xl font-bold font-display mb-6">
             Everything You Need to{' '}
-            <span className="text-gradient ">Make a Difference</span>
+            <span className="text-gradient">Make a Difference</span>
           </h2>
           <p className="text-lg text-muted-foreground">
             Powerful tools designed to amplify your voice and create real change in your community.
@@ -69,23 +71,35 @@ const FeaturesSection = () => {
         </div>
 
         {/* Features Grid */}
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 stagger-children">
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 stagger-children relative z-20">
           {features.map((feature, index) => (
-            <div
-              key={index}
-              className="glass-card p-8 hover:shadow-xl transition-all duration-300 group hover:-translate-y-1"
-            >
-              <div
-                className="w-14 h-14 rounded-xl flex items-center justify-center mb-6 transition-transform group-hover:scale-110 bg-secondary/10 dark:bg-secondary/15"
+            <div key={index} className="h-full w-full">
+              <Tilt
+                tiltMaxAngleX={3} // Subtle, grounded tilt
+                tiltMaxAngleY={3} // Subtle, grounded tilt
+                perspective={1000}
+                scale={1.01}      // Tiny, professional pop
+                transitionSpeed={2000}
+                gyroscope={true}
+                glareEnable={true}
+                glareMaxOpacity={0.15}
+                glareColor="#ffffff"
+                glarePosition="all"
+                glareBorderRadius="1rem"
+                className="h-full w-full rounded-2xl"
               >
-                <feature.icon className="w-7 h-7 text-secondary" />
-              </div>
-              <h3 className="text-xl font-bold font-display mb-3 text-foreground">
-                {feature.title}
-              </h3>
-              <p className="text-muted-foreground leading-relaxed">
-                {feature.description}
-              </p>
+                <div className="glass-card p-8 h-full hover:shadow-xl transition-shadow duration-300 group">
+                  <div className="w-14 h-14 rounded-xl flex items-center justify-center mb-6 transition-transform group-hover:scale-110 bg-secondary/10 dark:bg-secondary/15">
+                    <feature.icon className="w-7 h-7 text-secondary" />
+                  </div>
+                  <h3 className="text-xl font-bold font-display mb-3 text-foreground">
+                    {feature.title}
+                  </h3>
+                  <p className="text-muted-foreground leading-relaxed">
+                    {feature.description}
+                  </p>
+                </div>
+              </Tilt>
             </div>
           ))}
         </div>

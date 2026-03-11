@@ -481,14 +481,28 @@ const LoginRegister = () => {
                   </div>
                 </div>}
 
-                <div className='py-1'> 
+                <div className='py-1'>
                   <p className="text-xs text-foreground/60 text-center  ">
                     By creating an account, you agree to our{' '}
-                    <a href="#" className="text-primary hover:underline">
+                    <a
+                      href="/terms"
+                      onClick={(e) => {
+                        e.preventDefault();
+                        navigate('/terms');
+                      }}
+                      className="text-primary hover:underline cursor-pointer"
+                    >
                       Terms of Service
                     </a>{' '}
                     and{' '}
-                    <a href="#" className="text-primary hover:underline">
+                    <a
+                      href="/privacy"
+                      onClick={(e) => {
+                        e.preventDefault();
+                        navigate('/privacy');
+                      }}
+                      className="text-primary hover:underline cursor-pointer"
+                    >
                       Privacy Policy
                     </a>
                   </p>

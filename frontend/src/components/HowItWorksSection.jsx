@@ -1,4 +1,6 @@
+import React from 'react';
 import { Camera, Send, Eye, Award } from 'lucide-react';
+import Tilt from 'react-parallax-tilt';
 
 const steps = [
   {
@@ -31,7 +33,7 @@ const HowItWorksSection = () => {
   return (
     <section id="how-it-works" className="py-24 bg-muted/30 relative overflow-hidden">
       {/* Background decoration */}
-      <div className="absolute inset-0 bg-texture opacity-50" />
+      <div className="absolute inset-0 bg-texture opacity-50 pointer-events-none" />
       
       <div className="container mx-auto px-4 md:px-6 relative z-10">
         {/* Section Header */}
@@ -50,33 +52,50 @@ const HowItWorksSection = () => {
 
         {/* Steps */}
         <div className="max-w-5xl mx-auto">
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-8 stagger-children">
+          {/* Added relative z-20 to ensure cards sit above the connector lines for clean interactions */}
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-8 stagger-children relative z-20">
             {steps.map((step, index) => (
-              <div key={index} className="relative">
-                {/* Connector Line (hidden on last item and mobile) */}
+              <div key={index} className="relative h-full w-full">
+                {/* Connector Line (hidden on last item and mobile) - kept absolute behind the cards */}
                 {index < steps.length - 1 && (
-                  <div className="hidden lg:block absolute top-12 left-[calc(50%+3rem)] w-[calc(100%-3rem)] h-0.5 bg-gradient-to-r from-primary/30 via-secondary/30 to-accent/30" />
+                  <div className="hidden lg:block absolute top-12 left-[calc(50%+3rem)] w-[calc(100%-3rem)] h-0.5 bg-gradient-to-r from-primary/30 via-secondary/30 to-accent/30 -z-10" />
                 )}
                 
-                <div className="glass-card p-6 rounded-2xl text-center hover:shadow-xl transition-all duration-300 hover:-translate-y-2 group">
-                  {/* Step Number */}
-                  <div className="inline-flex items-center justify-center w-8 h-8 rounded-full badge-shimmer text-white text-sm font-bold mb-4">
-                    {step.number}
+                <Tilt
+                  tiltMaxAngleX={3} // Barely there tilt for a grounded feel
+                  tiltMaxAngleY={3} // Barely there tilt for a grounded feel
+                  perspective={1000}
+                  scale={1.01}      // Tiny pop
+                  transitionSpeed={2000}
+                  gyroscope={true}
+                  glareEnable={true}
+                  glareMaxOpacity={0.15}
+                  glareColor="#ffffff"
+                  glarePosition="all"
+                  glareBorderRadius="1rem"
+                  className="h-full w-full rounded-2xl"
+                >
+                  {/* Removed hover:-translate-y-2 in favor of Tilt's scaling effect */}
+                  <div className="glass-card p-6 h-full rounded-2xl text-center hover:shadow-xl transition-shadow duration-300 group">
+                    {/* Step Number */}
+                    <div className="inline-flex items-center justify-center w-8 h-8 rounded-full badge-shimmer text-white text-sm font-bold mb-4">
+                      {step.number}
+                    </div>
+                    
+                    {/* Icon */}
+                    <div className="w-16 h-16 mx-auto rounded-2xl bg-gradient-to-br from-primary/10 via-secondary/10 to-accent/10 flex items-center justify-center mb-5 group-hover:scale-110 transition-transform">
+                      <step.icon className="w-8 h-8 text-primary" />
+                    </div>
+                    
+                    {/* Content */}
+                    <h3 className="text-lg font-bold font-display mb-2 text-foreground">
+                      {step.title}
+                    </h3>
+                    <p className="text-muted-foreground text-sm leading-relaxed">
+                      {step.description}
+                    </p>
                   </div>
-                  
-                  {/* Icon */}
-                  <div className="w-16 h-16 mx-auto rounded-2xl bg-gradient-to-br from-primary/10 via-secondary/10 to-accent/10 flex items-center justify-center mb-5 group-hover:scale-110 transition-transform">
-                    <step.icon className="w-8 h-8 text-primary" />
-                  </div>
-                  
-                  {/* Content */}
-                  <h3 className="text-lg font-bold font-display mb-2 text-foreground">
-                    {step.title}
-                  </h3>
-                  <p className="text-muted-foreground text-sm leading-relaxed">
-                    {step.description}
-                  </p>
-                </div>
+                </Tilt>
               </div>
             ))}
           </div>
