@@ -18,13 +18,13 @@ const QUICK_FAQS = [
 const Assistant = () => {
   const navigate = useNavigate();
   const user = useSelector((state) => state.auth?.user);
-  
-  // --- SESSION STORAGE HYDRATION ---
-  // Load initial messages from session storage if they exist
+
+  // --- SECURE SESSION STORAGE (Tied to specific User ID) ---
+  const userId = user?._id || 'guest';
+
   const [messages, setMessages] = useState(() => {
-    const saved = sessionStorage.getItem('lokai_messages');
+    const saved = sessionStorage.getItem(`lokai_messages_${userId}`);
     if (saved) {
-      // Re-hydrate the date objects
       return JSON.parse(saved).map(msg => ({
         ...msg,
         timestamp: new Date(msg.timestamp)
@@ -34,23 +34,41 @@ const Assistant = () => {
   });
 
   const [chatHistory, setChatHistory] = useState(() => {
-    const saved = sessionStorage.getItem('lokai_history');
+    const saved = sessionStorage.getItem(`lokai_history_${userId}`);
     return saved ? JSON.parse(saved) : [];
   });
-  
+
   const [isTyping, setIsTyping] = useState(false)
   const [userLocation, setUserLocation] = useState({ lat: null, lng: null, city: '', address: '' })
   const [pendingReport, setPendingReport] = useState(null)
   const messagesEndRef = useRef(null);
 
-  // --- SAVE TO SESSION STORAGE ON CHANGE ---
+  // --- HANDLE USER SWITCHING IN SAME TAB ---
+  // If the logged-in user changes without refreshing the page, swap their chat histories securely
   useEffect(() => {
-    sessionStorage.setItem('lokai_messages', JSON.stringify(messages));
-  }, [messages]);
+    const savedMessages = sessionStorage.getItem(`lokai_messages_${userId}`);
+    if (savedMessages) {
+      setMessages(JSON.parse(savedMessages).map(msg => ({
+        ...msg,
+        timestamp: new Date(msg.timestamp)
+      })));
+    } else {
+      setMessages([]);
+    }
+
+    const savedHistory = sessionStorage.getItem(`lokai_history_${userId}`);
+    setChatHistory(savedHistory ? JSON.parse(savedHistory) : []);
+    setPendingReport(null);
+  }, [userId]);
+
+  // --- SAVE TO USER-SPECIFIC SESSION STORAGE ON CHANGE ---
+  useEffect(() => {
+    sessionStorage.setItem(`lokai_messages_${userId}`, JSON.stringify(messages));
+  }, [messages, userId]);
 
   useEffect(() => {
-    sessionStorage.setItem('lokai_history', JSON.stringify(chatHistory));
-  }, [chatHistory]);
+    sessionStorage.setItem(`lokai_history_${userId}`, JSON.stringify(chatHistory));
+  }, [chatHistory, userId]);
 
   // Scroll to bottom
   useEffect(() => {
@@ -67,13 +85,13 @@ const Assistant = () => {
     }
   }, []);
 
-  // Clear Chat Function
+  // Clear Chat Function (Only clears current user's chat)
   const handleNewChat = () => {
     setMessages([]);
     setChatHistory([]);
     setPendingReport(null);
-    sessionStorage.removeItem('lokai_messages');
-    sessionStorage.removeItem('lokai_history');
+    sessionStorage.removeItem(`lokai_messages_${userId}`);
+    sessionStorage.removeItem(`lokai_history_${userId}`);
   };
 
   const handleSendMessage = async (textMsg, file = null, fileType = null) => {
@@ -125,11 +143,11 @@ const Assistant = () => {
         formData.append(fileType === 'image' ? 'images' : 'audio', file);
         formData.append('lat', userLocation.lat || '');
         formData.append('lng', userLocation.lng || '');
-        formData.append('city', userLocation.city || '');
-        formData.append('userHint', textMsg || ''); 
-        
+        formData.append('city', user?.contact?.city || user?.city || userLocation.city || '');
+        formData.append('userHint', textMsg || '');
+
         const endpoint = fileType === 'image' ? `${import.meta.env.VITE_BASE_URL}/ai/analyze-image` : `${import.meta.env.VITE_BASE_URL}/ai/analyze-audio`;
-        
+
         const response = await fetch(endpoint, {
           method: 'POST',
           headers: { 'Authorization': `Bearer ${localStorage.getItem('access_token')}` },
@@ -140,18 +158,18 @@ const Assistant = () => {
 
         if (data.success) {
           let draftData = { ...data.analysis };
-          
+
           if (fileType === 'image') {
             draftData.originalFile = file;
             draftData.previewUrl = URL.createObjectURL(file);
             checkLocationAndProceed(draftData);
           } else if (fileType === 'audio') {
             setPendingReport({ draftData, missing: 'image' });
-            setMessages(prev => [...prev, { 
-              id: Date.now(), 
-              type: 'assistant', 
-              content: "I've drafted the report from your audio! However, LocalAwaaz requires an image for all issues. Please click the '+' icon to upload an image of the problem (max 30MB).", 
-              timestamp: new Date() 
+            setMessages(prev => [...prev, {
+              id: Date.now(),
+              type: 'assistant',
+              content: "I've drafted the report from your audio! However, LocalAwaaz requires an image for all issues. Please click the '+' icon to upload an image of the problem (max 30MB).",
+              timestamp: new Date()
             }]);
           }
         } else {
@@ -162,7 +180,7 @@ const Assistant = () => {
       } finally {
         setIsTyping(false);
       }
-      return; 
+      return;
     }
 
     try {
@@ -174,7 +192,8 @@ const Assistant = () => {
           history: chatHistory,
           lat: userLocation.lat,
           lng: userLocation.lng,
-          city: userLocation.city
+          city: user?.contact?.city || user?.city || userLocation.city || 'Unknown',
+          userName: user?.name || 'Citizen'
         })
       });
 
@@ -190,7 +209,7 @@ const Assistant = () => {
         id: Date.now() + 1,
         type: 'assistant',
         content: displayReply,
-        toolData: data.data, 
+        toolData: data.data,
         toolUsed: data.toolUsed,
         timestamp: new Date()
       }]);
@@ -206,13 +225,13 @@ const Assistant = () => {
     const finalLat = draftData.location?.coordinates?.[1] || userLocation.lat;
 
     if (!finalLng || !finalLat) {
-      setMessages(prev => [...prev, { 
-        id: Date.now(), 
-        type: 'assistant', 
-        content: "I need your exact GPS coordinates to submit this report. Since location services are disabled, please click 'Modify Details' to capture your location on the map.", 
-        isDraftReport: true, 
+      setMessages(prev => [...prev, {
+        id: Date.now(),
+        type: 'assistant',
+        content: "I need your exact GPS coordinates to submit this report. Since location services are disabled, please click 'Modify Details' to capture your location on the map.",
+        isDraftReport: true,
         draftData: draftData,
-        timestamp: new Date() 
+        timestamp: new Date()
       }]);
       setPendingReport(null);
       setIsTyping(false);
@@ -221,22 +240,22 @@ const Assistant = () => {
 
     if (!draftData.location?.state || !draftData.location?.city || !draftData.location?.pinCode) {
       const draftWithCoords = { ...draftData, location: { ...draftData.location, coordinates: [finalLng, finalLat] } };
-      setPendingReport({ draftData: draftWithCoords, missing: 'location' }); 
-      setMessages(prev => [...prev, { 
-        id: Date.now(), 
-        type: 'assistant', 
-        content: "To complete your draft, I need your State, City, and Pincode. Please reply with them separated by commas (e.g. 'Uttar Pradesh, Sultanpur, 228001').", 
-        timestamp: new Date() 
+      setPendingReport({ draftData: draftWithCoords, missing: 'location' });
+      setMessages(prev => [...prev, {
+        id: Date.now(),
+        type: 'assistant',
+        content: "To complete your draft, I need your State, City, and Pincode. Please reply with them separated by commas (e.g. 'Uttar Pradesh, Sultanpur, 228001').",
+        timestamp: new Date()
       }]);
       setIsTyping(false);
-      return; 
+      return;
     }
 
     showDraftCard(draftData);
   };
 
   const showDraftCard = (draftData) => {
-    setPendingReport(null); 
+    setPendingReport(null);
     setMessages(prev => [...prev, {
       id: Date.now(),
       type: 'assistant',
@@ -249,7 +268,7 @@ const Assistant = () => {
   };
 
   const handleModifyDraft = (draftData) => {
-    setPendingReport(null); 
+    setPendingReport(null);
     navigate('/dashboard/report', { state: { prefilledData: draftData } });
   };
 
@@ -257,12 +276,12 @@ const Assistant = () => {
     setIsTyping(true);
     try {
       setMessages(prev => [...prev, { id: Date.now(), type: 'assistant', content: "[1/2] Uploading media to LocalAwaaz...", timestamp: new Date() }]);
-      
+
       let finalMediaUrl = [];
       if (draftData.originalFile) {
         const uploadFormData = new FormData();
         uploadFormData.append('issue_media', draftData.originalFile);
-        
+
         const uploadRes = await axiosInstance.post('/upload-issues', uploadFormData, {
           headers: { 'Content-Type': 'multipart/form-data' },
         });
@@ -288,7 +307,7 @@ const Assistant = () => {
           pinCode: draftData.location.pinCode,
           geoData: {
             type: 'Point',
-            coordinates: draftData.location.coordinates || [0, 0] 
+            coordinates: draftData.location.coordinates || [0, 0]
           }
         }
       };
@@ -314,10 +333,10 @@ const Assistant = () => {
     return (
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mt-3">
         {data.map((issue) => (
-          <IssueCard 
-            key={issue._id} 
-            issue={issue} 
-            onClick={() => navigate(`/issue/${issue._id}`)} 
+          <IssueCard
+            key={issue._id}
+            issue={issue}
+            onClick={() => navigate(`/dashboard/issue/${issue._id}`)}
             onFlagClick={() => console.log("Flagging issue:", issue._id)}
           />
         ))}
@@ -334,7 +353,7 @@ const Assistant = () => {
           <span className="text-sm font-semibold text-primary">Draft Report Generated</span>
         </div>
         <div className="p-4 flex flex-col gap-3 text-foreground">
-          
+
           {draftData.previewUrl && (
             <div className="mb-2 h-36 w-full rounded-lg overflow-hidden border border-border/50">
               <img src={draftData.previewUrl} alt="Report draft" className="w-full h-full object-cover" />
@@ -348,22 +367,22 @@ const Assistant = () => {
           <div>
             <div className="text-[11px] text-muted-foreground uppercase tracking-wider mb-1">Category</div>
             <div className="text-sm">
-               <span className="px-2.5 py-1 bg-muted rounded-full border border-border/50">{draftData.category}</span>
+              <span className="px-2.5 py-1 bg-muted rounded-full border border-border/50">{draftData.category}</span>
             </div>
           </div>
           <div>
             <div className="text-[11px] text-muted-foreground uppercase tracking-wider mb-0.5">Description Draft</div>
             <div className="text-xs leading-relaxed text-muted-foreground line-clamp-2">{draftData.description}</div>
           </div>
-          
+
           <div className="flex items-center gap-2.5 mt-2 pt-3 border-t border-border/50">
-            <button 
+            <button
               onClick={() => handleModifyDraft(draftData)}
               className="flex-1 py-2 px-3 flex items-center justify-center gap-2 text-xs font-medium bg-muted hover:bg-muted/80 text-foreground rounded-lg transition-colors border border-border"
             >
               <FileEdit size={16} /> Modify Details
             </button>
-            <button 
+            <button
               onClick={() => handleDirectSubmit(draftData)}
               className="flex-1 py-2 px-3 flex items-center justify-center gap-2 text-xs font-medium bg-primary hover:opacity-90 text-white rounded-lg transition-colors shadow-sm"
             >
@@ -376,8 +395,8 @@ const Assistant = () => {
   }
 
   return (
-    <div className="bg-texture flex flex-col h-[100dvh] pb-16 md:pb-0 md:h-screen">
-      
+    <div className="bg-texture flex flex-col fixed inset-0 z-30 pb-16 md:relative md:pb-0 md:h-screen">
+
       <div className="glass-card border-b border-border/50 sticky top-0 z-10 mx-2 my-2 md:mx-4 md:my-2 rounded-lg">
         <div className="flex items-center justify-between p-3 md:p-4">
           <div className="flex items-center space-x-2 md:space-x-3">
@@ -394,9 +413,9 @@ const Assistant = () => {
               </div>
             </div>
           </div>
-          
-          <button 
-            onClick={handleNewChat} 
+
+          <button
+            onClick={handleNewChat}
             className='px-3 py-1.5 md:px-4 md:py-2 text-xs md:text-sm btn-gradient flex items-center gap-1.5 md:gap-2 border rounded-lg text-white'
           >
             <Plus className="w-4 h-4" />
@@ -407,7 +426,7 @@ const Assistant = () => {
 
       <div className="flex-1 overflow-y-auto thin-scrollbar p-2 md:p-4">
         <div className="max-w-4xl mx-auto">
-          
+
           {messages.length === 0 && !isTyping && (
             <div className="flex flex-col items-center justify-center text-center py-10 md:py-16 px-4 animate-fade-in-up">
               <div className="w-16 h-16 md:w-20 md:h-20 bg-gradient-to-br from-primary to-secondary rounded-full flex items-center justify-center mx-auto mb-6 shadow-lg shadow-primary/20">
@@ -417,10 +436,10 @@ const Assistant = () => {
               <p className="text-muted-foreground text-sm md:text-base max-w-md mx-auto mb-8 leading-relaxed">
                 Your civic assistant. Describe an issue, check your city's leaderboard, or upload a photo/audio to instantly draft a report.
               </p>
-              
+
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-3.5 w-full max-w-lg">
                 {QUICK_FAQS.map((faq, idx) => (
-                  <button 
+                  <button
                     key={idx}
                     onClick={() => handleSendMessage(faq.text)}
                     className="flex items-center gap-3.5 px-5 py-3.5 bg-card/60 hover:bg-card border border-border/50 rounded-xl text-left transition-all hover:shadow-md hover:border-primary/30 group"
@@ -436,7 +455,7 @@ const Assistant = () => {
           {messages.map((message) => (
             <div key={message.id} className={`flex ${message.type === 'user' ? 'justify-end' : 'justify-start'} animate-fade-in-up mb-6`}>
               <div className={`flex items-start gap-2.5 max-w-[95%] md:max-w-[85%] ${message.type === 'user' ? 'flex-row-reverse' : ''}`}>
-                
+
                 {message.type === 'assistant' && (
                   <Avatar className="h-7 w-7 md:h-9 md:w-9 flex-shrink-0 mt-1">
                     <AvatarFallback className="bg-gradient-to-br from-primary to-secondary text-white">
@@ -444,13 +463,12 @@ const Assistant = () => {
                     </AvatarFallback>
                   </Avatar>
                 )}
-                
+
                 <div className="flex flex-col gap-1 w-full">
-                  <Card className={`glass-card p-3 md:p-4 border ${
-                    message.type === 'user' 
-                      ? 'bg-gradient-to-br from-primary to-secondary text-white border-primary/20 rounded-2xl rounded-tr-sm' 
-                      : 'bg-card/80 border-border/50 rounded-2xl rounded-tl-sm shadow-sm'
-                  }`}>
+                  <Card className={`glass-card p-3 md:p-4 border ${message.type === 'user'
+                    ? 'bg-gradient-to-br from-primary to-secondary text-white border-primary/20 rounded-2xl rounded-tr-sm'
+                    : 'bg-card/80 border-border/50 rounded-2xl rounded-tl-sm shadow-sm'
+                    }`}>
                     <p className={`text-[14px] md:text-[15px] leading-relaxed whitespace-pre-wrap ${message.type === 'user' ? 'text-white' : 'text-foreground'}`}>
                       {message.content}
                     </p>
@@ -494,7 +512,7 @@ const Assistant = () => {
               </div>
             </div>
           )}
-          
+
           <div ref={messagesEndRef} />
         </div>
       </div>
