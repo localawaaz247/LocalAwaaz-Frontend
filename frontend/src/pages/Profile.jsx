@@ -6,7 +6,6 @@ import EditProfileModal from "../components/modals/EditProfileModal";
 import SettingsModal from "../components/modals/SettingsModal";
 import IssuesPosted from "../components/IssuesPosted";
 import ConfirmedIssues from "../components/ConfirmedIssues";
-import Comments from "../components/Comments";
 import SavedIssues from "../components/SavedIssues";
 
 const Profile = () => {
@@ -158,15 +157,6 @@ const Profile = () => {
                   Issues Confirmed
                 </button>
                 <button
-                  onClick={() => setActiveTab('comments')}
-                  className={`pb-2.5 md:pb-3 border-b-2 transition-colors flex-shrink-0 ${activeTab === 'comments'
-                      ? 'border-primary text-primary font-semibold'
-                      : 'border-transparent text-muted-foreground hover:text-foreground'
-                    }`}
-                >
-                  Comments
-                </button>
-                <button
                   onClick={() => setActiveTab('saved')}
                   className={`pb-2.5 md:pb-3 border-b-2 transition-colors flex-shrink-0 ${activeTab === 'saved'
                       ? 'border-primary text-primary font-semibold'
@@ -181,7 +171,6 @@ const Profile = () => {
               <div className="mt-4 md:mt-6">
                 {activeTab === 'posted' && <IssuesPosted />}
                 {activeTab === 'confirmed' && <ConfirmedIssues />}
-                {activeTab === 'comments' && <Comments />}
                 {activeTab === 'saved' && <SavedIssues />}
               </div>
             </div>

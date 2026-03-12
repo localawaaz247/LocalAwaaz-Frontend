@@ -1,4 +1,4 @@
-import { MapPin, ShieldCheck, User, AlertTriangle, ChevronLeft, ChevronRight, Share2, Flag, Copy, Check } from "lucide-react";
+import { MapPin, ShieldCheck, User, AlertTriangle, ChevronLeft, ChevronRight, Flag, Copy, Check, Bookmark } from "lucide-react";
 import { useState, useEffect } from "react";
 import axiosInstance from "../utils/axios";
 import { showToast } from "../utils/toast";
@@ -19,6 +19,7 @@ const IssueCard = ({ issue, onClick, onFlagClick }) => {
   const [localConfirmationCount, setLocalConfirmationCount] = useState(0);
   const [localShareCount, setLocalShareCount] = useState(0);
   const [isCopied, setIsCopied] = useState(false);
+  const [isSaved, setIsSaved] = useState(false); // NEW: Save State
 
   const {
     _id, status, category, title, description, location,
@@ -124,6 +125,26 @@ const IssueCard = ({ issue, onClick, onFlagClick }) => {
     setTimeout(() => setIsCopied(false), 2000);
   };
 
+  // --- DYNAMIC SAVE LOGIC ---
+  const handleSaveToggle = async (e) => {
+    e.stopPropagation();
+    const newSavedState = !isSaved;
+    setIsSaved(newSavedState); // Optimistic update
+
+    try {
+      if (newSavedState) {
+        await axiosInstance.post(`/save-issue/${_id}`);
+        showToast({ icon: 'success', title: 'Issue saved!' });
+      } else {
+        await axiosInstance.delete(`/remove/saved-issue/${_id}`);
+        showToast({ icon: 'success', title: 'Removed from saved!' });
+      }
+    } catch (error) {
+      setIsSaved(!newSavedState); // Revert on failure
+      showToast({ icon: 'error', title: 'Failed to update saved status' });
+    }
+  };
+
   // --- DYNAMIC CONFIRM LOGIC ---
   const handleConfirm = async (e) => {
     e.stopPropagation();
@@ -139,10 +160,7 @@ const IssueCard = ({ issue, onClick, onFlagClick }) => {
       }
 
       const response = await axiosInstance.post(url);
-
-      // Optimistic update: instantly bump up the confirmed number
       setLocalConfirmationCount(prev => prev + 1);
-
       showToast({ icon: 'success', title: response.data?.message || 'Issue Confirmed successfully!' });
     } catch (error) {
       showToast({ icon: 'error', title: error.response?.data?.message || 'Failed to confirm issue' });
@@ -191,7 +209,7 @@ const IssueCard = ({ issue, onClick, onFlagClick }) => {
           )}
         </div>
 
-        {/* Updated Share & Date Section */}
+        {/* Action Icons Section */}
         <div className="flex flex-col items-end gap-1.5 flex-shrink-0">
           <span className="text-[10px] md:text-xs text-muted-foreground font-medium whitespace-nowrap">
             {formatDate(dateOfFormation || createdAt)}
@@ -201,15 +219,22 @@ const IssueCard = ({ issue, onClick, onFlagClick }) => {
               <strong>{localShareCount}</strong> Shares
             </span>
             <button 
+              onClick={handleSaveToggle} 
+              className={`p-1.5 rounded-full transition-all shadow-sm border ${isSaved ? "bg-primary/10 text-primary border-primary/20 hover:bg-primary/20" : "bg-card text-muted-foreground border-border hover:bg-muted/80 hover:text-foreground"}`} 
+              title={isSaved ? "Remove from Saved" : "Save Issue"}
+            >
+              <Bookmark size={14} className={isSaved ? "fill-primary" : ""} />
+            </button>
+            <button 
               onClick={handleWhatsappShare} 
-              className="p-1.5 rounded-full bg-green-500/10 text-green-600 hover:bg-green-500 hover:text-white transition-all shadow-sm" 
+              className="p-1.5 rounded-full bg-green-500/10 border border-green-500/20 text-green-600 hover:bg-green-500 hover:text-white transition-all shadow-sm" 
               title="Share to WhatsApp"
             >
               <WhatsappIcon size={14} />
             </button>
             <button 
               onClick={handleCopyLink} 
-              className={`p-1.5 rounded-full transition-all shadow-sm ${isCopied ? "bg-green-500 text-white" : "bg-muted text-muted-foreground hover:text-foreground hover:bg-muted/80 border border-border"}`} 
+              className={`p-1.5 rounded-full transition-all shadow-sm border ${isCopied ? "bg-green-500 text-white border-green-500" : "bg-card text-muted-foreground border-border hover:text-foreground hover:bg-muted/80"}`} 
               title="Copy Link"
             >
               {isCopied ? <Check size={14} /> : <Copy size={14} />}
@@ -239,16 +264,10 @@ const IssueCard = ({ issue, onClick, onFlagClick }) => {
 
           {hasMultipleMedia && (
             <>
-              <button
-                onClick={handlePrevious}
-                className="absolute left-2 md:left-3 top-1/2 -translate-y-1/2 text-white p-1.5 md:p-2 opacity-100 md:opacity-0 md:group-hover:opacity-100 transition-all duration-300 hover:scale-110 active:scale-95 z-10 drop-shadow-lg bg-black/20 md:bg-transparent rounded-full"
-              >
+              <button onClick={handlePrevious} className="absolute left-2 md:left-3 top-1/2 -translate-y-1/2 text-white p-1.5 md:p-2 opacity-100 md:opacity-0 md:group-hover:opacity-100 transition-all duration-300 hover:scale-110 active:scale-95 z-10 drop-shadow-lg bg-black/20 md:bg-transparent rounded-full">
                 <ChevronLeft size={24} className="md:w-7 md:h-7" strokeWidth={2.5} />
               </button>
-              <button
-                onClick={handleNext}
-                className="absolute right-2 md:right-3 top-1/2 -translate-y-1/2 text-white p-1.5 md:p-2 opacity-100 md:opacity-0 md:group-hover:opacity-100 transition-all duration-300 hover:scale-110 active:scale-95 z-10 drop-shadow-lg bg-black/20 md:bg-transparent rounded-full"
-              >
+              <button onClick={handleNext} className="absolute right-2 md:right-3 top-1/2 -translate-y-1/2 text-white p-1.5 md:p-2 opacity-100 md:opacity-0 md:group-hover:opacity-100 transition-all duration-300 hover:scale-110 active:scale-95 z-10 drop-shadow-lg bg-black/20 md:bg-transparent rounded-full">
                 <ChevronRight size={24} className="md:w-7 md:h-7" strokeWidth={2.5} />
               </button>
             </>
@@ -272,7 +291,7 @@ const IssueCard = ({ issue, onClick, onFlagClick }) => {
         </div>
       )}
 
-      {/* Info Section (Location & User) */}
+      {/* Info Section */}
       <div className="flex flex-col gap-2 text-[11px] md:text-sm text-muted-foreground mb-3 md:mb-4">
         <div className="flex items-center gap-1.5 md:gap-2 line-clamp-1">
           <MapPin size={14} className="flex-shrink-0 text-primary" />
@@ -288,32 +307,21 @@ const IssueCard = ({ issue, onClick, onFlagClick }) => {
         </div>
       </div>
 
-      {/* --- RESPONSIVE FOOTER SECTION --- */}
+      {/* Footer Section */}
       <div className="flex flex-wrap items-center justify-between gap-3 pt-3 border-t border-border/50 mt-auto">
-
-        {/* Stats */}
         <div className="flex items-center gap-3 md:gap-4 text-xs md:text-sm">
           <span className="text-foreground whitespace-nowrap"><strong>{localConfirmationCount}</strong> Confirmed</span>
           <span className="text-foreground whitespace-nowrap"><strong>{impactScore || impact || 0}</strong> Impact</span>
         </div>
 
-        {/* Buttons */}
         <div className="flex items-center gap-2 w-full sm:w-auto flex-1 min-w-[fit-content] justify-end">
-          <button
-            onClick={handleFlagClickAction}
-            className="flex-1 sm:flex-none max-w-[120px] flex items-center justify-center gap-1 px-3 py-1.5 md:py-2 rounded-xl text-xs md:text-sm font-medium transition-all bg-red-100 text-red-700 border border-red-200 hover:bg-red-200"
-          >
+          <button onClick={handleFlagClickAction} className="flex-1 sm:flex-none max-w-[120px] flex items-center justify-center gap-1 px-3 py-1.5 md:py-2 rounded-xl text-xs md:text-sm font-medium transition-all bg-red-100 text-red-700 border border-red-200 hover:bg-red-200">
             <Flag size={14} /> Flag
           </button>
-          <button
-            onClick={handleConfirm}
-            disabled={confirmLoading}
-            className={`flex-1 sm:flex-none max-w-[140px] flex items-center justify-center px-4 py-1.5 md:py-2 rounded-xl text-xs md:text-sm font-medium transition-all whitespace-nowrap ${status?.toUpperCase() === 'OPEN' ? "btn-gradient text-white" : "bg-secondary/20 text-secondary border border-secondary/30 hover:bg-secondary/30"}`}
-          >
+          <button onClick={handleConfirm} disabled={confirmLoading} className={`flex-1 sm:flex-none max-w-[140px] flex items-center justify-center px-4 py-1.5 md:py-2 rounded-xl text-xs md:text-sm font-medium transition-all whitespace-nowrap ${status?.toUpperCase() === 'OPEN' ? "btn-gradient text-white" : "bg-secondary/20 text-secondary border border-secondary/30 hover:bg-secondary/30"}`}>
             {confirmLoading ? "..." : "I Confirm"}
           </button>
         </div>
-
       </div>
     </div>
   );
