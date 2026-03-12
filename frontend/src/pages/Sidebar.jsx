@@ -36,9 +36,14 @@ const Sidebar = () => {
   const dispatch = useDispatch();
   const navigate = useNavigate();
 
+  // 🟢 CRITICAL FIX: Grab BOTH auth user and profile details from Redux
   const user = useSelector((state) => state.auth?.user);
-  const name = user?.name;
-  const profilePic = user?.profilePic; // Extract profilePic from auth state
+  const profileDetail = useSelector((state) => state.profile?.profileDetail);
+  
+  // 🟢 CRITICAL FIX: Prioritize the fresh profile data over the initial auth data
+  const name = profileDetail?.name || user?.name;
+  const profilePic = profileDetail?.profilePic || user?.profilePic; 
+  
   const { unreadCount, markAsRead } = useNotifications(user);
 
   // Function to get initials from name

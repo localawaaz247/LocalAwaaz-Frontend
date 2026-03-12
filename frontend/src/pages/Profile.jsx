@@ -124,15 +124,31 @@ const Profile = () => {
                   Contribution Badges
                 </h3>
                 <div className="flex gap-2 md:gap-3 flex-wrap">
-                  <span className="px-2.5 py-1 md:px-3 md:py-1 text-[11px] md:text-sm bg-primary/10 text-primary border border-primary/20 rounded-lg">
-                    ⭐ Top Reporter
-                  </span>
-                  <span className="px-2.5 py-1 md:px-3 md:py-1 text-[11px] md:text-sm bg-secondary/20 text-secondary border border-secondary/30 rounded-lg">
-                    ✔ Active Citizen
-                  </span>
-                  <span className="px-2.5 py-1 md:px-3 md:py-1 text-[11px] md:text-sm bg-accent/20 text-accent border border-accent/30 rounded-lg">
-                    💙 Community Helper
-                  </span>
+                  
+                  {/* 1. Dynamic Rank Display */}
+                  {profileData?.rank && (
+                    <span className="px-2.5 py-1 md:px-3 md:py-1 text-[11px] md:text-sm bg-primary/10 text-primary border border-primary/20 rounded-lg font-bold">
+                      🏆 {profileData.rank}
+                    </span>
+                  )}
+
+                  {/* 2. Dynamic Badges Map */}
+                  {profileData?.badges && profileData.badges.length > 0 ? (
+                    profileData.badges.map((badge, index) => (
+                      <span 
+                        key={badge._id || index} 
+                        className="px-2.5 py-1 md:px-3 md:py-1 text-[11px] md:text-sm bg-secondary/20 text-secondary border border-secondary/30 rounded-lg cursor-help transition-all hover:scale-105"
+                        title={badge.description || "Earned badge"} 
+                      >
+                        {badge.icon || '⭐'} {badge.name}
+                      </span>
+                    ))
+                  ) : (
+                    <span className="text-xs text-muted-foreground italic">
+                      Start reporting issues to earn badges!
+                    </span>
+                  )}
+                  
                 </div>
               </div>
 
