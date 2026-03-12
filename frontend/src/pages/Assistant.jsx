@@ -346,7 +346,10 @@ const Assistant = () => {
           <IssueCard
             key={issue._id}
             issue={issue}
-            onClick={() => navigate(`/dashboard/issue/${issue._id}`)}
+            // --- FIXED: This now routes to the dashboard and triggers the modal instantly! ---
+            onClick={() => navigate('/dashboard', {
+              state: { selectedIssueId: issue._id }
+            })}
             onFlagClick={() => console.log("Flagging issue:", issue._id)}
           />
         ))}
