@@ -77,7 +77,17 @@ const Assistant = () => {
 
   // Get Location
   useEffect(() => {
-    if (navigator.geolocation) {
+    const cachedData = localStorage.getItem('cached_geo_location');
+    if (cachedData) {
+      const parsed = JSON.parse(cachedData);
+      setUserLocation({
+        lat: parsed.latitude,
+        lng: parsed.longitude,
+        city: parsed.city,
+        address: parsed.state // Gives extra context to AI
+      });
+    } else if (navigator.geolocation) {
+      // Fallback if they opened Assistant before Feed
       navigator.geolocation.getCurrentPosition(
         (pos) => setUserLocation(prev => ({ ...prev, lat: pos.coords.latitude, lng: pos.coords.longitude })),
         (err) => console.warn("Geolocation blocked:", err.message)

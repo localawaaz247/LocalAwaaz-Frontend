@@ -36,9 +36,7 @@ export const fetchIssues = createAsyncThunk(
   "issueFeed/fetchIssues",
   async (locationData, { dispatch, rejectWithValue }) => {
     try {
-      // Check if location has coordinates (current location)
       if (locationData?.latitude && locationData?.longitude) {
-        // Use current location API
         return await dispatch(fetchIssuesByCurrentLocation({
           lat: locationData.latitude,
           lng: locationData.longitude,
@@ -46,7 +44,6 @@ export const fetchIssues = createAsyncThunk(
           limit: locationData.limit || 10
         })).unwrap();
       } else if (locationData?.city) {
-        // Use area search API
         return await dispatch(fetchIssuesByArea({
           search: locationData.city,
           page: locationData.page || 1,
@@ -74,18 +71,13 @@ const issueFeedSlice = createSlice({
       hasMore: false
     },
     currentLocation: null,
-    locationType: null // 'current' or 'area'
+    locationType: null 
   },
   reducers: {
     clearIssues: (state) => {
       state.issues = [];
       state.error = null;
-      state.pagination = {
-        currentPage: 1,
-        totalPages: 1,
-        totalIssues: 0,
-        hasMore: false
-      };
+      state.pagination = { currentPage: 1, totalPages: 1, totalIssues: 0, hasMore: false };
     },
     clearError: (state) => {
       state.error = null;
@@ -99,7 +91,7 @@ const issueFeedSlice = createSlice({
   },
   extraReducers: (builder) => {
     builder
-      // Fetch by current location
+      // --- Fetch by current location ---
       .addCase(fetchIssuesByCurrentLocation.pending, (state) => {
         state.loading = true;
         state.error = null;
@@ -107,9 +99,18 @@ const issueFeedSlice = createSlice({
       })
       .addCase(fetchIssuesByCurrentLocation.fulfilled, (state, action) => {
         state.loading = false;
-        state.issues = action.payload.data || [];
+        const newIssues = action.payload.data || [];
+        const currentPage = action.payload.currentPage || 1;
+
+        // FIXED: Append if page > 1, Replace if page === 1
+        if (currentPage === 1) {
+          state.issues = newIssues;
+        } else {
+          state.issues = [...state.issues, ...newIssues];
+        }
+
         state.pagination = {
-          currentPage: action.payload.currentPage || 1,
+          currentPage: currentPage,
           totalPages: action.payload.totalPages || 1,
           totalIssues: action.payload.totalIssues || action.payload.issueCount || 0,
           hasMore: action.payload.hasMore || false
@@ -118,10 +119,9 @@ const issueFeedSlice = createSlice({
       .addCase(fetchIssuesByCurrentLocation.rejected, (state, action) => {
         state.loading = false;
         state.error = action.payload;
-        state.issues = [];
       })
       
-      // Fetch by area
+      // --- Fetch by area ---
       .addCase(fetchIssuesByArea.pending, (state) => {
         state.loading = true;
         state.error = null;
@@ -129,9 +129,18 @@ const issueFeedSlice = createSlice({
       })
       .addCase(fetchIssuesByArea.fulfilled, (state, action) => {
         state.loading = false;
-        state.issues = action.payload.data || [];
+        const newIssues = action.payload.data || [];
+        const currentPage = action.payload.currentPage || 1;
+
+        // FIXED: Append if page > 1, Replace if page === 1
+        if (currentPage === 1) {
+          state.issues = newIssues;
+        } else {
+          state.issues = [...state.issues, ...newIssues];
+        }
+
         state.pagination = {
-          currentPage: action.payload.currentPage || 1,
+          currentPage: currentPage,
           totalPages: action.payload.totalPages || 1,
           totalIssues: action.payload.totalIssues || action.payload.issueCount || 0,
           hasMore: action.payload.hasMore || false
@@ -140,7 +149,6 @@ const issueFeedSlice = createSlice({
       .addCase(fetchIssuesByArea.rejected, (state, action) => {
         state.loading = false;
         state.error = action.payload;
-        state.issues = [];
       });
   }
 });
