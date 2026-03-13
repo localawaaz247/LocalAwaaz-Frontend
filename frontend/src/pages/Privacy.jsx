@@ -3,6 +3,7 @@ import { ArrowLeft, Shield } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import Navbar from '../components/Navbar';
 import Footer from '../components/Footer';
+import SEO from '../components/SEO'
 
 const Privacy = () => {
   useEffect(() => {
