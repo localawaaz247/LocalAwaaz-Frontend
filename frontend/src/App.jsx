@@ -1,6 +1,7 @@
 import { BrowserRouter, Routes, Route } from "react-router-dom";
 import { ThemeProvider } from "./utils/themeProvider";
 import LoginRegister from "./pages/LoginRegister";
+import ForgotPassword from "./pages/ForgotPassword"; // <-- Added Import
 import NotFound from "./pages/NotFound";
 import LandingPage from "./pages/LandingPage";
 import Homepage from "./pages/Homepage";
@@ -34,6 +35,8 @@ const App = () => {
             {/* PUBLIC ROUTES (Only for logged-out users) */}
             <Route path="/" element={<PublicRoute><LandingPage /></PublicRoute>} />
             <Route path="/login" element={<PublicRoute><LoginRegister /></PublicRoute>} />
+            {/* Added Forgot Password Route */}
+            <Route path="/forgot-password" element={<PublicRoute><ForgotPassword /></PublicRoute>} />
 
             {/* UNRESTRICTED ROUTES (For EVERYONE - Logged in or Logged out) 
                 Removed <PublicRoute> wrapper so it stops redirecting people */}
