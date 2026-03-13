@@ -41,7 +41,7 @@ const categories = [
 export default function ReportIssue() {
   const routerLocation = useLocation();
   const prefilledData = routerLocation.state?.prefilledData;
-  
+
   const user = useSelector((state) => state.auth?.user);
 
   const [formData, setFormData] = useState({
@@ -60,21 +60,14 @@ export default function ReportIssue() {
     },
     media: [],
     mediaUrls: [],
-    isAnonymous: false 
+    isAnonymous: false
   });
 
   // --- 1. BULLETPROOF GLOBAL ANONYMOUS FIX ---
-  // This watches the user object and forces the checkbox to sync immediately
+  // FIX: Accurately point to user.preferences.globalAnonymous as defined in your MongoDB schema
   useEffect(() => {
     if (user) {
-      // Checks all common naming conventions for where your settings might be saved in Redux
-      const isAnon = Boolean(
-        user.isAnonymous || 
-        user.globalAnonymous || 
-        user.preferences?.isAnonymous || 
-        user.preferences?.globalAnonymousMode || 
-        user.settings?.isAnonymous
-      );
+      const isAnon = Boolean(user.preferences?.globalAnonymous);
       setFormData(prev => ({ ...prev, isAnonymous: isAnon }));
     }
   }, [user]);
@@ -97,7 +90,7 @@ export default function ReportIssue() {
       try {
         // Point this to an endpoint that calculates DB-wide resolved issues without location filters
         const res = await axiosInstance.get('/issue/global/resolved-count');
-        
+
         // Handles multiple common response structures
         const count = res.data?.resolvedCount || res.data?.count || res.data?.totalResolved;
         if (count !== undefined) {
@@ -167,17 +160,17 @@ export default function ReportIssue() {
     setIsAILoading(true);
     setUploadError('');
     setErrors({});
-    
+
     try {
       const aiFormData = new FormData();
-      aiFormData.append('images', formData.media[0]); 
-      
+      aiFormData.append('images', formData.media[0]);
+
       aiFormData.append('city', formData.location.city || user?.contact?.city || '');
       if (hasGPS) {
         aiFormData.append('lng', formData.location.geoData.coordinates[0]);
         aiFormData.append('lat', formData.location.geoData.coordinates[1]);
       }
-      aiFormData.append('userHint', ''); 
+      aiFormData.append('userHint', '');
 
       const token = localStorage.getItem('access_token') || localStorage.getItem('token');
       const response = await fetch(`${import.meta.env.VITE_BASE_URL}/ai/analyze-image`, {
@@ -190,14 +183,14 @@ export default function ReportIssue() {
 
       if (data?.success && data?.analysis) {
         const aiResult = data.analysis;
-        
+
         setFormData(prev => ({
           ...prev,
           title: aiResult.title || prev.title,
           category: aiResult.category || prev.category,
           description: aiResult.description || prev.description
         }));
-        
+
         showToast({ icon: "success", title: "AI successfully drafted your report!" });
       } else {
         throw new Error(data?.message || "AI Analysis failed");
@@ -386,17 +379,18 @@ export default function ReportIssue() {
 
       if (response.data) {
         setSubmitSuccess(true);
+        // FIX: Ensure reset state properly relies on accurate preference field
         setFormData({
           title: '', category: '', description: '',
           location: { address: '', city: '', pinCode: '', state: '', geoData: { type: 'Point', coordinates: null } },
-          media: [], mediaUrls: [], 
-          isAnonymous: Boolean(user?.isAnonymous || user?.globalAnonymous || user?.preferences?.isAnonymous || user?.preferences?.globalAnonymousMode)
+          media: [], mediaUrls: [],
+          isAnonymous: Boolean(user?.preferences?.globalAnonymous)
         });
         previewUrls.forEach(url => URL.revokeObjectURL(url));
         setPreviewUrls([]);
         setErrors({});
         localStorage.removeItem('currentLocation');
-        
+
         // Optimistically update total resolved
         setTotalResolved(prev => prev + 1);
       }
@@ -451,7 +445,7 @@ export default function ReportIssue() {
       {/* Main Card */}
       <div className="mx-auto mt-6 md:mt-10 max-w-7xl px-2 md:px-4">
         <div className="glass-card p-4 md:p-8 shadow-xl rounded-2xl md:rounded-3xl relative">
-          
+
           {/* AI Fill Button */}
           <div className="flex flex-col sm:flex-row justify-between items-start sm:items-end mb-6 md:mb-8 gap-4 border-b border-border/50 pb-4">
             <div>
@@ -459,15 +453,14 @@ export default function ReportIssue() {
               <p className="text-xs md:text-sm text-muted-foreground">Choose the category that best describes your issue</p>
               {errors.category && <p className="mt-1 text-xs text-red-600">{errors.category}</p>}
             </div>
-            
+
             <button
               onClick={handleFillWithAI}
               disabled={isAILoading}
-              className={`flex items-center justify-center gap-2 w-full sm:w-auto px-4 py-2.5 rounded-xl font-medium text-sm transition-all shadow-lg ${
-                isAILoading 
-                  ? 'bg-muted text-muted-foreground cursor-wait' 
+              className={`flex items-center justify-center gap-2 w-full sm:w-auto px-4 py-2.5 rounded-xl font-medium text-sm transition-all shadow-lg ${isAILoading
+                  ? 'bg-muted text-muted-foreground cursor-wait'
                   : 'btn-gradient text-white hover:scale-[1.02] active:scale-[0.98]'
-              }`}
+                }`}
             >
               {isAILoading ? (
                 <><div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white"></div>Analyzing...</>
@@ -605,7 +598,7 @@ export default function ReportIssue() {
                     <input
                       type="file" className="absolute inset-0 h-full w-full cursor-pointer opacity-0 z-10"
                       accept="image/png, image/jpg, image/jpeg" multiple
-                      onChange={handleFileChange} disabled={formData.mediaUrls.length > 0} 
+                      onChange={handleFileChange} disabled={formData.mediaUrls.length > 0}
                     />
                     <div className="flex h-full flex-col items-center justify-center gap-1 md:gap-2 text-center p-4">
                       {formData.media.length > 0 ? (
