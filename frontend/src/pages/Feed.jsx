@@ -1,7 +1,6 @@
-import { MapPin, Plus, CheckCircle2, Clock, Users } from "lucide-react";
+import { MapPin, Plus, CheckCircle2, Clock, Users, ShieldCheck } from "lucide-react";
 import { useState, useEffect, useMemo } from "react";
 import { useDispatch, useSelector } from "react-redux";
-// NEW: Added useOutletContext to the imports
 import { useNavigate, useLocation, useOutletContext } from 'react-router-dom';
 import InfiniteScroll from "react-infinite-scroll-component";
 import { getChosenLocation, formatLocationDisplay, getCurrentLocationStored } from "../utils/locationUtils";
@@ -29,7 +28,6 @@ const Feed = () => {
   const navigate = useNavigate();
   const dispatch = useDispatch();
 
-  // NEW: Safely grab the context passed down from Homepage.jsx
   const context = useOutletContext();
   const selectedIssueId = context?.selectedIssueId;
   const setSelectedIssueId = context?.setSelectedIssueId;
@@ -39,21 +37,16 @@ const Feed = () => {
   const displayLocation = chosenLocation ? formatLocationDisplay(chosenLocation) : "Locating...";
   const activeIssuesCount = pagination?.totalIssues || issues?.length || 0;
 
-  // --- NEW: AUTO-OPEN ISSUE FROM NOTIFICATIONS ---
+  // --- AUTO-OPEN ISSUE FROM NOTIFICATIONS ---
   useEffect(() => {
     const fetchAndOpenIssue = async () => {
       if (!selectedIssueId) return;
-
-      // 1. Optimization: Check if the issue is already loaded in the feed
       const existingIssue = issues?.find(i => i._id === selectedIssueId);
-
       if (existingIssue) {
         setSelectedIssue(existingIssue);
         setIsDetailOpen(true);
         return;
       }
-
-      // 2. If not in the feed, fetch it directly from the backend
       try {
         const response = await axiosInstance.get(`/issue/${selectedIssueId}`);
         setSelectedIssue(response.data.data);
@@ -61,14 +54,11 @@ const Feed = () => {
       } catch (err) {
         console.error("Failed to fetch specific issue details:", err);
         showToast({ icon: "error", title: "Issue not found or has been deleted" });
-        // Clear the ID so it doesn't get stuck in a loop
         if (setSelectedIssueId) setSelectedIssueId(null);
       }
     };
-
     fetchAndOpenIssue();
   }, [selectedIssueId, issues, setSelectedIssueId]);
-
 
   // --- FETCH DATA HELPER ---
   const fetchData = (currentPage, specificLocation = null) => {
@@ -88,8 +78,7 @@ const Feed = () => {
 
   // --- 🌍 2-HOUR AUTO LOCATION LOGIC ---
   useEffect(() => {
-    const CACHE_TIME_LIMIT = 2 * 60 * 60 * 1000; // 2 Hours
-
+    const CACHE_TIME_LIMIT = 2 * 60 * 60 * 1000;
     const checkAndFetchLocation = async () => {
       const cachedData = localStorage.getItem('cached_geo_location');
       let parsedCache = cachedData ? JSON.parse(cachedData) : null;
@@ -103,33 +92,26 @@ const Feed = () => {
 
       if (navigator.geolocation) {
         showToast({ icon: "info", title: "Locating your neighborhood..." });
-
         navigator.geolocation.getCurrentPosition(
           async (pos) => {
             const { latitude, longitude } = pos.coords;
             try {
               const res = await axiosInstance.post('/get-location-from-coords', { lat: latitude, lng: longitude });
-
               if (res.data?.success) {
                 const newLocation = {
                   latitude, longitude,
-                  city: res.data.data.city,
-                  state: res.data.data.state,
-                  country: res.data.data.country,
+                  city: res.data.data.city, state: res.data.data.state, country: res.data.data.country,
                   timestamp: Date.now()
                 };
-
                 localStorage.setItem('cached_geo_location', JSON.stringify(newLocation));
                 setChosenLocation(newLocation);
                 fetchData(1, newLocation);
               }
             } catch (err) {
-              console.error("Reverse Geocoding failed:", err);
               fetchData(1);
             }
           },
           (err) => {
-            console.warn("Location permission denied:", err.message);
             setShowLocationModal(true);
             fetchData(1);
           },
@@ -140,7 +122,6 @@ const Feed = () => {
         fetchData(1);
       }
     };
-
     checkAndFetchLocation();
   }, [dispatch]);
 
@@ -148,28 +129,19 @@ const Feed = () => {
     const updatedLocation = getChosenLocation();
     setChosenLocation(updatedLocation);
     setPage(1);
-
-    if (updatedLocation) {
-      fetchData(1, updatedLocation);
-    } else {
-      dispatch(clearIssues());
-    }
+    if (updatedLocation) fetchData(1, updatedLocation);
+    else dispatch(clearIssues());
   };
 
-  // --- STANDARD CARD CLICK ---
   const handleCardClick = (issue) => {
     setSelectedIssue(issue);
     setIsDetailOpen(true);
   };
 
-  // --- UPDATED CLOSE HANDLER ---
   const handleCloseDetail = () => {
     setIsDetailOpen(false);
-
-    // Slight delay to allow the modal close animation to finish smoothly
     setTimeout(() => {
       setSelectedIssue(null);
-      // Clear the context ID so clicking the same notification again works
       if (setSelectedIssueId) setSelectedIssueId(null);
     }, 300);
   };
@@ -232,6 +204,17 @@ const Feed = () => {
 
   return (
     <div className="bg-texture min-h-[100dvh] pb-20 md:pb-8">
+      {/* Dynamic Keyframes for Shimmer injected into DOM */}
+      <style>{`
+        @keyframes shimmerSweep {
+          0% { transform: translateX(-100%); }
+          100% { transform: translateX(100%); }
+        }
+        .animate-shimmer {
+          animation: shimmerSweep 1.8s infinite;
+        }
+      `}</style>
+
       {/* HEADER (Sticky) */}
       <div className="px-3 md:px-6 py-3 md:py-4 sticky top-2 glass-card z-40 rounded-lg border-0 border-b border-border mx-2 md:mx-4 shadow-sm">
         <div className="flex justify-between items-center">
@@ -284,39 +267,52 @@ const Feed = () => {
           </div>
         </div>
 
-        {/* NPM INFINITE SCROLL COMPONENT */}
-        {sortedIssues.length === 0 && !loading && !error ? (
-          <div className="text-center py-10">
-            <p className="text-muted-foreground text-sm md:text-base">No Issues found in your area</p>
+        {/* 🟢 CONDITIONAL RENDERING ENGINE 🟢 */}
+
+        {/* 1. INITIAL LOADING (YouTube-style Shimmer) */}
+        {loading && sortedIssues.length === 0 ? (
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 md:gap-6 pt-2 pb-2 overflow-hidden w-full">
+            {[1, 2, 3, 4].map(n => <IssueSkeleton key={n} />)}
           </div>
-        ) : error && sortedIssues.length === 0 ? (
-          <div className="text-center py-10">
-            <p className="text-destructive text-sm md:text-base">Failed to load issues. Please try again.</p>
-          </div>
-        ) : (
-          <InfiniteScroll
-            dataLength={sortedIssues.length}
-            next={fetchMoreData}
-            hasMore={pagination.currentPage < pagination.totalPages}
-            loader={
-              <div className="col-span-full flex flex-col justify-center items-center py-4 w-full gap-3 overflow-hidden">
-                <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-primary"></div>
-                <span className="text-xs font-medium text-muted-foreground animate-pulse">Loading more issues...</span>
+        ) :
+
+          /* 2. NO ISSUES FOUND (Beautiful Empty State) */
+          sortedIssues.length === 0 && !error ? (
+            <EmptyFeedState onReport={() => navigate("/dashboard/report")} />
+          ) :
+
+            /* 3. ERROR FETCHING DATA */
+            error && sortedIssues.length === 0 ? (
+              <div className="text-center py-16 bg-card border border-border/50 rounded-2xl">
+                <p className="text-red-500 font-medium mb-2">Failed to load issues.</p>
+                <button onClick={() => fetchData(1)} className="px-4 py-2 bg-muted rounded-xl hover:bg-muted/80 transition-colors text-sm">Try Again</button>
               </div>
-            }
-            className="grid grid-cols-1 lg:grid-cols-2 gap-4 md:gap-6 pt-2 pb-2 overflow-visible w-full"
-            style={{ overflow: 'visible' }}
-          >
-            {sortedIssues.map((issue) => (
-              <IssueCard
-                key={issue._id || issue.id}
-                issue={issue}
-                onClick={() => handleCardClick(issue)}
-                onFlagClick={() => handleFlagClick(issue)}
-              />
-            ))}
-          </InfiniteScroll>
-        )}
+            ) :
+
+              /* 4. MAIN INFINITE SCROLL FEED */
+              (
+                <InfiniteScroll
+                  dataLength={sortedIssues.length}
+                  next={fetchMoreData}
+                  hasMore={pagination.currentPage < pagination.totalPages}
+                  loader={
+                    <div className="col-span-full grid grid-cols-1 lg:grid-cols-2 gap-4 md:gap-6 py-4 w-full">
+                      {[1, 2].map(n => <IssueSkeleton key={`loader-${n}`} />)}
+                    </div>
+                  }
+                  className="grid grid-cols-1 lg:grid-cols-2 gap-4 md:gap-6 pt-2 pb-2 overflow-visible w-full"
+                  style={{ overflow: 'visible' }}
+                >
+                  {sortedIssues.map((issue) => (
+                    <IssueCard
+                      key={issue._id || issue.id}
+                      issue={issue}
+                      onClick={() => handleCardClick(issue)}
+                      onFlagClick={() => handleFlagClick(issue)}
+                    />
+                  ))}
+                </InfiniteScroll>
+              )}
       </div>
 
       <LocationModal isOpen={showLocationModal} onClose={() => { setShowLocationModal(false); handleLocationUpdate(); }} forceLocation={location.pathname === '/dashboard' && !chosenLocation} />
@@ -328,6 +324,10 @@ const Feed = () => {
 
 export default Feed;
 
+// ==========================================
+// UTILITY COMPONENTS
+// ==========================================
+
 const StatCard = ({ icon, label, value }) => (
   <div className="glass-card p-4 md:p-5 rounded-xl flex gap-3 md:gap-4 items-center hover:shadow-md md:hover:shadow-lg transition-all bg-card/80 backdrop-blur-md">
     <div className="p-2.5 md:p-3 bg-muted rounded-full">{icon}</div>
@@ -335,5 +335,71 @@ const StatCard = ({ icon, label, value }) => (
       <p className="text-[11px] md:text-sm text-muted-foreground">{label}</p>
       <p className="text-xl md:text-2xl font-bold text-foreground transition-all duration-300">{value}</p>
     </div>
+  </div>
+);
+
+// 🟢 YOUTUBE-STYLE SHIMMER SKELETON
+const IssueSkeleton = () => (
+  <div className="bg-card border border-border/50 rounded-2xl p-5 w-full relative overflow-hidden flex flex-col justify-between h-auto min-h-[350px]">
+    {/* SHINY SWEEPING ANIMATION OVERLAY */}
+    <div className="absolute inset-0 z-10 pointer-events-none bg-gradient-to-r from-transparent via-white/10 dark:via-white/5 to-transparent animate-shimmer" />
+
+    <div>
+      {/* Header Badges & Date */}
+      <div className="flex justify-between items-center mb-4">
+        <div className="flex gap-2">
+          <div className="w-14 h-5 bg-muted rounded-full" />
+          <div className="w-20 h-5 bg-muted rounded-full" />
+        </div>
+        <div className="w-24 h-4 bg-muted rounded-md" />
+      </div>
+
+      {/* Title & Description Lines */}
+      <div className="w-3/4 h-6 bg-muted rounded-lg mb-3" />
+      <div className="w-full h-4 bg-muted rounded-md mb-2" />
+      <div className="w-5/6 h-4 bg-muted rounded-md mb-5" />
+
+      {/* Media Box */}
+      <div className="w-full h-48 sm:h-56 bg-muted rounded-xl mb-5" />
+    </div>
+
+    {/* Footer (Location, Reporter, Buttons) */}
+    <div className="flex justify-between items-end mt-auto">
+      <div className="space-y-3 flex-1 pr-4">
+        <div className="w-32 h-4 bg-muted rounded-md" />
+        <div className="w-24 h-4 bg-muted rounded-md" />
+      </div>
+      <div className="flex gap-2">
+        <div className="w-16 h-9 bg-muted rounded-xl" />
+        <div className="w-24 h-9 bg-muted rounded-xl" />
+      </div>
+    </div>
+  </div>
+);
+
+// 🟢 BEAUTIFUL EMPTY STATE
+const EmptyFeedState = ({ onReport }) => (
+  <div className="col-span-full flex flex-col items-center justify-center py-20 px-4 text-center animate-fade-in-up bg-card/30 border border-border/50 rounded-2xl mt-4">
+
+    {/* Glowing Icon Design */}
+    <div className="relative mb-6">
+      <div className="absolute inset-0 bg-primary/20 rounded-full animate-ping opacity-60" />
+      <div className="w-24 h-24 bg-primary/10 border border-primary/20 rounded-full flex items-center justify-center relative z-10 backdrop-blur-sm">
+        <ShieldCheck size={48} className="text-primary" />
+      </div>
+    </div>
+
+    <h3 className="text-2xl md:text-3xl font-bold text-foreground mb-3 font-display">All Clear Here!</h3>
+
+    <p className="text-sm md:text-base text-muted-foreground max-w-md mb-8 leading-relaxed">
+      There are no reported issues in your current neighborhood right now. Enjoy the peace, or be the first to report something that needs attention.
+    </p>
+
+    <button
+      onClick={onReport}
+      className="btn-gradient px-8 py-3.5 rounded-xl font-bold text-white flex items-center gap-2 transition-transform hover:scale-105 hover:shadow-lg hover:shadow-primary/20"
+    >
+      <Plus size={18} /> Report an Issue
+    </button>
   </div>
 );

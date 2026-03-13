@@ -31,17 +31,23 @@ const App = () => {
       <Provider store={appStore}>
         <BrowserRouter>
           <Routes>
+            {/* PUBLIC ROUTES (Only for logged-out users) */}
             <Route path="/" element={<PublicRoute><LandingPage /></PublicRoute>} />
             <Route path="/login" element={<PublicRoute><LoginRegister /></PublicRoute>} />
 
-            <Route path="/FAQ" element={<PublicRoute><FAQ /></PublicRoute>} />
-            <Route path="/careers" element={<PublicRoute><Careers /></PublicRoute>} />
-            <Route path="/press" element={<PublicRoute><Press /></PublicRoute>} />
-            <Route path="/privacy" element={<PublicRoute><Privacy /></PublicRoute>} />
-            <Route path="/terms" element={<PublicRoute><TermsOfService /></PublicRoute>} />
-            <Route path="/cookies" element={<PublicRoute><Cookies /></PublicRoute>} />
+            {/* UNRESTRICTED ROUTES (For EVERYONE - Logged in or Logged out) 
+                Removed <PublicRoute> wrapper so it stops redirecting people */}
+            <Route path="/FAQ" element={<FAQ />} />
+            <Route path="/careers" element={<Careers />} />
+            <Route path="/press" element={<Press />} />
+            <Route path="/privacy" element={<Privacy />} />
+            <Route path="/terms" element={<TermsOfService />} />
+            <Route path="/cookies" element={<Cookies />} />
 
             <Route path="/google/callback" element={<GoogleCallback />} />
+            <Route path="/issue/:id" element={<IssueDetailPage />} />
+
+            {/* PROTECTED ROUTES (Only for logged-in users) */}
             <Route path="/complete-profile" element={<ProtectedRoute><CompleteProfile /></ProtectedRoute>} />
 
             <Route path="/dashboard" element={<ProtectedRoute><Homepage /></ProtectedRoute>}>
@@ -53,9 +59,10 @@ const App = () => {
               <Route path="help" element={<Help />} />
             </Route>
 
+            {/* ADMIN ROUTE */}
             <Route path="/admin" element={<ProtectedRoute requireAdmin={true}><AdminDashboard /></ProtectedRoute>} />
 
-            <Route path="/issue/:id" element={<IssueDetailPage />} />
+            {/* 404 Route */}
             <Route path="*" element={<NotFound />} />
           </Routes>
         </BrowserRouter>
