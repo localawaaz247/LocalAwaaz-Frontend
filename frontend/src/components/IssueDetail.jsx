@@ -1,4 +1,4 @@
-import { X, MapPin, User, AlertTriangle, Calendar, ShieldCheck, ChevronLeft, ChevronRight, Play, Flag, CheckCircle, FileText, Copy, Check } from "lucide-react";
+import { X, MapPin, User, AlertTriangle, Calendar, ShieldCheck, ChevronLeft, ChevronRight, Play, Flag, CheckCircle2, FileText, Copy, Check } from "lucide-react";
 import { useState, useEffect } from "react";
 import { useSelector } from "react-redux";
 import axiosInstance from "../utils/axios";
@@ -10,7 +10,17 @@ const WhatsappIcon = ({ size = 20, className = "" }) => (
   </svg>
 );
 
-const IssueDetail = ({ issue, isOpen, onClose, onFlagClick }) => {
+const FLAG_REASONS = [
+  "SPAM",
+  "INAPPROPRIATE",
+  "DUPLICATE",
+  "ALREADY RESOLVED",
+  "SEXUAL CONTENT",
+  "ABUSE",
+  "OTHER"
+];
+
+const IssueDetail = ({ issue, isOpen, onClose, hideConfirm = false, isAdminView = false }) => {
   const [currentMediaIndex, setCurrentMediaIndex] = useState(0);
   const [confirmLoading, setConfirmLoading] = useState(false);
 
@@ -22,9 +32,14 @@ const IssueDetail = ({ issue, isOpen, onClose, onFlagClick }) => {
   const [isConfirmedByUser, setIsConfirmedByUser] = useState(false);
   const [isCopied, setIsCopied] = useState(false);
 
+  // Flag Modal States
+  const [isFlagOpen, setIsFlagOpen] = useState(false);
+  const [flagReason, setFlagReason] = useState("");
+  const [isFlagging, setIsFlagging] = useState(false);
+
   const {
     _id, title, category, status, priority, description, location,
-    isAnonymous, reportedBy, media, impactScore, createdAt, isPublic,
+    isAnonymous, reportedBy, isVerified, media, impactScore, createdAt, dateOfFormation, isPublic,
     confirmations, hasConfirmed
   } = issue || {};
 
@@ -35,6 +50,8 @@ const IssueDetail = ({ issue, isOpen, onClose, onFlagClick }) => {
       setLocalFlagCount(issue.flagCount || 0);
       setLocalConfirmationCount(issue.confirmationCount || 0);
       setIsCopied(false);
+      setIsFlagOpen(false);
+      setFlagReason("");
 
       if (hasConfirmed === true || issue.isConfirmed === true) {
         setIsConfirmedByUser(true);
@@ -56,77 +73,69 @@ const IssueDetail = ({ issue, isOpen, onClose, onFlagClick }) => {
     return () => { document.body.style.overflow = 'unset'; };
   }, [isOpen, issue, currentUser, confirmations, hasConfirmed]);
 
-  const statusColors = {
-    OPEN: "bg-green-100 text-green-700 border border-green-200",
-    IN_PROGRESS: "bg-yellow-100 text-yellow-700 border border-yellow-200",
-    RESOLVED: "bg-blue-100 text-blue-700 border border-blue-200",
-    CLOSED: "bg-gray-100 text-gray-700 border border-gray-200",
-    UNDER_REVIEW: "bg-orange-100 text-orange-700 border border-orange-200"
-  };
-
-  const priorityColors = {
-    HIGH: "bg-red-100 text-red-700 border border-red-200",
-    MEDIUM: "bg-yellow-100 text-yellow-700 border border-yellow-200",
-    LOW: "bg-green-100 text-green-700 border border-green-200"
-  };
-
-  const hasMedia = media && media.length > 0;
-  const mediaCount = hasMedia ? media.length : 0;
-  const hasMultipleMedia = mediaCount > 1;
-
-  const currentMedia = hasMedia ? media[currentMediaIndex] : null;
-  const displayImage = currentMedia ? currentMedia.url : null;
-  const isVideo = currentMedia && (currentMedia.url?.match(/\.(mp4|webm|ogg)$/i) || currentMedia.type?.startsWith('video/'));
-
-  const handlePrevious = () => {
-    if (hasMultipleMedia) setCurrentMediaIndex((prev) => (prev - 1 + mediaCount) % mediaCount);
-  };
-
-  const handleNext = () => {
-    if (hasMultipleMedia) setCurrentMediaIndex((prev) => (prev + 1) % mediaCount);
-  };
-
-  const incrementShare = async () => {
-    try {
-      await axiosInstance.put(`/issue/${_id}/share`);
-    } catch (err) {
-      console.log("Share update handled/throttled by backend:", err.message);
+  const getColorFromStatus = (status) => {
+    switch (status?.toUpperCase()) {
+      case "RESOLVED": return "green";
+      case "UNDER REVIEW":
+      case "IN_REVIEW":
+      case "IN_PROGRESS": return "yellow";
+      default: return "emerald";
     }
   };
 
-  const handleWhatsappShare = () => {
-    setLocalShareCount(prev => prev + 1);
-    incrementShare();
+  const color = getColorFromStatus(status);
 
-    const url = `${window.location.origin}/issue/${_id}`;
-    const text = encodeURIComponent(`Check out this issue on LocalAwaaz: ${title}\n\n${url}`);
+  // Clean semantic Tailwind classes for perfect Light/Dark Mode
+  const colors = {
+    emerald: "bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border-emerald-500/20",
+    yellow: "bg-yellow-500/10 text-yellow-600 dark:text-yellow-400 border-yellow-500/20",
+    green: "bg-green-500/10 text-green-600 dark:text-green-400 border-green-500/20"
+  };
+
+  const priorityColors = {
+    HIGH: "bg-red-500/10 text-red-600 dark:text-red-400 border-red-500/20",
+    MEDIUM: "bg-yellow-500/10 text-yellow-600 dark:text-yellow-400 border-yellow-500/20",
+    LOW: "bg-green-500/10 text-green-600 dark:text-green-400 border-green-500/20",
+    CRITICAL: "bg-red-500/20 text-red-600 dark:text-red-400 border-red-500/30 font-bold"
+  };
+
+  const validMedia = Array.isArray(media) ? media.map(m => typeof m === 'string' ? { url: m } : m).filter(m => m && m.url) : [];
+  const hasMedia = validMedia.length > 0;
+  const mediaCount = validMedia.length;
+  const hasMultipleMedia = mediaCount > 1;
+
+  const currentMedia = hasMedia ? validMedia[currentMediaIndex] : null;
+  const displayImage = currentMedia ? currentMedia.url : null;
+  const isVideo = displayImage && (displayImage.match(/\.(mp4|webm|ogg)$/i) || currentMedia?.type?.startsWith('video/'));
+
+  const handlePrevious = (e) => { e.stopPropagation(); if (hasMultipleMedia) setCurrentMediaIndex((prev) => (prev - 1 + mediaCount) % mediaCount); };
+  const handleNext = (e) => { e.stopPropagation(); if (hasMultipleMedia) setCurrentMediaIndex((prev) => (prev + 1) % mediaCount); };
+
+  const incrementShare = async () => {
+    try { await axiosInstance.put(`/issue/${_id}/share`); } catch (err) { console.log("Share updated", err.message); }
+  };
+
+  const handleWhatsappShare = (e) => {
+    e.stopPropagation(); setLocalShareCount(prev => prev + 1); incrementShare();
+    const text = encodeURIComponent(`Check out this issue on LocalAwaaz: ${title}\n\n${window.location.origin}/issue/${_id}`);
     window.open(`https://wa.me/?text=${text}`, '_blank');
   };
 
-  const handleCopyLink = () => {
-    setLocalShareCount(prev => prev + 1);
-    incrementShare();
-
-    const url = `${window.location.origin}/issue/${_id}`;
-    navigator.clipboard.writeText(url);
-    setIsCopied(true);
-    showToast({ icon: 'success', title: 'Link copied to clipboard!' });
-
+  const handleCopyLink = (e) => {
+    e.stopPropagation(); setLocalShareCount(prev => prev + 1); incrementShare();
+    navigator.clipboard.writeText(`${window.location.origin}/issue/${_id}`);
+    setIsCopied(true); showToast({ icon: 'success', title: 'Link copied to clipboard!' });
     setTimeout(() => setIsCopied(false), 2000);
   };
 
-  const handleConfirm = async () => {
+  const handleConfirm = async (e) => {
+    e.stopPropagation();
     if (!_id) return;
     try {
       setConfirmLoading(true);
       const coords = JSON.parse(localStorage.getItem('cached_geo_location')) || JSON.parse(localStorage.getItem('currentLocation'));
-      const longitude = coords?.longitude;
-      const latitude = coords?.latitude;
-
       let url = `/issue/${_id}/confirm`;
-      if (longitude && latitude) {
-        url += `?lng=${longitude}&lat=${latitude}`;
-      }
+      if (coords?.longitude && coords?.latitude) url += `?lng=${coords.longitude}&lat=${coords.latitude}`;
 
       const response = await axiosInstance.post(url);
 
@@ -134,261 +143,329 @@ const IssueDetail = ({ issue, isOpen, onClose, onFlagClick }) => {
         setLocalConfirmationCount(prev => prev + 1);
         setIsConfirmedByUser(true);
       }
-
       showToast({ icon: 'success', title: response.data?.message || 'Issue Confirmed successfully!' });
     } catch (error) {
       const errorMsg = error.response?.data?.message?.toLowerCase() || "";
-
       if (errorMsg.includes("already") || errorMsg.includes("confirmed")) {
         setIsConfirmedByUser(true);
         showToast({ icon: 'info', title: error.response?.data?.message || 'You have already confirmed this issue.' });
       } else {
-        showToast({
-          icon: 'error',
-          title: error.response?.data?.message || 'Action completed or already applied.'
-        });
+        showToast({ icon: 'error', title: error.response?.data?.message || 'Action completed or already applied.' });
       }
     } finally {
       setConfirmLoading(false);
     }
   };
 
+  const submitFlag = async () => {
+    if (!flagReason) {
+      showToast({ icon: 'error', title: 'Please select a reason' });
+      return;
+    }
+
+    setIsFlagging(true);
+    try {
+      const coords = JSON.parse(localStorage.getItem('cached_geo_location')) || JSON.parse(localStorage.getItem('currentLocation'));
+      let url = `/issue/${_id}/${flagReason}`;
+      if (coords?.longitude && coords?.latitude) {
+        url += `?lng=${coords.longitude}&lat=${coords.latitude}`;
+      } else {
+        showToast({ icon: 'error', title: 'Location required to flag an issue.' });
+        setIsFlagging(false);
+        return;
+      }
+
+      await axiosInstance.post(url, {});
+      setLocalFlagCount(prev => prev + 1);
+      showToast({ icon: 'success', title: 'Issue flagged successfully' });
+      setIsFlagOpen(false);
+      setFlagReason("");
+    } catch (error) {
+      const errorMsg = error.response?.data?.message || 'Failed to flag issue. You may have already flagged it.';
+      showToast({ icon: 'error', title: errorMsg });
+      setIsFlagOpen(false);
+    } finally {
+      setIsFlagging(false);
+    }
+  };
+
   function formatDate(isoDate) {
-    if (!isoDate) return "";
+    if (!isoDate) return 'Recent';
     const date = new Date(isoDate);
-    return date.toLocaleDateString("en-GB", {
-      day: "2-digit", month: "short", year: "numeric", hour: "2-digit", minute: "2-digit"
-    });
+    if (isNaN(date.getTime())) return 'Recent';
+    return date.toLocaleDateString("en-GB", { day: "2-digit", month: "short", year: "numeric", hour: "2-digit", minute: "2-digit" });
   }
 
   const safeStatus = status?.toUpperCase() || 'OPEN';
-  const statusBadgeColor = statusColors[safeStatus] || statusColors.OPEN;
 
   return (
-    <div
-      className={`fixed inset-0 z-[60] flex items-end sm:items-center justify-center sm:p-4 transition-all duration-300 ease-in-out ${isOpen ? "opacity-100 visible" : "opacity-0 invisible"
-        }`}
-    >
-      <div
-        className={`absolute inset-0 bg-black/60 backdrop-blur-sm transition-opacity duration-300 ${isOpen ? "opacity-100" : "opacity-0"
-          }`}
-        onClick={onClose}
-      />
+    // 🟢 Outer padding (p-4 md:p-10) absolutely prevents it from touching screen edges
+    <div className={`fixed inset-0 z-[60] flex items-center justify-center p-4 sm:p-6 md:p-10 transition-all duration-300 ease-in-out min-h-0 ${isOpen ? "opacity-100 visible" : "opacity-0 invisible"}`}>
+      {/* Backdrop */}
+      <div className={`absolute inset-0 bg-black/80 backdrop-blur-sm transition-opacity duration-300 ${isOpen ? "opacity-100" : "opacity-0"}`} onClick={onClose} />
 
+      {/* 🟢 Container: Uses 75vh for Admin View, and max-h-full for normal view */}
       <div
-        className={`relative w-full max-w-4xl bg-card dark:glass-card rounded-t-2xl sm:rounded-2xl shadow-2xl max-h-[95vh] sm:max-h-[90vh] flex flex-col transform transition-all duration-400 ease-out border border-border/50 ${isOpen ? "translate-y-0 sm:scale-100 opacity-100" : "translate-y-full sm:translate-y-8 sm:scale-95 opacity-0"
-          }`}
+        className={`relative w-full max-w-5xl bg-card rounded-2xl shadow-2xl flex flex-col overflow-hidden min-h-0 transform transition-all duration-400 ease-out border border-border/50 
+        ${isAdminView ? "max-h-[80vh]" : "max-h-full"} 
+        ${isOpen ? "translate-y-0 scale-100 opacity-100" : "translate-y-8 scale-95 opacity-0"}`}
+        onClick={e => e.stopPropagation()}
       >
         {issue && (
           <>
-            <div className="flex justify-between items-center p-4 md:px-6 border-b border-border/50 bg-background/80 backdrop-blur-xl z-20 rounded-t-2xl">
+            {/* Header */}
+            <div className="flex justify-between items-center p-4 md:p-5 border-b border-border/50 bg-muted/30 shrink-0 rounded-t-2xl">
               <div className="flex items-center gap-2 flex-wrap">
-                <span className={`px-2.5 py-1 rounded-full text-[10px] md:text-xs font-bold uppercase tracking-wider ${statusBadgeColor}`}>
+                <span className={`px-3 py-1.5 rounded-full text-[10px] md:text-xs font-bold uppercase tracking-wider border ${colors[color] || colors.emerald}`}>
                   {safeStatus}
                 </span>
-                <span className="px-2.5 py-1 rounded-full bg-muted text-muted-foreground border border-border text-[10px] md:text-xs font-medium">
-                  {category}
+                <span className="px-3 py-1.5 rounded-full bg-background text-muted-foreground border border-border/60 text-[10px] md:text-xs font-bold uppercase tracking-wider shadow-sm">
+                  {category?.replace(/_/g, ' ')}
                 </span>
               </div>
 
-              <button
-                onClick={onClose}
-                className="p-2 rounded-full bg-muted/50 text-muted-foreground hover:text-foreground hover:bg-muted transition-colors border border-border/50 flex-shrink-0"
-              >
-                <X size={20} />
+              <button onClick={onClose} className="p-2 rounded-full bg-background text-muted-foreground hover:text-foreground hover:bg-muted transition-colors shrink-0 border border-border/50 shadow-sm">
+                <X size={18} />
               </button>
             </div>
 
-            <div className="overflow-y-auto w-full no-scrollbar p-4 md:p-6 flex-1">
-              <div className="grid grid-cols-1 lg:grid-cols-2 gap-5 md:gap-8 mb-6 md:mb-8">
-                <div className="space-y-4">
+            {/* Scrollable Body */}
+            <div className="overflow-y-auto w-full thin-scrollbar p-4 md:p-8 flex-1 min-h-0 bg-background/50">
+
+              {/* Title Block */}
+              <div className="mb-6">
+                <h2 className="text-2xl sm:text-3xl font-extrabold text-foreground mb-3 leading-tight tracking-tight">
+                  {title}
+                </h2>
+                {priority && (
+                  <span className={`inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-bold border ${priorityColors[priority]}`}>
+                    <AlertTriangle size={14} /> {priority} Priority
+                  </span>
+                )}
+              </div>
+
+              {/* Grid: Image left (60%), Cards right (40%) */}
+              <div className="flex flex-col lg:flex-row gap-6 mb-6">
+
+                {/* Left side: Media */}
+                <div className="w-full lg:w-3/5 shrink-0">
                   {hasMedia ? (
-                    <div className="relative group overflow-hidden rounded-xl md:rounded-2xl bg-muted ring-1 ring-border/50">
-                      <div className="relative h-56 sm:h-72 md:h-[340px] w-full overflow-hidden">
-                        {isVideo ? (
-                          <video key={displayImage} src={displayImage} className="w-full h-full object-cover" controls poster={displayImage} />
-                        ) : (
-                          <img key={displayImage} src={displayImage} alt="issue" className="w-full h-full object-cover transition-transform duration-700 group-hover:scale-105" />
-                        )}
-                        <div className="absolute inset-0 bg-gradient-to-t from-black/40 via-transparent to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300 pointer-events-none" />
-                      </div>
+                    <div className="relative group overflow-hidden rounded-2xl bg-muted border border-border/50 h-[220px] sm:h-[300px] lg:h-[360px] w-full shadow-sm">
+                      {isVideo ? (
+                        <video key={displayImage} src={displayImage} className="w-full h-full object-cover" controls poster={displayImage} />
+                      ) : (
+                        <img key={displayImage} src={displayImage} alt="issue" className="w-full h-full object-cover transition-transform duration-700 group-hover:scale-105" />
+                      )}
+                      <div className="absolute inset-0 bg-gradient-to-t from-black/40 via-transparent to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300 pointer-events-none" />
 
                       {hasMultipleMedia && (
                         <>
-                          <button onClick={handlePrevious} className="absolute left-2 md:left-4 top-1/2 -translate-y-1/2 text-white p-2 md:p-3 bg-black/50 backdrop-blur-sm rounded-full opacity-100 md:opacity-0 md:group-hover:opacity-100 transition-all hover:bg-black/80 hover:scale-110">
-                            <ChevronLeft size={20} className="md:w-6 md:h-6" />
+                          <button onClick={handlePrevious} className="absolute left-3 top-1/2 -translate-y-1/2 text-white p-2 md:p-3 opacity-100 md:opacity-0 md:group-hover:opacity-100 transition-all duration-300 hover:scale-110 active:scale-95 bg-black/40 backdrop-blur-md rounded-full shadow-lg">
+                            <ChevronLeft size={20} strokeWidth={2.5} />
                           </button>
-                          <button onClick={handleNext} className="absolute right-2 md:right-4 top-1/2 -translate-y-1/2 text-white p-2 md:p-3 bg-black/50 backdrop-blur-sm rounded-full opacity-100 md:opacity-0 md:group-hover:opacity-100 transition-all hover:bg-black/80 hover:scale-110">
-                            <ChevronRight size={20} className="md:w-6 md:h-6" />
+                          <button onClick={handleNext} className="absolute right-3 top-1/2 -translate-y-1/2 text-white p-2 md:p-3 opacity-100 md:opacity-0 md:group-hover:opacity-100 transition-all duration-300 hover:scale-110 active:scale-95 bg-black/40 backdrop-blur-md rounded-full shadow-lg">
+                            <ChevronRight size={20} strokeWidth={2.5} />
                           </button>
+                          <div className="absolute top-3 right-3 bg-black/60 backdrop-blur-md text-white px-3 py-1 rounded-full text-xs font-bold shadow-sm">
+                            {currentMediaIndex + 1} / {mediaCount}
+                          </div>
                         </>
-                      )}
-
-                      {hasMultipleMedia && (
-                        <div className="absolute top-3 right-3 bg-black/60 backdrop-blur-md text-white px-2.5 py-1 rounded-full text-xs font-medium">
-                          {currentMediaIndex + 1} / {mediaCount}
-                        </div>
                       )}
 
                       {isVideo && (
                         <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
-                          <div className="bg-black/40 backdrop-blur-md rounded-full p-4 md:p-6 shadow-lg border border-white/10">
-                            <Play size={32} className="md:w-12 md:h-12 text-white ml-1" fill="white" />
+                          <div className="bg-black/50 backdrop-blur-md rounded-full p-5 shadow-lg border border-white/10">
+                            <Play size={36} className="text-white fill-white ml-1" />
                           </div>
                         </div>
                       )}
                     </div>
                   ) : (
-                    <div className="h-56 sm:h-72 md:h-[340px] rounded-xl md:rounded-2xl bg-muted flex items-center justify-center ring-1 ring-border/50">
-                      <div className="text-center opacity-60">
-                        <AlertTriangle size={48} className="mx-auto mb-4 text-muted-foreground" />
-                        <p className="text-sm md:text-base font-medium">No media provided</p>
-                      </div>
+                    <div className="h-[220px] sm:h-[300px] lg:h-[360px] rounded-2xl bg-card border border-border/50 flex flex-col items-center justify-center shadow-sm">
+                      <AlertTriangle size={48} className="mb-4 text-muted-foreground/50" />
+                      <p className="text-base font-medium text-muted-foreground">No media provided</p>
                     </div>
                   )}
                 </div>
 
-                <div className="space-y-5 md:space-y-6 flex flex-col justify-center">
-                  <div>
-                    <h3 className="text-2xl md:text-3xl font-bold text-foreground mb-3 leading-tight tracking-tight">
-                      {title}
-                    </h3>
-                    {priority && (
-                      <span className={`inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs md:text-sm font-semibold ${priorityColors[priority]}`}>
-                        <AlertTriangle size={14} /> {priority} Priority
-                      </span>
-                    )}
-                  </div>
+                {/* Right side: Info Cards */}
+                <div className="w-full lg:w-2/5 flex flex-col gap-4">
 
-                  <div className="bg-blue-500/10 rounded-xl p-4 md:p-5 border border-blue-500/20">
-                    <h4 className="text-sm font-bold text-blue-600 dark:text-blue-400 mb-2 uppercase tracking-wider flex items-center gap-2">
+                  {/* Location Card */}
+                  <div className="bg-card rounded-2xl p-5 border border-border/50 shadow-sm flex-1">
+                    <h4 className="text-[11px] font-bold text-blue-600 dark:text-blue-500 mb-3 uppercase tracking-widest flex items-center gap-2">
                       <MapPin size={16} /> Location
                     </h4>
-                    <div className="space-y-1 text-sm md:text-base text-foreground font-medium">
-                      <p>{location?.address || 'Address not specified'}</p>
-                      {location?.city && <p className="text-muted-foreground font-normal">{location?.city}, {location?.state} {location?.pinCode}</p>}
+                    <div className="space-y-1.5">
+                      <p className="text-foreground font-bold text-lg leading-tight">{typeof location === 'string' ? location : location?.address || 'Location not provided'}</p>
+                      {location?.city && <p className="text-muted-foreground text-sm font-medium">{location?.city}, {location?.state} {location?.pinCode}</p>}
                     </div>
                   </div>
 
-                  <div className="bg-purple-500/10 rounded-xl p-4 md:p-5 border border-purple-500/20">
-                    <h4 className="text-sm font-bold text-purple-600 dark:text-purple-400 mb-3 uppercase tracking-wider flex items-center gap-2">
+                  {/* Reported By Card */}
+                  <div className="bg-card rounded-2xl p-5 border border-border/50 shadow-sm flex-1">
+                    <h4 className="text-[11px] font-bold text-emerald-600 dark:text-emerald-500 mb-3 uppercase tracking-widest flex items-center gap-2">
                       <User size={16} /> Reported By
                     </h4>
                     {!isAnonymous && reportedBy ? (
-                      <div className="flex flex-col gap-1">
+                      <div className="flex flex-col">
                         <div className="flex items-center gap-2">
-                          <p className="font-bold text-foreground text-base">{reportedBy.name}</p>
-                          {reportedBy.civilScore > 100 && (
-                            <span className="flex items-center gap-1 text-purple-500 bg-purple-500/10 px-2 py-0.5 rounded text-[10px] font-bold uppercase">
+                          <p className="text-foreground font-bold text-lg leading-tight">{reportedBy.name}</p>
+                          {isVerified && (
+                            <span className="flex items-center gap-1 text-emerald-600 dark:text-emerald-400 bg-emerald-500/10 px-2 py-0.5 rounded text-[10px] font-bold uppercase border border-emerald-500/20">
                               <ShieldCheck size={12} /> Verified
                             </span>
                           )}
                         </div>
-                        <p className="text-sm text-muted-foreground">@{reportedBy.userName}</p>
-                        <div className="items-center gap-3 mt-2 text-xs text-muted-foreground bg-background/50 p-2.5 rounded-lg border border-border/50 inline-flex w-fit">
-                          <span>Civil Score: <strong className="text-foreground">{reportedBy.civilScore}</strong></span>
-                          <span className="w-px h-3 bg-border"></span>
-                          <span>Reports: <strong className="text-foreground">{reportedBy.issuesReported}</strong></span>
+                        <p className="text-muted-foreground text-sm font-medium mt-1">@{reportedBy.userName}</p>
+
+                        {/* Civil Score Pill */}
+                        <div className="mt-4 bg-background border border-border/50 px-4 py-2.5 rounded-xl inline-flex items-center gap-3 w-fit shadow-sm">
+                          <span className="text-xs text-muted-foreground font-medium">Civil Score: <strong className="text-foreground ml-1 text-sm">{reportedBy.civilScore}</strong></span>
+                          <span className="w-px h-4 bg-border"></span>
+                          <span className="text-xs text-muted-foreground font-medium">Reports: <strong className="text-foreground ml-1 text-sm">{reportedBy.issuesReported}</strong></span>
                         </div>
                       </div>
                     ) : (
-                      <div className="items-center gap-2 text-sm text-muted-foreground bg-background/50 border border-border/50 p-3 rounded-lg inline-flex">
-                        <User size={16} /> <span className="font-medium">Anonymous Citizen</span>
+                      <div className="flex items-center gap-2 text-muted-foreground font-medium">
+                        <User size={18} /> Anonymous Citizen
                       </div>
                     )}
                   </div>
                 </div>
               </div>
 
-              <div className="bg-muted/30 rounded-2xl p-5 md:p-6 mb-6 md:mb-8 border border-border/50">
-                <h4 className="text-lg font-bold text-foreground mb-3 flex items-center gap-2">
-                  <FileText size={18} className="text-accent" /> Description
+              {/* Description Box */}
+              <div className="bg-card rounded-2xl p-5 md:p-6 mb-6 border border-border/50 shadow-sm">
+                <h4 className="text-sm font-bold text-blue-600 dark:text-blue-500 mb-3 flex items-center gap-2 uppercase tracking-widest">
+                  <FileText size={16} /> Description
                 </h4>
-                <p className="text-sm md:text-base text-muted-foreground leading-relaxed whitespace-pre-wrap">
+                <p className="text-sm md:text-base text-foreground/80 leading-relaxed whitespace-pre-wrap">
                   {description}
                 </p>
               </div>
 
-              <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 md:gap-4 mb-4">
-                <div className="bg-background border border-border/50 rounded-xl p-4 text-center">
-                  <div className="text-2xl font-black text-green-500 mb-1">{localConfirmationCount}</div>
-                  <div className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">Confirmations</div>
+              {/* Bottom Stats Grid */}
+              <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 md:gap-4">
+                <div className="bg-card border border-border/50 rounded-xl p-4 text-center shadow-sm">
+                  <div className="text-2xl font-black text-emerald-600 dark:text-emerald-500 mb-1">{localConfirmationCount}</div>
+                  <div className="text-[10px] font-bold text-muted-foreground uppercase tracking-widest">Confirmations</div>
                 </div>
-                <div className="bg-background border border-border/50 rounded-xl p-4 text-center">
-                  <div className="text-2xl font-black text-orange-500 mb-1">{impactScore || 0}</div>
-                  <div className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">Impact Score</div>
+                <div className="bg-card border border-border/50 rounded-xl p-4 text-center shadow-sm">
+                  <div className="text-2xl font-black text-orange-600 dark:text-orange-500 mb-1">{impactScore || 0}</div>
+                  <div className="text-[10px] font-bold text-muted-foreground uppercase tracking-widest">Impact Score</div>
                 </div>
-                <div className="bg-background border border-border/50 rounded-xl p-4 text-center">
-                  <div className="text-sm font-bold text-foreground mb-1 mt-1 truncate">{formatDate(createdAt)}</div>
-                  <div className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">Reported</div>
+                <div className="bg-card border border-border/50 rounded-xl p-4 text-center flex flex-col justify-center items-center shadow-sm">
+                  <div className="text-sm font-bold text-foreground mb-1 mt-1">{formatDate(dateOfFormation || createdAt)}</div>
+                  <div className="text-[10px] font-bold text-muted-foreground uppercase tracking-widest">Reported</div>
                 </div>
-                <div className="bg-background border border-border/50 rounded-xl p-4 text-center">
-                  <div className="text-sm font-bold text-foreground mb-1 mt-1 truncate">{isPublic ? 'Public' : 'Private'}</div>
-                  <div className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">Visibility</div>
+                <div className="bg-card border border-border/50 rounded-xl p-4 text-center flex flex-col justify-center items-center shadow-sm">
+                  <div className="text-sm font-bold text-foreground mb-1 mt-1">{isPublic ? 'Public' : 'Private'}</div>
+                  <div className="text-[10px] font-bold text-muted-foreground uppercase tracking-widest">Visibility</div>
                 </div>
               </div>
             </div>
 
-            <div className="p-4 md:px-6 border-t border-border/50 bg-background/80 backdrop-blur-xl z-20 rounded-b-2xl flex flex-col sm:flex-row items-center justify-between gap-4">
-              <div className="flex items-center gap-3 w-full sm:w-auto justify-between sm:justify-start">
+            {/* Footer */}
+            <div className="p-4 md:px-5 border-t border-border/50 bg-muted/30 shrink-0 flex flex-col sm:flex-row items-center justify-between gap-4 z-10 rounded-b-2xl">
+              <div className="flex items-center justify-between sm:justify-start w-full sm:w-auto gap-4">
                 <div className="text-sm text-muted-foreground font-medium flex gap-3">
-                  <span><strong>{localShareCount}</strong> Shares</span>
+                  <span><strong className="text-foreground">{localShareCount}</strong> Shares</span>
                   <span>•</span>
-                  <span><strong>{localFlagCount}</strong> Flags</span>
+                  <span><strong className="text-foreground">{localFlagCount}</strong> Flags</span>
                 </div>
 
-                <div className="flex items-center gap-2 pl-3 border-l border-border/50">
-                  <button
-                    onClick={handleWhatsappShare}
-                    className="p-2 rounded-full bg-green-500/10 text-green-600 hover:bg-green-500 hover:text-white transition-all shadow-sm"
-                    title="Share to WhatsApp"
-                  >
+                <div className="flex items-center gap-2 pl-4 border-l border-border/50">
+                  <button onClick={handleWhatsappShare} className="p-2.5 rounded-full bg-emerald-500/10 text-emerald-600 dark:text-emerald-500 hover:bg-emerald-500 hover:text-white transition-all shadow-sm">
                     <WhatsappIcon size={18} />
                   </button>
-                  <button
-                    onClick={handleCopyLink}
-                    className={`p-2 rounded-full transition-all shadow-sm ${isCopied ? "bg-green-500 text-white" : "bg-muted text-muted-foreground hover:text-foreground hover:bg-muted/80 border border-border"}`}
-                    title="Copy Link"
-                  >
+                  <button onClick={handleCopyLink} className={`p-2.5 rounded-full transition-all shadow-sm border ${isCopied ? "bg-emerald-500 text-white border-emerald-500" : "bg-background text-muted-foreground border-border hover:text-foreground hover:bg-muted/80"}`}>
                     {isCopied ? <Check size={18} /> : <Copy size={18} />}
                   </button>
                 </div>
               </div>
 
               <div className="flex items-center gap-3 w-full sm:w-auto">
-                <button
-                  onClick={() => {
-                    if (onFlagClick) onFlagClick(issue);
-                    onClose();
-                  }}
-                  className="flex-1 sm:flex-none flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl text-sm font-bold transition-all bg-red-100 text-red-700 hover:bg-red-200 border border-red-200"
-                >
+                <button onClick={() => setIsFlagOpen(true)} className="flex-1 sm:flex-none flex items-center justify-center gap-2 px-5 py-2.5 sm:py-3 rounded-xl text-sm font-bold transition-all bg-red-500/10 text-red-600 dark:text-red-500 border border-red-500/20 hover:bg-red-500/20">
                   <Flag size={16} /> Flag
                 </button>
 
-                <button
-                  onClick={handleConfirm}
-                  disabled={confirmLoading}
-                  className={`flex-1 sm:flex-none flex items-center justify-center gap-2 px-6 py-2.5 rounded-xl text-sm font-bold transition-all whitespace-nowrap shadow-md hover:shadow-lg ${isConfirmedByUser
-                    ? "bg-green-500/20 text-green-600 border border-green-500/30 hover:bg-green-500/30"
-                    : safeStatus === 'OPEN'
-                      ? "btn-gradient text-white"
-                      : "bg-secondary text-secondary-foreground hover:bg-secondary/90"
-                    }`}
-                >
-                  {confirmLoading ? (
-                    <span className="animate-pulse">Confirming...</span>
-                  ) : isConfirmedByUser ? (
-                    <><CheckCircle size={18} /> Confirmed</>
-                  ) : (
-                    <><CheckCircle size={18} /> I Confirm This</>
-                  )}
-                </button>
+                {!hideConfirm && (
+                  <button
+                    onClick={handleConfirm}
+                    disabled={confirmLoading}
+                    className={`flex-1 sm:flex-none flex items-center justify-center gap-2 px-6 py-2.5 sm:py-3 rounded-xl text-sm font-bold transition-all whitespace-nowrap shadow-md border ${isConfirmedByUser
+                      ? "bg-emerald-500/20 text-emerald-600 dark:text-emerald-400 border-emerald-500/30"
+                      : safeStatus === 'OPEN'
+                        ? "bg-blue-600 hover:bg-blue-500 text-white border-transparent"
+                        : "bg-muted text-muted-foreground border-border hover:bg-muted/80"
+                      }`}
+                  >
+                    {confirmLoading ? "..." : isConfirmedByUser ? <><CheckCircle2 size={18} /> Confirmed</> : <><CheckCircle2 size={18} /> I Confirm This</>}
+                  </button>
+                )}
               </div>
             </div>
           </>
         )}
       </div>
+
+      {/* 🟢 Animated Flag Issue Overlay Modal */}
+      {isFlagOpen && (
+        <div className="fixed inset-0 z-[70] flex items-center justify-center p-4">
+          <div className="absolute inset-0 bg-black/60 backdrop-blur-sm animate-in fade-in duration-200" onClick={() => setIsFlagOpen(false)} />
+          <div className="bg-card border border-border rounded-2xl w-full max-w-sm p-6 relative z-10 shadow-2xl animate-in zoom-in-95 fade-in duration-200 flex flex-col items-center">
+
+            <div className="w-full flex justify-between items-center mb-6">
+              <div className="flex items-center gap-3">
+                <div className="p-2.5 bg-red-500/10 rounded-full text-red-500">
+                  <Flag size={20} />
+                </div>
+                <h3 className="text-xl font-bold text-foreground">Flag Issue</h3>
+              </div>
+              <button onClick={() => setIsFlagOpen(false)} className="p-2 rounded-full bg-background text-muted-foreground hover:text-foreground hover:bg-muted transition-colors border border-border/50">
+                <X size={18} />
+              </button>
+            </div>
+
+            <AlertTriangle className="w-12 h-12 text-yellow-500 mb-4" />
+            <p className="text-sm text-muted-foreground text-center mb-6 font-medium">
+              Please select a reason for flagging this issue. This helps us understand and review the report appropriately.
+            </p>
+
+            <div className="w-full mb-6 text-left">
+              <span className="text-xs font-bold text-foreground mb-3 block">Flag Reason <span className="text-red-500">*</span></span>
+
+              <div className="space-y-2.5 max-h-[240px] overflow-y-auto thin-scrollbar pr-2">
+                {FLAG_REASONS.map((reason) => (
+                  <label key={reason} className={`flex items-center gap-3 p-3.5 rounded-xl border cursor-pointer transition-all duration-200 ${flagReason === reason ? 'bg-red-500/10 border-red-500 shadow-sm' : 'bg-background border-border hover:border-muted-foreground/30'
+                    }`}>
+                    <div className={`w-4 h-4 rounded-full border flex items-center justify-center shrink-0 transition-colors ${flagReason === reason ? 'border-red-500' : 'border-muted-foreground/50'}`}>
+                      {flagReason === reason && <div className="w-2 h-2 rounded-full bg-red-500" />}
+                    </div>
+                    <span className={`text-[13px] font-bold tracking-widest uppercase flex-1 transition-colors ${flagReason === reason ? 'text-red-600 dark:text-red-500' : 'text-muted-foreground'}`}>
+                      {reason}
+                    </span>
+                    <input type="radio" className="hidden" value={reason} checked={flagReason === reason} onChange={(e) => setFlagReason(e.target.value)} />
+                  </label>
+                ))}
+              </div>
+            </div>
+
+            <div className="w-full flex gap-3 pt-2">
+              <button onClick={() => setIsFlagOpen(false)} className="flex-1 py-3.5 rounded-xl border border-border bg-background text-foreground hover:bg-muted font-bold transition-colors shadow-sm">
+                Cancel
+              </button>
+              <button onClick={submitFlag} disabled={isFlagging} className={`flex-1 py-3.5 rounded-xl font-bold transition-all duration-200 ${flagReason ? 'bg-red-600 hover:bg-red-700 text-white shadow-lg' : 'bg-red-600/30 text-white/40 cursor-not-allowed'
+                }`}>
+                {isFlagging ? 'Submitting...' : 'Flag Issue'}
+              </button>
+            </div>
+
+          </div>
+        </div>
+      )}
+
     </div>
   );
 };

@@ -157,8 +157,9 @@ const AdminIssues = () => {
                 </div>
             )}
 
-            {/* 🟢 SMOOTH ANIMATED MODAL */}
+            {/* 🟢 SMOOTH ANIMATED MODAL - MOBILE RESPONSIVE */}
             {selectedIssue && (
+                // 1. Removed top padding, relying purely on items-end and max-h constraint
                 <div className="fixed inset-0 z-[100] flex items-end sm:items-center justify-center sm:p-6">
 
                     {/* Animated Backdrop */}
@@ -169,15 +170,16 @@ const AdminIssues = () => {
 
                     {/* Animated Modal Container */}
                     <div
-                        className={`relative bg-card border-t sm:border border-border/50 rounded-t-2xl sm:rounded-2xl w-full max-w-5xl shadow-2xl flex flex-col max-h-[95vh] sm:max-h-[90vh] overflow-hidden transform transition-all duration-300 ease-out ${isModalVisible
-                                ? 'translate-y-0 sm:scale-100 opacity-100'
-                                : 'translate-y-full sm:translate-y-8 sm:scale-95 opacity-0'
+                        // 2. Changed max-h to a strict 82vh on mobile, and increased border-radius to rounded-t-3xl for a better "bottom sheet" look
+                        className={`relative bg-card border-t sm:border border-border/50 rounded-t-3xl sm:rounded-2xl w-full max-w-5xl shadow-2xl flex flex-col max-h-[82vh] sm:max-h-[90vh] overflow-hidden transform transition-all duration-300 ease-out ${isModalVisible
+                            ? 'translate-y-0 sm:scale-100 opacity-100'
+                            : 'translate-y-full sm:translate-y-8 sm:scale-95 opacity-0'
                             }`}
                         onClick={e => e.stopPropagation()}
                     >
 
                         {/* Header */}
-                        <div className="flex justify-between items-center p-4 border-b border-border/50 bg-muted/20 shrink-0">
+                        <div className="flex justify-between items-center p-4 md:p-5 border-b border-border/50 bg-muted/20 shrink-0">
                             <div className="flex items-center gap-2">
                                 <span className={`px-2.5 py-1 rounded-full text-[10px] font-bold uppercase tracking-wider ${statusColors[selectedIssue.status] || statusColors.OPEN}`}>
                                     {selectedIssue.status}
@@ -186,7 +188,7 @@ const AdminIssues = () => {
                                     {selectedIssue.category}
                                 </span>
                             </div>
-                            <button onClick={closeModal} className="p-1.5 rounded-full bg-muted/50 text-muted-foreground hover:text-foreground hover:bg-muted transition-colors">
+                            <button onClick={closeModal} className="p-2 md:p-1.5 rounded-full bg-muted/50 text-muted-foreground hover:text-foreground hover:bg-muted transition-colors">
                                 <X size={20} />
                             </button>
                         </div>
@@ -286,7 +288,7 @@ const AdminIssues = () => {
                                     <button
                                         type="submit"
                                         disabled={isUpdating}
-                                        className="w-full btn-gradient py-3.5 rounded-xl font-bold text-white text-sm md:text-base flex justify-center items-center gap-2 shadow-md hover:shadow-lg transition-all mt-2"
+                                        className="w-full btn-gradient py-3.5 rounded-xl font-bold text-white text-sm md:text-base flex justify-center items-center gap-2 shadow-md hover:shadow-lg transition-all mt-2 mb-4 md:mb-0"
                                     >
                                         {isUpdating ? <MiniLoader className="w-5 h-5" /> : <>Update & Notify <CheckCircle size={16} /></>}
                                     </button>
