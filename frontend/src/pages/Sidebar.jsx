@@ -11,7 +11,8 @@ import {
   LogOut,
   Sun,
   Moon,
-  X
+  X,
+  ShieldCheck // Admin icon
 } from "lucide-react";
 import { useState, useEffect } from "react";
 
@@ -36,17 +37,15 @@ const Sidebar = () => {
   const dispatch = useDispatch();
   const navigate = useNavigate();
 
-  // 🟢 CRITICAL FIX: Grab BOTH auth user and profile details from Redux
+  // Grab BOTH auth user and profile details from Redux
   const user = useSelector((state) => state.auth?.user);
   const profileDetail = useSelector((state) => state.profile?.profileDetail);
   
-  // 🟢 CRITICAL FIX: Prioritize the fresh profile data over the initial auth data
   const name = profileDetail?.name || user?.name;
   const profilePic = profileDetail?.profilePic || user?.profilePic; 
   
   const { unreadCount, markAsRead } = useNotifications(user);
 
-  // Function to get initials from name
   const getInitials = (name) => {
     if (!name) return '';
     const words = name.trim().split(' ');
@@ -57,7 +56,6 @@ const Sidebar = () => {
     }
   };
 
-  // Toggle theme
   const toggleTheme = () => {
     const newTheme = !isDarkMode;
     setIsDarkMode(newTheme);
@@ -70,7 +68,6 @@ const Sidebar = () => {
     }
   };
 
-  // Explicit Light/Dark toggle handlers
   const handleLightClick = (e) => {
     e.stopPropagation();
     if (isDarkMode) toggleTheme();
@@ -97,7 +94,6 @@ const Sidebar = () => {
     }
   };
 
-  // Apply theme to DOM on mount and when theme changes
   useEffect(() => {
     if (isDarkMode) {
       document.documentElement.classList.add('dark');
@@ -117,7 +113,7 @@ const Sidebar = () => {
         }
       `}</style>
 
-      {/* Responsive Layout */}
+      {/* RESTORED: Original Responsive Structure */}
       <aside className="
         fixed bottom-0 left-0 w-full h-16 z-40 bg-card border-t border-border transition-all duration-300
         md:top-0 md:bottom-auto md:border-t-0 md:border-b md:px-6
@@ -147,6 +143,18 @@ const Sidebar = () => {
             <NavLink to="assistant" className="w-auto lg:w-full">
               <SidebarItem icon={Sparkle} label="LokAi" active={path === "/dashboard/assistant"} />
             </NavLink>
+
+            {/* Admin Panel Link */}
+            {user?.role === 'admin' && (
+              <NavLink to="/admin" className="w-auto lg:w-full">
+                <SidebarItem 
+                  icon={ShieldCheck} 
+                  label="Admin Panel" 
+                  active={path.startsWith("/admin")} 
+                  isAdminLink={true} 
+                />
+              </NavLink>
+            )}
 
             {/* User Profile Trigger Button (Mobile & Tablet) */}
             <div className="flex lg:hidden flex-shrink-0 relative items-center justify-center">
@@ -223,7 +231,6 @@ const Sidebar = () => {
                   <span className="text-sm md:text-base font-medium">Dark Mode</span>
                 </div>
 
-                {/* Fixed Toggle Switch */}
                 <div className="flex items-center bg-muted/80 rounded-full p-1 gap-1 border border-border/50">
                   <button
                     onClick={handleLightClick}
@@ -286,7 +293,6 @@ const Sidebar = () => {
         </div>
       )}
 
-      {/* Render the Settings Modal */}
       <SettingsModal
         isOpen={isSettingsOpen}
         onClose={() => setIsSettingsOpen(false)}
@@ -295,21 +301,26 @@ const Sidebar = () => {
   );
 };
 
-const SidebarItem = ({ icon: Icon, label, active, unreadCount }) => {
+const SidebarItem = ({ icon: Icon, label, active, unreadCount, isAdminLink }) => {
   return (
     <div
+      title={label} 
       className={`flex items-center justify-center lg:justify-start px-3 py-2 md:px-4 md:py-2.5 lg:px-4 lg:py-3 rounded-xl cursor-pointer transition-all duration-200 relative w-auto lg:w-full
-        ${active
-          ? "bg-gradient-to-r from-primary to-secondary text-primary-foreground shadow-lg scale-105"
+        ${active && isAdminLink 
+          ? "bg-red-500/10 text-red-500 border border-red-500/20 shadow-lg scale-105"
+          : active 
+          ? "bg-gradient-to-r from-primary to-secondary text-primary-foreground shadow-lg scale-105" 
+          : isAdminLink
+          ? "text-red-500/80 hover:bg-red-500/10 hover:text-red-500"
           : "text-foreground/80 hover:bg-muted hover:text-foreground"
         }`}
     >
       <div className="flex items-center gap-3">
         <Icon className="w-6 h-6 md:w-5 md:h-5 lg:w-5 lg:h-5" />
-        <span className="hidden md:inline text-sm font-medium">{label}</span>
+        {/* FIXED: hidden on mobile/tablet, visible on Desktop (lg) */}
+        <span className="hidden lg:inline text-sm font-medium">{label}</span>
       </div>
 
-      {/* Dynamic Badge Position */}
       {unreadCount > 0 && (
         <span className="absolute top-0 right-0 md:relative md:top-auto md:right-auto lg:absolute lg:right-4 bg-red-500 text-white text-[10px] md:text-xs rounded-full px-1.5 py-0.5 md:px-2 md:py-1 font-bold">
           {unreadCount > 99 ? '99+' : unreadCount}

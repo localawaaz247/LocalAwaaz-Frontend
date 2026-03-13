@@ -22,7 +22,8 @@ import Privacy from "./pages/Privacy";
 import TermsOfService from "./pages/TermsOfService";
 import Cookies from "./pages/Cookies";
 import FAQ from "./pages/FAQ";
-import Help from "./pages/Help"; // Your newly imported Help page
+import Help from "./pages/Help";
+import AdminDashboard from "./pages/AdminDashboard";
 
 const App = () => {
   return (
@@ -43,15 +44,16 @@ const App = () => {
             <Route path="/google/callback" element={<GoogleCallback />} />
             <Route path="/complete-profile" element={<ProtectedRoute><CompleteProfile /></ProtectedRoute>} />
 
-            {/* Dashboard Layout with Nested Routes */}
             <Route path="/dashboard" element={<ProtectedRoute><Homepage /></ProtectedRoute>}>
               <Route index element={<Feed />} />
               <Route path="report" element={<ReportIssue />} />
               <Route path="assistant" element={<Assistant />} />
               <Route path="notifications" element={<Notifications />} />
               <Route path="profile" element={<Profile />} />
-              <Route path="help" element={<Help />} /> {/* Added Help route here */}
+              <Route path="help" element={<Help />} />
             </Route>
+
+            <Route path="/admin" element={<ProtectedRoute requireAdmin={true}><AdminDashboard /></ProtectedRoute>} />
 
             <Route path="/issue/:id" element={<IssueDetailPage />} />
             <Route path="*" element={<NotFound />} />

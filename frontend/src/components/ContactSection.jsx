@@ -1,6 +1,8 @@
 import { useState } from 'react';
-import { Mail, Phone, MapPin, Send } from 'lucide-react';
+import { Mail, Phone, MapPin, Send, Loader2 } from 'lucide-react'; // 🟢 Added Loader2 from lucide-react
 import Tilt from 'react-parallax-tilt';
+import axiosInstance from '../utils/axios';
+import { showToast } from '../utils/toast';
 
 const contactInfo = [
   {
@@ -12,8 +14,8 @@ const contactInfo = [
   {
     icon: Phone,
     title: 'Call Us',
-    value: '+91 98765 43210',
-    link: 'tel:+919876543210'
+    value: '+91 8318538918',
+    link: 'tel:+918318538918'
   },
   {
     icon: MapPin,
@@ -30,12 +32,36 @@ const ContactSection = () => {
     message: '',
   });
 
-  const handleSubmit = (e) => {
+  const [isSubmitting, setIsSubmitting] = useState(false);
+
+  const handleSubmit = async (e) => {
     e.preventDefault();
-    // Handle form submission
-    console.log('Form submitted:', formData);
-    alert('Thank you for your message! We\'ll get back to you soon.');
-    setFormData({ name: '', email: '', message: '' });
+
+    // 1. Debugging log to confirm the button works
+    console.log("🚀 Form submitted! Data:", formData);
+
+    setIsSubmitting(true);
+
+    try {
+      // 2. Making the API Call
+      console.log("🌐 Sending request to /inquiry...");
+      const response = await axiosInstance.post(`${import.meta.env.VITE_BASE_URL}/inquiry`, formData);
+
+      // 3. Success handler
+      console.log("✅ Success Response:", response.data);
+      showToast({ icon: 'success', title: 'Message sent successfully! We will get back to you soon.' });
+      setFormData({ name: '', email: '', message: '' }); // Clear form
+
+    } catch (error) {
+      // 4. Error handler
+      console.error('❌ Submission failed:', error);
+      showToast({
+        icon: 'error',
+        title: error.response?.data?.message || 'Failed to send message. Please try again later.'
+      });
+    } finally {
+      setIsSubmitting(false);
+    }
   };
 
   const handleChange = (e) => {
@@ -49,7 +75,7 @@ const ContactSection = () => {
     <section id="contact" className="py-24 bg-muted/30 relative overflow-hidden max-sm:px-4">
       {/* Background */}
       <div className="absolute inset-0 bg-texture opacity-50 pointer-events-none" />
-      <div className="absolute bottom-0 left-0 w-full h-1 bg-linear-to-r from-primary via-secondary to-accent" />
+      <div className="absolute bottom-0 left-0 w-full h-1 bg-gradient-to-r from-primary via-secondary to-accent" />
 
       <div className="container mx-auto px-2 md:px-6 relative z-10">
         {/* Section Header */}
@@ -68,7 +94,7 @@ const ContactSection = () => {
 
         <div className="grid lg:grid-cols-5 gap-12 max-w-6xl mx-auto">
           {/* Contact Info - With Tilt Effect */}
-          <div className="lg:col-span-2 space-y-10 stagger-children relative z-20">
+          <div className="lg:col-span-2 space-y-10 relative z-20">
             {contactInfo.map((info, index) => (
               <div key={index} className="w-full">
                 <Tilt
@@ -87,10 +113,9 @@ const ContactSection = () => {
                 >
                   <a
                     href={info.link}
-                    // Removed hover:-translate-y-1 and added flex to align items properly
                     className="glass-card p-5 rounded-2xl flex items-center gap-4 hover:shadow-xl transition-shadow duration-300 group w-full"
                   >
-                    <div className="w-12 h-12 rounded-xl bg-linear-to-br from-primary/10 via-secondary/10 to-accent/10 flex items-center justify-center shrink-0 group-hover:scale-110 transition-transform">
+                    <div className="w-12 h-12 rounded-xl bg-gradient-to-br from-primary/10 via-secondary/10 to-accent/10 flex items-center justify-center shrink-0 group-hover:scale-110 transition-transform">
                       <info.icon className="w-5 h-5 text-primary" />
                     </div>
                     <div>
@@ -103,10 +128,10 @@ const ContactSection = () => {
             ))}
           </div>
 
-          {/* Contact Form - Left Static (No Tilt) */}
+          {/* Contact Form */}
           <div className="lg:col-span-3 animate-fade-in-up relative z-20">
             <form onSubmit={handleSubmit} className="glass-card p-8 rounded-2xl">
-              <div className="space-y-3">
+              <div className="space-y-4">
                 <div>
                   <label htmlFor="name" className="block text-sm font-medium text-foreground mb-2">
                     Your Name
@@ -157,10 +182,21 @@ const ContactSection = () => {
 
                 <button
                   type="submit"
-                  className="w-full btn-gradient py-2 md:px-8 md:py-3 rounded-xl font-semibold text-lg flex items-center justify-center gap-2 group"
+                  disabled={isSubmitting}
+                  className="w-full btn-gradient py-3 md:px-8 rounded-xl font-semibold text-lg flex items-center justify-center gap-2 group disabled:opacity-70 transition-all"
                 >
-                  Send Message
-                  <Send className="w-5 h-5 group-hover:translate-x-1 transition-transform" />
+                  {isSubmitting ? (
+                    <>
+                      {/* 🟢 Using guaranteed native lucide spinner to prevent crash */}
+                      <Loader2 className="w-5 h-5 text-white animate-spin" />
+                      Sending...
+                    </>
+                  ) : (
+                    <>
+                      Send Message
+                      <Send className="w-5 h-5 group-hover:translate-x-1 transition-transform" />
+                    </>
+                  )}
                 </button>
               </div>
             </form>
