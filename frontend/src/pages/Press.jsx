@@ -3,6 +3,7 @@ import { ArrowLeft, Newspaper, Download } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import Navbar from '../components/Navbar';
 import Footer from '../components/Footer';
+import SEO from '../components/SEO'; // <-- Added SEO Import
 
 const Press = () => {
   useEffect(() => {
@@ -17,6 +18,14 @@ const Press = () => {
 
   return (
     <div className="min-h-screen bg-texture flex flex-col">
+      {/* 🟢 SEO Metadata for the Press page */}
+      <SEO
+        title="Press & Media | Latest Civic Tech News"
+        description="Stay updated with the latest announcements, media resources, and press releases from LocalAwaaz. Explore how we are bridging the gap in civic reporting."
+        url="/press"
+        keywords="LocalAwaaz press, civic tech news india, LokAi announcement, community impact updates, media kit localawaaz"
+      />
+
       <Navbar />
       <main className="flex-grow pt-28 pb-20 px-4 md:px-8">
         <div className="max-w-4xl mx-auto">
@@ -53,8 +62,8 @@ const Press = () => {
                 <div className="bg-background/50 rounded-xl p-6 border border-border/50">
                   <h3 className="text-lg font-semibold text-foreground mb-2">Media Inquiries</h3>
                   <p className="text-sm mb-4">For press inquiries, interview requests, or speaker invitations, please contact our PR team.</p>
-                  <a href="mailto:press@localawaaz.com" className="font-medium text-cyan-600 hover:text-cyan-700 transition-colors">
-                    press@localawaaz.com
+                  <a href="mailto:press@localawaaz.in" className="font-medium text-cyan-600 hover:text-cyan-700 transition-colors">
+                    press@localawaaz.in
                   </a>
                 </div>
               </section>

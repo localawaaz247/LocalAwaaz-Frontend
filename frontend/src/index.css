@@ -442,3 +442,17 @@ html, body {
     background-color: hsl(var(--muted-foreground));
   }
 }
+/* Target the toast containers to prevent horizontal scrolling */
+.swal2-html-container, 
+.toast-content, 
+[role="status"] {
+  overflow-x: hidden !important; /* Hide horizontal scrollbar */
+  word-break: break-word !important; /* Force long emails to wrap to the next line */
+  overflow-wrap: anywhere !important;
+}
+
+/* Specific fix for SweetAlert2 if you are using it */
+.swal2-popup.swal2-toast {
+  width: auto !important;
+  max-width: 400px !important;
+}

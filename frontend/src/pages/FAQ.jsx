@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { ChevronDown, Search, MessageCircle, Mail, ArrowRight } from 'lucide-react';
 import Navbar from '../components/Navbar';
 import Footer from '../components/Footer';
+import SEO from '../components/SEO'; // <-- Added SEO Import
 
 const faqs = [
     {
@@ -77,7 +78,7 @@ const categories = ["All", "General", "Reporting", "Account & Verification", "Pr
 const FAQ = () => {
     const [activeCategory, setActiveCategory] = useState("All");
     const [searchQuery, setSearchQuery] = useState("");
-    const [openId, setOpenId] = useState(1); // First item open by default
+    const [openId, setOpenId] = useState(1);
 
     const filteredFaqs = faqs.filter(faq => {
         const matchesCategory = activeCategory === "All" || faq.category === activeCategory;
@@ -92,13 +93,17 @@ const FAQ = () => {
 
     return (
         <div className="min-h-screen bg-texture flex flex-col">
+            {/* Added SEO Component right at the top of the UI structure */}
+            <SEO
+                title="Frequently Asked Questions"
+                description="Find answers to the most common questions about how to report issues, earn civil score points, and use the LocalAwaaz platform."
+                url="/FAQ"
+            />
+
             <Navbar />
 
-            {/* Main Content padding-top added to account for fixed navbar */}
             <main className="flex-grow pt-28 pb-20 px-4 md:px-8">
                 <div className="max-w-4xl mx-auto">
-
-                    {/* Header Section */}
                     <div className="text-center mb-12 md:mb-16 animate-fade-in-up">
                         <div className="inline-flex items-center gap-2 px-4 py-2 rounded-full glass-card border border-border/50 text-sm font-medium text-cyan-600 mb-6">
                             <MessageCircle size={16} />
@@ -112,9 +117,7 @@ const FAQ = () => {
                         </p>
                     </div>
 
-                    {/* Search and Filter */}
                     <div className="mb-10 space-y-6">
-                        {/* Search Bar */}
                         <div className="relative max-w-xl mx-auto">
                             <div className="absolute inset-y-0 left-4 flex items-center pointer-events-none">
                                 <Search className="h-5 w-5 text-muted-foreground" />
@@ -128,7 +131,6 @@ const FAQ = () => {
                             />
                         </div>
 
-                        {/* Categories */}
                         <div className="flex flex-wrap justify-center gap-2 md:gap-3">
                             {categories.map((category) => (
                                 <button
@@ -145,7 +147,6 @@ const FAQ = () => {
                         </div>
                     </div>
 
-                    {/* FAQ Accordion */}
                     <div className="space-y-4 min-h-[400px]">
                         {filteredFaqs.length > 0 ? (
                             filteredFaqs.map((faq) => (
@@ -196,7 +197,6 @@ const FAQ = () => {
                         )}
                     </div>
 
-                    {/* Still have questions CTA */}
                     <div className="mt-16 glass-card rounded-3xl p-8 md:p-10 border border-border/50 relative overflow-hidden text-center">
                         <div className="absolute top-0 left-0 w-full h-1 bg-gradient-to-r from-blue-600 to-teal-600"></div>
                         <div className="absolute -right-20 -bottom-20 w-64 h-64 bg-cyan-600/10 rounded-full blur-3xl"></div>
@@ -218,7 +218,6 @@ const FAQ = () => {
                             </a>
                         </div>
                     </div>
-
                 </div>
             </main>
 

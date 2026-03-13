@@ -3,6 +3,7 @@ import { ArrowLeft, FileText } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import Navbar from '../components/Navbar';
 import Footer from '../components/Footer';
+import SEO from '../components/SEO'; // <-- Added SEO Import
 
 const TermsOfService = () => {
     useEffect(() => {
@@ -11,6 +12,14 @@ const TermsOfService = () => {
 
     return (
         <div className="min-h-screen bg-texture flex flex-col">
+            {/* 🟢 SEO Metadata for the Terms page */}
+            <SEO
+                title="Terms of Service | Platform Usage & Conduct"
+                description="Review the terms of service for LocalAwaaz. Understand our guidelines for civic reporting, community conduct, and how the Civil Score system works."
+                url="/terms"
+                keywords="LocalAwaaz terms, civic reporting guidelines, community conduct, civil score rules, localawaaz usage"
+            />
+
             <Navbar />
             <main className="flex-grow pt-28 pb-20 px-4 md:px-8">
                 <div className="max-w-4xl mx-auto">

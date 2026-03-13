@@ -3,6 +3,7 @@ import { ArrowLeft, Briefcase, ArrowRight } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import Navbar from '../components/Navbar';
 import Footer from '../components/Footer';
+import SEO from '../components/SEO'; // <-- Added SEO Import
 
 const Careers = () => {
   useEffect(() => {
@@ -17,6 +18,14 @@ const Careers = () => {
 
   return (
     <div className="min-h-screen bg-texture flex flex-col">
+      {/* 🟢 SEO Metadata for the Careers page */}
+      <SEO
+        title="Careers | Join the Civic Tech Movement"
+        description="Join the LocalAwaaz team and help build the future of civic tech in India. Explore open roles in Engineering, Design, and Community Management."
+        url="/careers"
+        keywords="LocalAwaaz careers, civic tech jobs india, MERN stack jobs, software engineer roles, social impact jobs"
+      />
+
       <Navbar />
       <main className="flex-grow pt-28 pb-20 px-4 md:px-8">
         <div className="max-w-4xl mx-auto">
@@ -45,7 +54,7 @@ const Careers = () => {
               <section>
                 <h2 className="text-xl font-semibold text-foreground mb-3">Our Mission</h2>
                 <p>
-                  At LocalAwaaz, we are on a mission to empower citizens and bridge the gap between communities and local authorities. We believe that technology can be a catalyst for real-world change, making neighborhoods safer, cleaner, and more connected. 
+                  At LocalAwaaz, we are on a mission to empower citizens and bridge the gap between communities and local authorities. We believe that technology can be a catalyst for real-world change, making neighborhoods safer, cleaner, and more connected.
                 </p>
               </section>
 
@@ -73,8 +82,8 @@ const Careers = () => {
               <section className="bg-cyan-600/5 rounded-xl p-6 border border-cyan-600/10 text-center">
                 <h3 className="text-lg font-semibold text-foreground mb-2">Don't see a fit?</h3>
                 <p className="mb-4 text-sm">We're always looking for passionate people to join our civic tech movement.</p>
-                <a href="mailto:careers@localawaaz.com" className="font-medium text-cyan-600 hover:text-cyan-700 transition-colors">
-                  Send your resume to careers@localawaaz.com
+                <a href="mailto:careers@localawaaz.in" className="font-medium text-cyan-600 hover:text-cyan-700 transition-colors">
+                  Send your resume to careers@localawaaz.in
                 </a>
               </section>
             </div>

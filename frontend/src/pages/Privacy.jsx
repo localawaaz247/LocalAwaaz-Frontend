@@ -11,6 +11,12 @@ const Privacy = () => {
 
   return (
     <div className="min-h-screen bg-texture flex flex-col">
+      <SEO
+        title="Privacy Policy | Data Security & Transparency"
+        description="Read the LocalAwaaz Privacy Policy to understand how we protect your account data, GPS location, and anonymity while you contribute to your community."
+        url="/privacy"
+        keywords="LocalAwaaz privacy, data protection, anonymous reporting, civic tech security, GPS data privacy"
+      />
       <Navbar />
       <main className="flex-grow pt-28 pb-20 px-4 md:px-8">
         <div className="max-w-4xl mx-auto">

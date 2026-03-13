@@ -12,6 +12,7 @@ import { showToast } from '../utils/toast';
 import { BASE_URL } from '../utils/config';
 import MiniLoader from '../components/MiniLoader';
 import axiosInstance from '../utils/axios';
+import SEO from '../components/SEO'; // <-- Added SEO Import
 
 const LoginRegister = () => {
   const [showPassword, setShowPassword] = useState(false);
@@ -182,6 +183,13 @@ const LoginRegister = () => {
 
   return (
     <div className="h-screen bg-background flex relative overflow-hidden">
+      {/* 🟢 SEO Metadata for Auth Page */}
+      <SEO
+        title={isLogin ? "Sign In" : "Create Your Account"}
+        description={isLogin ? "Sign in to your LocalAwaaz account to report issues and track resolutions." : "Join LocalAwaaz today to make your voice heard and contribute to a better community."}
+        url={isLogin ? "/login" : "/register"}
+      />
+
       {/* Left Design Section */}
       <div className="hidden lg:flex lg:w-1/2 relative bg-texture">
         <div className="absolute inset-0 overflow-hidden pointer-events-none">
@@ -448,7 +456,6 @@ const LoginRegister = () => {
                       {showPassword ? <EyeOff className="w-5 h-5" /> : <Eye className="w-5 h-5" />}
                     </button>
                   </div>
-                  {/* Forgot Password Link strictly shows up on Login Mode */}
                   {isLogin && (
                     <div className="flex justify-end mt-1">
                       <Link to="/forgot-password" className="text-xs text-primary hover:underline font-medium">

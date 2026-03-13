@@ -7,6 +7,7 @@ import logo from "/logo.png";
 import MiniLoader from '../components/MiniLoader';
 import { showToast } from '../utils/toast';
 import axiosInstance from '../utils/axios';
+import SEO from '../components/SEO'; // <-- Added SEO Import
 
 const ForgotPassword = () => {
     const navigate = useNavigate();
@@ -40,21 +41,17 @@ const ForgotPassword = () => {
         return () => clearInterval(interval);
     }, [isTimerRunning, timer]);
 
-    // Step 1: Request OTP
     const handleRequestOtp = async (e) => {
         e?.preventDefault();
         if (!identifier) {
             return showToast({ icon: "warning", title: "Please enter your email or username" });
         }
-
         try {
             setIsLoading(true);
-            // Adjust the base route path depending on your backend setup (e.g., /auth or /api/auth)
             const { data } = await axiosInstance.post(`${import.meta.env.VITE_BASE_URL}/reset-password/verify-user`, { identifier });
-
             showToast({ icon: "success", title: data.message });
             setStep(2);
-            setTimer(60); // 60 seconds for resend
+            setTimer(60);
             setIsTimerRunning(true);
         } catch (error) {
             showToast({
@@ -66,22 +63,18 @@ const ForgotPassword = () => {
         }
     };
 
-    // Step 2: Verify OTP
     const handleVerifyOtp = async (e) => {
         e?.preventDefault();
         const otpString = otp.join('');
-
         if (otpString.length !== 6) {
             return showToast({ icon: "warning", title: "Please enter a 6-digit OTP" });
         }
-
         try {
             setIsLoading(true);
             const { data } = await axiosInstance.post(`${import.meta.env.VITE_BASE_URL}/reset-password/verify-otp`, {
                 identifier,
                 otp: otpString
             });
-
             showToast({ icon: "success", title: "OTP Verified!" });
             setResetToken(data.resetToken);
             setStep(3);
@@ -95,22 +88,19 @@ const ForgotPassword = () => {
         }
     };
 
-    // Step 3: Update Password
     const handleUpdatePassword = async (e) => {
         e?.preventDefault();
         if (password !== confirmPassword) {
             return showToast({ icon: "warning", title: "Passwords do not match" });
         }
-
         try {
             setIsLoading(true);
             const { data } = await axiosInstance.patch(`${import.meta.env.VITE_BASE_URL}/reset-password/update?resetToken=${resetToken}`, {
                 identifier,
                 password
             });
-
             showToast({ icon: "success", title: data.message });
-            navigate('/login'); // Redirect to login page
+            navigate('/login');
         } catch (error) {
             showToast({
                 icon: "error",
@@ -121,13 +111,11 @@ const ForgotPassword = () => {
         }
     };
 
-    // OTP Input Handlers
     const handleOtpChange = (index, value) => {
         if (value.length <= 1 && /^[0-9]*$/.test(value)) {
             const newOtp = [...otp];
             newOtp[index] = value;
             setOtp(newOtp);
-
             if (value && index < 5) {
                 const nextInput = document.getElementById(`otp-${index + 1}`);
                 if (nextInput) nextInput.focus();
@@ -144,6 +132,13 @@ const ForgotPassword = () => {
 
     return (
         <div className="h-screen bg-background flex relative overflow-hidden">
+            {/* 🟢 SEO Metadata */}
+            <SEO
+                title="Reset Password"
+                description="Recover your LocalAwaaz account. Follow the secure steps to verify your identity and reset your password."
+                url="/forgot-password"
+            />
+
             {/* Left Design Section */}
             <div className="hidden lg:flex lg:w-1/2 relative bg-texture">
                 <div className="absolute inset-0 overflow-hidden pointer-events-none">
@@ -180,20 +175,20 @@ const ForgotPassword = () => {
                 </div>
             </div>
 
-            {/* Right Form Section */}
-            <div className="w-full lg:w-1/2 h-screen overflow-y-auto flex items-start justify-center p-3 md:p-6 lg:p-12 relative">
-                <div className="h-full w-full max-w-md relative z-10 flex flex-col pt-8">
+            {/* 🟢 Right Form Section: Adjusted for Perfect Vertical Centering */}
+            <div className="w-full lg:w-1/2 h-screen flex items-center justify-center p-4 md:p-8 relative">
+                <div className="w-full max-w-md relative z-10 flex flex-col">
 
                     <Link to="/login" className="inline-flex items-center gap-2 text-foreground/70 hover:text-primary transition-colors mb-4 group w-max">
                         <ArrowLeft className="w-4 h-4 group-hover:-translate-x-1 transition-transform" />
                         Back to Login
                     </Link>
 
-                    <div className="glass-card md:p-8 p-4 rounded-2xl mb-8">
+                    <div className="glass-card md:p-8 p-6 rounded-2xl shadow-2xl">
                         <h1 className="text-2xl font-bold text-foreground text-center lg:text-left mb-2">
                             Reset Password
                         </h1>
-                        <p className="text-foreground/60 text-center lg:text-left mb-8">
+                        <p className="text-foreground/60 text-center lg:text-left mb-8 text-sm">
                             {step === 1 && "Enter your email or username to receive a verification code."}
                             {step === 2 && "Enter the 6-digit code sent to your email."}
                             {step === 3 && "Create a new strong password for your account."}
@@ -239,7 +234,7 @@ const ForgotPassword = () => {
                                             value={digit}
                                             onChange={(e) => handleOtpChange(index, e.target.value)}
                                             onKeyDown={(e) => handleOtpKeyDown(index, e)}
-                                            className="w-12 h-12 text-center text-lg font-semibold rounded-xl border border-border bg-card/50 focus:bg-card focus:border-primary focus:ring-2 focus:ring-primary/20 outline-none transition-all"
+                                            className="w-10 h-10 sm:w-12 sm:h-12 text-center text-lg font-semibold rounded-xl border border-border bg-card/50 focus:bg-card focus:border-primary focus:ring-2 focus:ring-primary/20 outline-none transition-all"
                                             maxLength={1}
                                         />
                                     ))}
@@ -258,7 +253,7 @@ const ForgotPassword = () => {
                                         type="button"
                                         onClick={() => handleRequestOtp()}
                                         disabled={isTimerRunning || isLoading}
-                                        className="w-full py-3 border border-border rounded-xl hover:bg-muted disabled:opacity-50 disabled:cursor-not-allowed transition-colors text-foreground"
+                                        className="w-full py-3 border border-border rounded-xl hover:bg-muted disabled:opacity-50 disabled:cursor-not-allowed transition-colors text-foreground text-sm"
                                     >
                                         {isTimerRunning ? `Resend Code in ${timer}s` : 'Resend Code'}
                                     </button>
@@ -322,7 +317,6 @@ const ForgotPassword = () => {
                                 </button>
                             </form>
                         )}
-
                     </div>
                 </div>
             </div>

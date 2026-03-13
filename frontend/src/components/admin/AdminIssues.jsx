@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import axiosInstance from '../../utils/axios';
 import { showToast } from '../../utils/toast';
-import { MapPin, X, User, FileText, ChevronLeft, ChevronRight, CheckCircle, AlertTriangle } from 'lucide-react';
+import { MapPin, X, User, FileText, ChevronLeft, ChevronRight, CheckCircle, AlertTriangle, Trash2 } from 'lucide-react';
 import MiniLoader from '../MiniLoader';
 
 const AdminIssues = () => {
@@ -13,10 +13,14 @@ const AdminIssues = () => {
 
     // Modal & Animation State
     const [selectedIssue, setSelectedIssue] = useState(null);
-    const [isModalVisible, setIsModalVisible] = useState(false); // 🟢 Controls smooth animation
+    const [isModalVisible, setIsModalVisible] = useState(false);
     const [updateData, setUpdateData] = useState({ status: '', adminRemark: '' });
     const [isUpdating, setIsUpdating] = useState(false);
     const [currentMediaIndex, setCurrentMediaIndex] = useState(0);
+
+    // Delete State
+    const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
+    const [isDeleting, setIsDeleting] = useState(false);
 
     useEffect(() => {
         const delayDebounceFn = setTimeout(() => { fetchIssues(); }, 500);
@@ -24,10 +28,10 @@ const AdminIssues = () => {
     }, [filters, page]);
 
     useEffect(() => {
-        if (selectedIssue) document.body.style.overflow = 'hidden';
+        if (selectedIssue || showDeleteConfirm) document.body.style.overflow = 'hidden';
         else document.body.style.overflow = 'unset';
         return () => { document.body.style.overflow = 'unset'; };
-    }, [selectedIssue]);
+    }, [selectedIssue, showDeleteConfirm]);
 
     const fetchIssues = async () => {
         try {
@@ -45,25 +49,36 @@ const AdminIssues = () => {
             const res = await axiosInstance.patch(`/admin/issue/${selectedIssue._id}`, updateData);
             setIssues(issues.map(iss => iss._id === selectedIssue._id ? res.data.data : iss));
             showToast({ icon: 'success', title: 'Issue updated successfully' });
-            closeModal(); // 🟢 Use smooth close
+            closeModal();
         } catch (error) {
             showToast({ icon: 'error', title: error.response?.data?.message || 'Update failed' });
         } finally { setIsUpdating(false); }
     };
 
-    // 🟢 Smooth Open Engine
+    const handleDeleteIssue = async () => {
+        setIsDeleting(true);
+        try {
+            await axiosInstance.delete(`/admin/issue/${selectedIssue._id}`);
+            setIssues(issues.filter(iss => iss._id !== selectedIssue._id));
+            showToast({ icon: 'success', title: 'Issue deleted successfully' });
+            closeModal();
+        } catch (error) {
+            showToast({ icon: 'error', title: error.response?.data?.message || 'Delete failed' });
+        } finally {
+            setIsDeleting(false);
+        }
+    };
+
     const openModal = (issue) => {
         setSelectedIssue(issue);
         setUpdateData({ status: issue.status, adminRemark: issue.adminRemark || '' });
         setCurrentMediaIndex(0);
-        // Tiny delay allows DOM to mount before triggering CSS transition
         setTimeout(() => setIsModalVisible(true), 10);
     };
 
-    // 🟢 Smooth Close Engine
     const closeModal = () => {
         setIsModalVisible(false);
-        // Wait for CSS transition to finish (300ms) before unmounting
+        setShowDeleteConfirm(false); // Reset delete confirmation state
         setTimeout(() => setSelectedIssue(null), 300);
     };
 
@@ -157,9 +172,8 @@ const AdminIssues = () => {
                 </div>
             )}
 
-            {/* 🟢 SMOOTH ANIMATED MODAL - MOBILE RESPONSIVE */}
+            {/* SMOOTH ANIMATED MODAL */}
             {selectedIssue && (
-                // 1. Removed top padding, relying purely on items-end and max-h constraint
                 <div className="fixed inset-0 z-[100] flex items-end sm:items-center justify-center sm:p-6">
 
                     {/* Animated Backdrop */}
@@ -170,7 +184,6 @@ const AdminIssues = () => {
 
                     {/* Animated Modal Container */}
                     <div
-                        // 2. Changed max-h to a strict 82vh on mobile, and increased border-radius to rounded-t-3xl for a better "bottom sheet" look
                         className={`relative bg-card border-t sm:border border-border/50 rounded-t-3xl sm:rounded-2xl w-full max-w-5xl shadow-2xl flex flex-col max-h-[82vh] sm:max-h-[90vh] overflow-hidden transform transition-all duration-300 ease-out ${isModalVisible
                             ? 'translate-y-0 sm:scale-100 opacity-100'
                             : 'translate-y-full sm:translate-y-8 sm:scale-95 opacity-0'
@@ -188,9 +201,19 @@ const AdminIssues = () => {
                                     {selectedIssue.category}
                                 </span>
                             </div>
-                            <button onClick={closeModal} className="p-2 md:p-1.5 rounded-full bg-muted/50 text-muted-foreground hover:text-foreground hover:bg-muted transition-colors">
-                                <X size={20} />
-                            </button>
+                            <div className="flex items-center gap-2">
+                                {/* DELETE BUTTON */}
+                                <button
+                                    onClick={() => setShowDeleteConfirm(true)}
+                                    title="Delete Issue"
+                                    className="p-2 md:p-1.5 rounded-full bg-red-500/10 text-red-500 hover:bg-red-500 hover:text-white transition-colors"
+                                >
+                                    <Trash2 size={18} />
+                                </button>
+                                <button onClick={closeModal} className="p-2 md:p-1.5 rounded-full bg-muted/50 text-muted-foreground hover:text-foreground hover:bg-muted transition-colors">
+                                    <X size={20} />
+                                </button>
+                            </div>
                         </div>
 
                         {/* Body */}
@@ -296,6 +319,34 @@ const AdminIssues = () => {
                             </div>
                         </div>
                     </div>
+
+                    {/* DELETE CONFIRMATION MODAL OVERLAY */}
+                    {showDeleteConfirm && (
+                        <div className="fixed inset-0 z-[200] flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm animate-fade-in">
+                            <div className="bg-card border border-border/50 rounded-2xl p-6 max-w-sm w-full shadow-2xl" onClick={e => e.stopPropagation()}>
+                                <h3 className="text-xl font-bold text-foreground mb-2">Delete Issue?</h3>
+                                <p className="text-sm text-muted-foreground mb-6">
+                                    Are you sure you want to permanently delete this issue? This action cannot be undone.
+                                </p>
+                                <div className="flex justify-end gap-3">
+                                    <button
+                                        onClick={() => setShowDeleteConfirm(false)}
+                                        disabled={isDeleting}
+                                        className="px-4 py-2 rounded-xl text-sm font-medium bg-muted/50 text-foreground hover:bg-muted transition-colors"
+                                    >
+                                        Cancel
+                                    </button>
+                                    <button
+                                        onClick={handleDeleteIssue}
+                                        disabled={isDeleting}
+                                        className="px-4 py-2 rounded-xl text-sm font-medium bg-red-500 text-white hover:bg-red-600 transition-colors flex items-center justify-center min-w-[80px]"
+                                    >
+                                        {isDeleting ? <MiniLoader className="w-4 h-4 text-white" /> : 'Delete'}
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
+                    )}
                 </div>
             )}
         </div>
