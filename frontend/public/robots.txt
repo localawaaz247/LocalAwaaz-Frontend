@@ -1,0 +1,11 @@
+User-agent: *
+Allow: /
+
+# Prevent search engines from crawling authenticated and administrative areas
+Disallow: /dashboard/
+Disallow: /admin/
+Disallow: /complete-profile/
+Disallow: /google/callback
+
+# Point search engines directly to your sitemap
+Sitemap: https://www.localawaaz.in/sitemap.xml

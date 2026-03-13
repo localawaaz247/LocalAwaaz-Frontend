@@ -394,14 +394,20 @@ const IssueDetail = ({ issue, isOpen, onClose, hideConfirm = false, isAdminView 
                   <button
                     onClick={handleConfirm}
                     disabled={confirmLoading}
-                    className={`flex-1 sm:flex-none flex items-center justify-center gap-2 px-6 py-2.5 sm:py-3 rounded-xl text-sm font-bold transition-all whitespace-nowrap shadow-md border ${isConfirmedByUser
-                      ? "bg-emerald-500/20 text-emerald-600 dark:text-emerald-400 border-emerald-500/30"
-                      : safeStatus === 'OPEN'
-                        ? "bg-blue-600 hover:bg-blue-500 text-white border-transparent"
-                        : "bg-muted text-muted-foreground border-border hover:bg-muted/80"
+                    className={`flex-1 sm:flex-none flex items-center justify-center gap-2 px-6 py-2.5 sm:py-3 rounded-xl text-sm font-bold transition-all whitespace-nowrap shadow-sm hover:shadow-md ${isConfirmedByUser
+                        ? "bg-green-500/20 text-green-600 border border-green-500/30 hover:bg-green-500/30"
+                        : safeStatus === 'OPEN'
+                          ? "btn-gradient text-white border border-transparent"
+                          : "bg-secondary/20 text-secondary border border-secondary/30 hover:bg-secondary/30"
                       }`}
                   >
-                    {confirmLoading ? "..." : isConfirmedByUser ? <><CheckCircle2 size={18} /> Confirmed</> : <><CheckCircle2 size={18} /> I Confirm This</>}
+                    {confirmLoading ? (
+                      "..."
+                    ) : isConfirmedByUser ? (
+                      <><CheckCircle2 size={18} /> Confirmed</>
+                    ) : (
+                      <><CheckCircle2 size={18} /> I Confirm This</>
+                    )}
                   </button>
                 )}
               </div>
