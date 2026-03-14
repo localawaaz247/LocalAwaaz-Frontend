@@ -228,10 +228,6 @@ const Notifications = () => {
           >
             Back to Dashboard
           </button>
-          <div className="w-1 h-1 rounded-full bg-border"></div>
-          <button className="hover:text-primary transition-colors">
-            Notification Settings
-          </button>
         </div>
       </div>
     </div>

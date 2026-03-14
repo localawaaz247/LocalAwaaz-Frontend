@@ -86,8 +86,8 @@ const AdminUsers = () => {
 
             const res = await axiosInstance.get(`/admin/user/${id}`);
             const userData = res.data.data;
-            setSelectedUserDetails(userData); 
-            setModalLoading(false); 
+            setSelectedUserDetails(userData);
+            setModalLoading(false);
 
             if (userData.recentIssues && userData.recentIssues.length > 0) {
                 const issuesWithMediaPromises = userData.recentIssues.map(async (issue) => {
@@ -96,7 +96,7 @@ const AdminUsers = () => {
                         const fullIssue = issueRes.data.data?.issue || issueRes.data.data;
                         return { ...issue, media: fullIssue.media };
                     } catch (err) {
-                        return issue; 
+                        return issue;
                     }
                 });
 
@@ -210,8 +210,13 @@ const AdminUsers = () => {
             ) : (
                 <>
                     <div className="md:hidden grid grid-cols-1 gap-4 overflow-y-auto thin-scrollbar pb-4">
-                        {users.map((user) => (
-                            <div key={user._id} className="bg-card glass-card border border-border/50 rounded-xl p-4 flex flex-col gap-4 shadow-sm">
+                        {/* FIX: Added index to map and dynamic z-index to parent card so dropdowns overlay bottom cards correctly */}
+                        {users.map((user, index) => (
+                            <div
+                                key={user._id}
+                                className="bg-card glass-card border border-border/50 rounded-xl p-4 flex flex-col gap-4 shadow-sm relative"
+                                style={{ zIndex: users.length - index }}
+                            >
                                 <div className="flex justify-between items-start gap-3">
                                     <div className="flex items-center gap-3 overflow-hidden">
                                         <Avatar src={user.profilePic} name={user.name} size="w-12 h-12" iconSize="w-6 h-6" />
@@ -227,7 +232,8 @@ const AdminUsers = () => {
                                     </div>
                                 </div>
 
-                                <div className="grid grid-cols-2 gap-3 bg-muted/20 p-3 rounded-lg border border-border/30 [&>div>div]:min-w-0">
+                                {/* FIX: Added relative and z-10 here so the dropdown menu stays strictly above the delete button */}
+                                <div className="grid grid-cols-2 gap-3 bg-muted/20 p-3 rounded-lg border border-border/30 [&>div>div]:min-w-0 relative z-10">
                                     <div className="flex flex-col gap-1">
                                         <span className="text-[10px] text-muted-foreground uppercase tracking-wider font-semibold">Role</span>
                                         <CustomSelect
@@ -246,9 +252,10 @@ const AdminUsers = () => {
                                     </div>
                                 </div>
 
+                                {/* FIX: Added relative and z-0 to push the button correctly under the dropdown */}
                                 <button
                                     onClick={() => handleDelete(user._id)}
-                                    className="flex items-center justify-center gap-2 w-full py-2 bg-red-500/10 border border-red-500/20 text-red-500 rounded-lg hover:bg-red-500/20 transition-colors text-sm font-medium"
+                                    className="flex items-center justify-center gap-2 w-full py-2 bg-red-500/10 border border-red-500/20 text-red-500 rounded-lg hover:bg-red-500/20 transition-colors text-sm font-medium relative z-0"
                                 >
                                     <Trash2 className="w-4 h-4" /> Delete User
                                 </button>
@@ -259,7 +266,6 @@ const AdminUsers = () => {
                     <div className="hidden md:flex bg-card glass-card border border-border/50 rounded-2xl overflow-hidden shadow-lg flex-1 flex-col min-h-0">
                         <div className="overflow-y-auto thin-scrollbar flex-1">
                             <table className="w-full text-left whitespace-nowrap">
-                                {/* CSS FIXED HERE: Changed transparent bg-muted/30 to opaque bg-card/95 with backdrop-blur and a higher z-index to block the text from bleeding through */}
                                 <thead className="bg-card/95 backdrop-blur-md border-b border-border/50 sticky top-0 z-20 shadow-sm">
                                     <tr className="text-muted-foreground text-sm">
                                         <th className="py-4 px-6 font-medium">User Profile</th>
@@ -269,8 +275,13 @@ const AdminUsers = () => {
                                     </tr>
                                 </thead>
                                 <tbody className="divide-y divide-border/50">
-                                    {users.map((user) => (
-                                        <tr key={user._id} className="hover:bg-primary/5 transition-colors">
+                                    {/* FIX: Applied the same dynamic z-index fix to the desktop table rows */}
+                                    {users.map((user, index) => (
+                                        <tr
+                                            key={user._id}
+                                            className="hover:bg-primary/5 transition-colors relative"
+                                            style={{ zIndex: users.length - index }}
+                                        >
                                             <td className="py-4 px-6">
                                                 <div className="flex items-center gap-3">
                                                     <Avatar src={user.profilePic} name={user.name} size="w-10 h-10" iconSize="w-5 h-5" />
@@ -302,7 +313,7 @@ const AdminUsers = () => {
                                             <td className="py-4 px-6 text-right">
                                                 <button
                                                     onClick={() => handleDelete(user._id)}
-                                                    className="text-xs px-4 py-2 bg-red-500/10 border border-red-500/20 text-red-500 rounded-lg hover:bg-red-500/20 transition-colors font-medium flex items-center justify-center gap-1.5 ml-auto"
+                                                    className="text-xs px-4 py-2 bg-red-500/10 border border-red-500/20 text-red-500 rounded-lg hover:bg-red-500/20 transition-colors font-medium flex items-center justify-center gap-1.5 ml-auto relative z-0"
                                                 >
                                                     <Trash2 className="w-3.5 h-3.5" /> Delete
                                                 </button>
