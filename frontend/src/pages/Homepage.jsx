@@ -7,9 +7,6 @@ import { getUserLocation } from "../utils/locationUtils"
 const Homepage = () => {
   const [showLocationModal, setShowLocationModal] = useState(false)
   const location = useLocation()
-  const [searchParams] = useSearchParams()
-  const token = searchParams.get('token')
-  const navigate = useNavigate()
 
   // NEW: State to hold the specific issue ID when a notification is clicked
   const [selectedIssueId, setSelectedIssueId] = useState(null)
@@ -42,13 +39,6 @@ const Homepage = () => {
       window.history.replaceState({}, document.title);
     }
   }, [location.state]);
-
-  useEffect(() => {
-    if (token) {
-      localStorage.setItem('access_token', token);
-      navigate("/dashboard");
-    }
-  }, [token, navigate])
 
   return (
     <div className="flex h-screen w-screen bg-background">

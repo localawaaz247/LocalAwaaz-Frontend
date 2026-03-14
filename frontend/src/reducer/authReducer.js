@@ -38,7 +38,15 @@ export const validateToken = createAsyncThunk("/me/profile", async (_, { rejectW
         // Backend usually returns { success: true, data: userProfileData }
         return res.data;
     } catch (error) {
-        localStorage.removeItem("access_token");
+        // 👇 THIS IS THE FIX 👇
+        const status = error?.response?.status;
+        
+        // Only delete the token if it's genuinely invalid/expired (401)
+        // Do NOT delete it on 403, because that means the profile is just incomplete
+        if (status === 401) {
+            localStorage.removeItem("access_token");
+        }
+        
         return rejectWithValue(error?.response?.data);
     }
 });

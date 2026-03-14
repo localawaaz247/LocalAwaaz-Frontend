@@ -11,7 +11,6 @@ const GoogleCallback = () => {
 
   useEffect(() => {
     const handleGoogleCallback = async () => {
-      // Extract parameters from the backend redirect URL
       const token = searchParams.get('token');
       const isProfileComplete = searchParams.get('isProfileComplete');
       const role = searchParams.get('role');
@@ -21,27 +20,25 @@ const GoogleCallback = () => {
         return;
       }
 
-      // Store token as 'access_token' per your configuration
       localStorage.setItem('access_token', token);
       dispatch(setIsAuthenticated(true));
 
-      if (isProfileComplete === 'true') {
-        try {
-          // Validate the token first
-          await dispatch(validateToken()).unwrap();
+      try {
+        // ALWAYS validate the token to fetch user details into Redux
+        await dispatch(validateToken()).unwrap();
 
-          // Route based on user role
+        // Route based on user role and profile status AFTER user is loaded
+        if (isProfileComplete === 'true') {
           if (role === 'admin') {
             navigate('/admin');
           } else {
             navigate('/dashboard');
           }
-        } catch (error) {
-          console.error('Failed to validate token:', error);
-          navigate('/login'); // Redirect to login if token validation fails
+        } else {
+          navigate('/complete-profile');
         }
-      } else {
-        navigate('/complete-profile');
+      } catch (error) {
+        console.error('Failed to validate token:', error);
       }
     };
 
@@ -49,7 +46,7 @@ const GoogleCallback = () => {
   }, [searchParams, navigate, dispatch]);
 
   return (
-    <div className='flex justify-center items-center h-screen '>
+    <div className='flex justify-center items-center h-screen'>
       <Loader />
     </div>
   );
