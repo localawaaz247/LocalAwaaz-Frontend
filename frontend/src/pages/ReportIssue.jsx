@@ -322,7 +322,6 @@ export default function ReportIssue() {
       if (!formData.description || !formData.description.trim()) newErrors.description = t('desc_req');
       else if (formData.description.trim().length < 10) newErrors.description = t('desc_length');
 
-      if (!formData.location.address.trim()) newErrors.location = t('location_req');
       if (!formData.location.geoData.coordinates) newErrors.geoData = t('gps_req');
 
       if (formData.media.length > 0 && formData.mediaUrls.length === 0) {
@@ -563,72 +562,85 @@ export default function ReportIssue() {
                   {t('add_photos')}<span className="font-normal text-red-600"> *</span>
                 </label>
                 <div className="group relative">
-                  <div className="h-36 md:h-44 cursor-pointer rounded-xl border-2 border-dashed border-border bg-muted/50 transition-all hover:border-cyan-600 hover:bg-muted">
-                    <input
-                      type="file" className="absolute inset-0 h-full w-full cursor-pointer opacity-0 z-10"
-                      accept="image/png, image/jpg, image/jpeg" multiple
-                      onChange={handleFileChange} disabled={formData.mediaUrls.length > 0}
-                    />
-                    <div className="flex h-full flex-col items-center justify-center gap-1 md:gap-2 text-center p-4">
-                      {formData.media.length > 0 ? (
-                        <>
-                          <Camera className="h-6 w-6 md:h-8 md:w-8 text-green-600" />
-                          <span className="text-xs md:text-sm font-medium text-foreground">{formData.media.length} {t('files_selected')}</span>
-                          <div className="text-[10px] md:text-xs text-muted-foreground max-w-[200px] md:max-w-xs">
-                            {formData.media.map((file, index) => (
-                              <div key={index} className="truncate">
-                                {file.name.length > 20 ? `${file.name.substring(0, 20)}...` : file.name} ({(file.size / (1024 * 1024)).toFixed(2)} MB)
-                              </div>
-                            ))}
-                          </div>
-                          {!formData.mediaUrls.length && (
-                            <div className="flex flex-col mt-1">
-                              <span className="text-[10px] md:text-xs text-cyan-600 font-medium">{t('click_add_more')}</span>
+                  <div className="h-36 md:h-44 rounded-xl border-2 border-dashed border-border bg-muted/50 transition-all hover:border-cyan-600 hover:bg-muted flex flex-col">
+                    {formData.media.length > 0 ? (
+                      <div className="flex h-full flex-col items-center justify-center gap-1 md:gap-2 text-center p-4 relative">
+                        <Camera className="h-6 w-6 md:h-8 md:w-8 text-green-600" />
+                        <span className="text-xs md:text-sm font-medium text-foreground">{formData.media.length} {t('files_selected')}</span>
+                        <div className="text-[10px] md:text-xs text-muted-foreground max-w-[200px] md:max-w-xs">
+                          {formData.media.map((file, index) => (
+                            <div key={index} className="truncate">
+                              {file.name.length > 20 ? `${file.name.substring(0, 20)}...` : file.name} ({(file.size / (1024 * 1024)).toFixed(2)} MB)
                             </div>
-                          )}
-                        </>
-                      ) : (
-                        <>
+                          ))}
+                        </div>
+                        {!formData.mediaUrls.length && (
+                          <div className="flex gap-4 mt-1">
+                            <label className="cursor-pointer text-[10px] md:text-xs text-cyan-600 font-medium hover:underline z-10">
+                              {t('camera', 'Camera')}
+                              <input type="file" accept="image/png, image/jpg, image/jpeg" capture="environment" className="hidden" onChange={handleFileChange} />
+                            </label>
+                            <label className="cursor-pointer text-[10px] md:text-xs text-cyan-600 font-medium hover:underline z-10">
+                              {t('browse', 'Browse Files')}
+                              <input type="file" accept="image/png, image/jpg, image/jpeg" multiple className="hidden" onChange={handleFileChange} />
+                            </label>
+                          </div>
+                        )}
+                      </div>
+                    ) : (
+                      <div className="flex h-full w-full relative">
+                        <label className="flex-1 flex flex-col items-center justify-center gap-1 md:gap-2 cursor-pointer hover:bg-muted/80 rounded-l-xl transition-colors z-10">
                           <Camera className="h-6 w-6 md:h-8 md:w-8 text-muted-foreground transition-colors group-hover:text-primary" />
-                          <span className="text-xs md:text-sm font-medium text-muted-foreground transition-colors group-hover:text-foreground">{t('upload_photos')}</span>
-                          <span className="text-[10px] md:text-xs text-muted-foreground mt-1 px-2">{t('img_formats_limit')}</span>
-                        </>
-                      )}
-                    </div>
-                  </div>
-                  {errors.media && <p className="mt-2 text-xs text-red-600">{errors.media}</p>}
-                </div>
-
-                {formData.media.length > 0 && formData.mediaUrls.length === 0 && (
-                  <div className="mt-4">
-                    <button
-                      type="button" onClick={handleUploadMedia} disabled={isUploading}
-                      className="w-full rounded-xl py-2.5 md:py-3 text-sm md:text-base font-semibold text-white shadow-lg transition-all hover:scale-[1.02] active:scale-[0.98] disabled:opacity-50 disabled:cursor-not-allowed bg-gradient-to-r from-cyan-600 to-teal-600"
-                    >
-                      {isUploading ? t('uploading') : t('upload_files_btn')}
-                    </button>
-                    {uploadError && (
-                      <div className="mt-2 rounded-lg bg-red-500/10 border border-red-500/20 p-3">
-                        <p className="text-xs text-red-500 font-medium">{uploadError}</p>
+                          <span className="text-xs md:text-sm font-medium text-muted-foreground">{t('camera', 'Camera')}</span>
+                          <input type="file" accept="image/png, image/jpg, image/jpeg" capture="environment" className="hidden" onChange={handleFileChange} disabled={formData.mediaUrls.length > 0} />
+                        </label>
+                        <div className="w-px bg-border my-6"></div>
+                        <label className="flex-1 flex flex-col items-center justify-center gap-1 md:gap-2 cursor-pointer hover:bg-muted/80 rounded-r-xl transition-colors z-10">
+                          <svg className="h-6 w-6 md:h-8 md:w-8 text-muted-foreground transition-colors group-hover:text-primary" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12" />
+                          </svg>
+                          <span className="text-xs md:text-sm font-medium text-muted-foreground">{t('browse', 'Browse Files')}</span>
+                          <input type="file" accept="image/png, image/jpg, image/jpeg" multiple className="hidden" onChange={handleFileChange} disabled={formData.mediaUrls.length > 0} />
+                        </label>
+                        <div className="absolute bottom-2 left-0 right-0 text-center pointer-events-none">
+                          <span className="text-[10px] md:text-xs text-muted-foreground px-2">{t('img_formats_limit')}</span>
+                        </div>
                       </div>
                     )}
                   </div>
-                )}
+                </div>
+                {errors.media && <p className="mt-2 text-xs text-red-600">{errors.media}</p>}
+              </div>
 
-                {formData.mediaUrls.length > 0 && (
-                  <div className="mt-4">
-                    <div className="w-full rounded-xl py-4 md:py-6 px-4 bg-green-500/10 border border-green-500/20 text-center">
-                      <div className="flex flex-col items-center gap-1 md:gap-2">
-                        <svg className="w-6 h-6 md:w-8 md:h-8 text-green-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
-                        </svg>
-                        <span className="text-green-600 text-xs md:text-sm font-semibold">{t('img_up_success')}</span>
-                        <span className="text-green-600/80 text-[10px] md:text-xs">{formData.mediaUrls.length} {t('img_ready')}</span>
-                      </div>
+              {formData.media.length > 0 && formData.mediaUrls.length === 0 && (
+                <div className="mt-4">
+                  <button
+                    type="button" onClick={handleUploadMedia} disabled={isUploading}
+                    className="w-full rounded-xl py-2.5 md:py-3 text-sm md:text-base font-semibold text-white shadow-lg transition-all hover:scale-[1.02] active:scale-[0.98] disabled:opacity-50 disabled:cursor-not-allowed bg-gradient-to-r from-cyan-600 to-teal-600"
+                  >
+                    {isUploading ? t('uploading') : t('upload_files_btn')}
+                  </button>
+                  {uploadError && (
+                    <div className="mt-2 rounded-lg bg-red-500/10 border border-red-500/20 p-3">
+                      <p className="text-xs text-red-500 font-medium">{uploadError}</p>
+                    </div>
+                  )}
+                </div>
+              )}
+
+              {formData.mediaUrls.length > 0 && (
+                <div className="mt-4">
+                  <div className="w-full rounded-xl py-4 md:py-6 px-4 bg-green-500/10 border border-green-500/20 text-center">
+                    <div className="flex flex-col items-center gap-1 md:gap-2">
+                      <svg className="w-6 h-6 md:w-8 md:h-8 text-green-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+                      </svg>
+                      <span className="text-green-600 text-xs md:text-sm font-semibold">{t('img_up_success')}</span>
+                      <span className="text-green-600/80 text-[10px] md:text-xs">{formData.mediaUrls.length} {t('img_ready')}</span>
                     </div>
                   </div>
-                )}
-              </div>
+                </div>
+              )}
 
               {formData.media.length > 0 && formData.mediaUrls.length === 0 && (
                 <div className="mt-4 md:mt-6">
