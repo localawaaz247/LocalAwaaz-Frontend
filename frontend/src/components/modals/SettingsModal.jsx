@@ -1,18 +1,19 @@
 /* eslint-disable react-hooks/set-state-in-effect */
 import React, { useState, useEffect } from "react";
-import { Settings, Bell, Mail, Shield, ArrowRight } from "lucide-react";
+import { Settings, Bell, Mail, Shield, ArrowRight, Globe } from "lucide-react";
 import { useSelector } from "react-redux";
 import axiosInstance from "../../utils/axios";
 import { showToast } from "../../utils/toast";
 
 const SettingsModal = ({ isOpen, onClose }) => {
   const user = useSelector((state) => state.auth?.user);
-  
+
   const preferences = user?.preferences || {};
 
   const [settings, setSettings] = useState({
     emailNotifications: preferences.globalNotifications !== undefined ? preferences.globalNotifications : true,
     anonymousReports: preferences.globalAnonymous !== undefined ? preferences.globalAnonymous : false,
+    language: preferences.language || "en", // <-- Added language
   });
 
   useEffect(() => {
@@ -20,6 +21,7 @@ const SettingsModal = ({ isOpen, onClose }) => {
       setSettings({
         emailNotifications: user.preferences.globalNotifications !== undefined ? user.preferences.globalNotifications : true,
         anonymousReports: user.preferences.globalAnonymous !== undefined ? user.preferences.globalAnonymous : false,
+        language: user.preferences.language || "en", // <-- Added language
       });
     }
   }, [user]);
@@ -34,24 +36,25 @@ const SettingsModal = ({ isOpen, onClose }) => {
   const handleSubmit = async () => {
     try {
       const payload = {
-        globalNotification: settings.emailNotifications, 
-        isAnonymous: settings.anonymousReports
+        globalNotification: settings.emailNotifications,
+        isAnonymous: settings.anonymousReports, // <-- RESTORED your original working logic!
+        language: settings.language // <-- Added language to payload
       };
 
       const response = await axiosInstance.patch('/me/profile', payload);
-      
+
       console.log("Settings saved:", response.data);
-      showToast({ 
-        icon: 'success', 
+      showToast({
+        icon: 'success',
         title: 'Settings saved successfully!',
         subtitle: 'Your preferences have been updated'
       });
       onClose();
-      
+
     } catch (error) {
       console.error("Error saving settings:", error);
-      showToast({ 
-        icon: 'error', 
+      showToast({
+        icon: 'error',
         title: 'Failed to save settings',
         subtitle: error.response?.data?.message || 'Please try again'
       });
@@ -84,6 +87,36 @@ const SettingsModal = ({ isOpen, onClose }) => {
             </p>
           </div>
 
+          {/* --- NEW LANGUAGE OPTION START --- */}
+          <div className="flex items-center justify-between p-4 bg-muted/30 rounded-xl border border-border/50 hover:border-border transition-colors">
+            <div className="flex items-center gap-3">
+              <div className="w-10 h-10 rounded-lg bg-primary/10 flex items-center justify-center border border-primary/20">
+                <Globe className="w-5 h-5 text-primary" />
+              </div>
+              <div>
+                <h4 className="font-semibold text-foreground text-sm sm:text-base">Language</h4>
+                <p className="text-xs sm:text-sm text-muted-foreground">Choose your preferred language</p>
+              </div>
+            </div>
+
+            {/* UPDATED CSS HERE */}
+            <select
+              value={settings.language}
+              onChange={(e) => setSettings(prev => ({ ...prev, language: e.target.value }))}
+              className="bg-background border border-border/50 hover:border-border rounded-xl pl-4 pr-10 py-2 text-sm font-medium outline-none focus:ring-2 focus:ring-primary/50 text-foreground shadow-sm transition-all duration-200 cursor-pointer appearance-none relative"
+              style={{
+                backgroundImage: `url("data:image/svg+xml;charset=UTF-8,%3csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='currentColor' stroke='currentColor' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3e%3cpolyline points='6 9 12 15 18 9'%3e%3c/polyline%3e%3c/svg%3e")`,
+                backgroundRepeat: 'no-repeat',
+                backgroundPosition: 'right 1rem center',
+                backgroundSize: '1em'
+              }}
+            >
+              <option value="en">English</option>
+              <option value="hi">हिंदी (Hindi)</option>
+            </select>
+          </div>
+          {/* --- NEW LANGUAGE OPTION END --- */}
+
           <div className="flex items-center justify-between p-4 bg-muted/30 rounded-xl border border-border/50 hover:border-border transition-colors">
             <div className="flex items-center gap-3">
               <div className="w-10 h-10 rounded-lg bg-primary/10 flex items-center justify-center border border-primary/20">
@@ -96,14 +129,12 @@ const SettingsModal = ({ isOpen, onClose }) => {
             </div>
             <button
               onClick={() => handleToggle('emailNotifications')}
-              className={`relative w-12 h-6 rounded-full transition-colors duration-200 flex-shrink-0 ${
-                settings.emailNotifications ? 'bg-primary' : 'bg-muted border border-border'
-              }`}
+              className={`relative w-12 h-6 rounded-full transition-colors duration-200 flex-shrink-0 ${settings.emailNotifications ? 'bg-primary' : 'bg-muted border border-border'
+                }`}
             >
               <div
-                className={`absolute top-0.5 w-5 h-5 bg-white rounded-full transition-transform duration-200 shadow-sm ${
-                  settings.emailNotifications ? 'translate-x-6' : 'translate-x-0.5'
-                }`}
+                className={`absolute top-0.5 w-5 h-5 bg-white rounded-full transition-transform duration-200 shadow-sm ${settings.emailNotifications ? 'translate-x-6' : 'translate-x-0.5'
+                  }`}
               />
             </button>
           </div>
@@ -120,14 +151,12 @@ const SettingsModal = ({ isOpen, onClose }) => {
             </div>
             <button
               onClick={() => handleToggle('anonymousReports')}
-              className={`relative w-12 h-6 rounded-full transition-colors duration-200 flex-shrink-0 ${
-                settings.anonymousReports ? 'bg-primary' : 'bg-muted border border-border'
-              }`}
+              className={`relative w-12 h-6 rounded-full transition-colors duration-200 flex-shrink-0 ${settings.anonymousReports ? 'bg-primary' : 'bg-muted border border-border'
+                }`}
             >
               <div
-                className={`absolute top-0.5 w-5 h-5 bg-white rounded-full transition-transform duration-200 shadow-sm ${
-                  settings.anonymousReports ? 'translate-x-6' : 'translate-x-0.5'
-                }`}
+                className={`absolute top-0.5 w-5 h-5 bg-white rounded-full transition-transform duration-200 shadow-sm ${settings.anonymousReports ? 'translate-x-6' : 'translate-x-0.5'
+                  }`}
               />
             </button>
           </div>
