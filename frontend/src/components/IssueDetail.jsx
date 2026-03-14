@@ -3,7 +3,8 @@ import { useState, useEffect } from "react";
 import { useSelector } from "react-redux";
 import axiosInstance from "../utils/axios";
 import { showToast } from "../utils/toast";
-import SEO from "../components/SEO"; // <-- 1. Added SEO Import
+import SEO from "../components/SEO";
+import { useTranslation } from "react-i18next";
 
 const WhatsappIcon = ({ size = 20, className = "" }) => (
   <svg xmlns="http://www.w3.org/2000/svg" width={size} height={size} viewBox="0 0 24 24" fill="currentColor" className={className}>
@@ -22,6 +23,7 @@ const FLAG_REASONS = [
 ];
 
 const IssueDetail = ({ issue, isOpen, onClose, hideConfirm = false, isAdminView = false }) => {
+  const { t } = useTranslation();
   const [currentMediaIndex, setCurrentMediaIndex] = useState(0);
   const [confirmLoading, setConfirmLoading] = useState(false);
 
@@ -33,7 +35,6 @@ const IssueDetail = ({ issue, isOpen, onClose, hideConfirm = false, isAdminView 
   const [isConfirmedByUser, setIsConfirmedByUser] = useState(false);
   const [isCopied, setIsCopied] = useState(false);
 
-  // Flag Modal States
   const [isFlagOpen, setIsFlagOpen] = useState(false);
   const [flagReason, setFlagReason] = useState("");
   const [isFlagging, setIsFlagging] = useState(false);
@@ -117,14 +118,14 @@ const IssueDetail = ({ issue, isOpen, onClose, hideConfirm = false, isAdminView 
 
   const handleWhatsappShare = (e) => {
     e.stopPropagation(); setLocalShareCount(prev => prev + 1); incrementShare();
-    const text = encodeURIComponent(`Check out this issue on LocalAwaaz: ${title}\n\n${window.location.origin}/issue/${_id}`);
+    const text = encodeURIComponent(`${t('check_out_issue')}: ${title}\n\n${window.location.origin}/issue/${_id}`);
     window.open(`https://wa.me/?text=${text}`, '_blank');
   };
 
   const handleCopyLink = (e) => {
     e.stopPropagation(); setLocalShareCount(prev => prev + 1); incrementShare();
     navigator.clipboard.writeText(`${window.location.origin}/issue/${_id}`);
-    setIsCopied(true); showToast({ icon: 'success', title: 'Link copied to clipboard!' });
+    setIsCopied(true); showToast({ icon: 'success', title: t('link_copied') });
     setTimeout(() => setIsCopied(false), 2000);
   };
 
@@ -143,14 +144,14 @@ const IssueDetail = ({ issue, isOpen, onClose, hideConfirm = false, isAdminView 
         setLocalConfirmationCount(prev => prev + 1);
         setIsConfirmedByUser(true);
       }
-      showToast({ icon: 'success', title: response.data?.message || 'Issue Confirmed successfully!' });
+      showToast({ icon: 'success', title: response.data?.message || t('issue_confirmed_success') });
     } catch (error) {
       const errorMsg = error.response?.data?.message?.toLowerCase() || "";
       if (errorMsg.includes("already") || errorMsg.includes("confirmed")) {
         setIsConfirmedByUser(true);
-        showToast({ icon: 'info', title: error.response?.data?.message || 'You have already confirmed this issue.' });
+        showToast({ icon: 'info', title: error.response?.data?.message || t('already_confirmed') });
       } else {
-        showToast({ icon: 'error', title: error.response?.data?.message || 'Action completed or already applied.' });
+        showToast({ icon: 'error', title: error.response?.data?.message || t('action_completed') });
       }
     } finally {
       setConfirmLoading(false);
@@ -159,7 +160,7 @@ const IssueDetail = ({ issue, isOpen, onClose, hideConfirm = false, isAdminView 
 
   const submitFlag = async () => {
     if (!flagReason) {
-      showToast({ icon: 'error', title: 'Please select a reason' });
+      showToast({ icon: 'error', title: t('select_flag_reason') });
       return;
     }
 
@@ -170,18 +171,18 @@ const IssueDetail = ({ issue, isOpen, onClose, hideConfirm = false, isAdminView 
       if (coords?.longitude && coords?.latitude) {
         url += `?lng=${coords.longitude}&lat=${coords.latitude}`;
       } else {
-        showToast({ icon: 'error', title: 'Location required to flag an issue.' });
+        showToast({ icon: 'error', title: t('flag_req_location') });
         setIsFlagging(false);
         return;
       }
 
       await axiosInstance.post(url, {});
       setLocalFlagCount(prev => prev + 1);
-      showToast({ icon: 'success', title: 'Issue flagged successfully' });
+      showToast({ icon: 'success', title: t('flag_success') });
       setIsFlagOpen(false);
       setFlagReason("");
     } catch (error) {
-      const errorMsg = error.response?.data?.message || 'Failed to flag issue. You may have already flagged it.';
+      const errorMsg = error.response?.data?.message || t('flag_failed');
       showToast({ icon: 'error', title: errorMsg });
       setIsFlagOpen(false);
     } finally {
@@ -190,9 +191,9 @@ const IssueDetail = ({ issue, isOpen, onClose, hideConfirm = false, isAdminView 
   };
 
   function formatDate(isoDate) {
-    if (!isoDate) return 'Recent';
+    if (!isoDate) return t('recent');
     const date = new Date(isoDate);
-    if (isNaN(date.getTime())) return 'Recent';
+    if (isNaN(date.getTime())) return t('recent');
     return date.toLocaleDateString("en-GB", { day: "2-digit", month: "short", year: "numeric", hour: "2-digit", minute: "2-digit" });
   }
 
@@ -200,13 +201,12 @@ const IssueDetail = ({ issue, isOpen, onClose, hideConfirm = false, isAdminView 
 
   return (
     <>
-      {/* 2. ONLY render SEO tags when the modal is actually open and an issue exists */}
       {isOpen && issue && (
         <SEO
           title={title}
           description={description ? description.substring(0, 150) + "..." : "View details about this local issue on LocalAwaaz."}
           url={`/issue/${_id}`}
-          image={displayImage} // Dynamically pulls the first uploaded photo or falls back to your default
+          image={displayImage}
         />
       )}
 
@@ -221,14 +221,13 @@ const IssueDetail = ({ issue, isOpen, onClose, hideConfirm = false, isAdminView 
         >
           {issue && (
             <>
-              {/* Header */}
               <div className="flex justify-between items-center p-4 md:p-5 border-b border-border/50 bg-muted/30 shrink-0 rounded-t-2xl">
                 <div className="flex items-center gap-2 flex-wrap">
                   <span className={`px-3 py-1.5 rounded-full text-[10px] md:text-xs font-bold uppercase tracking-wider border ${colors[color] || colors.emerald}`}>
-                    {safeStatus}
+                    {t(safeStatus.toLowerCase())}
                   </span>
                   <span className="px-3 py-1.5 rounded-full bg-background text-muted-foreground border border-border/60 text-[10px] md:text-xs font-bold uppercase tracking-wider shadow-sm">
-                    {category?.replace(/_/g, ' ')}
+                    {t(category?.toLowerCase()) || category?.replace(/_/g, ' ')}
                   </span>
                 </div>
 
@@ -237,7 +236,6 @@ const IssueDetail = ({ issue, isOpen, onClose, hideConfirm = false, isAdminView 
                 </button>
               </div>
 
-              {/* Scrollable Body */}
               <div className="overflow-y-auto w-full thin-scrollbar p-4 md:p-8 flex-1 min-h-0 bg-background/50">
                 <div className="mb-6">
                   <h2 className="text-2xl sm:text-3xl font-extrabold text-foreground mb-3 leading-tight tracking-tight">
@@ -245,7 +243,7 @@ const IssueDetail = ({ issue, isOpen, onClose, hideConfirm = false, isAdminView 
                   </h2>
                   {priority && (
                     <span className={`inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-bold border ${priorityColors[priority]}`}>
-                      <AlertTriangle size={14} /> {priority} Priority
+                      <AlertTriangle size={14} /> {t(priority.toLowerCase())} {t('priority')}
                     </span>
                   )}
                 </div>
@@ -286,7 +284,7 @@ const IssueDetail = ({ issue, isOpen, onClose, hideConfirm = false, isAdminView 
                     ) : (
                       <div className="h-[220px] sm:h-[300px] lg:h-[360px] rounded-2xl bg-card border border-border/50 flex flex-col items-center justify-center shadow-sm">
                         <AlertTriangle size={48} className="mb-4 text-muted-foreground/50" />
-                        <p className="text-base font-medium text-muted-foreground">No media provided</p>
+                        <p className="text-base font-medium text-muted-foreground">{t('no_media_provided')}</p>
                       </div>
                     )}
                   </div>
@@ -294,17 +292,17 @@ const IssueDetail = ({ issue, isOpen, onClose, hideConfirm = false, isAdminView 
                   <div className="w-full lg:w-2/5 flex flex-col gap-4">
                     <div className="bg-card rounded-2xl p-5 border border-border/50 shadow-sm flex-1">
                       <h4 className="text-[11px] font-bold text-blue-600 dark:text-blue-500 mb-3 uppercase tracking-widest flex items-center gap-2">
-                        <MapPin size={16} /> Location
+                        <MapPin size={16} /> {t('location')}
                       </h4>
                       <div className="space-y-1.5">
-                        <p className="text-foreground font-bold text-lg leading-tight">{typeof location === 'string' ? location : location?.address || 'Location not provided'}</p>
+                        <p className="text-foreground font-bold text-lg leading-tight">{typeof location === 'string' ? location : location?.address || t('location_not_provided')}</p>
                         {location?.city && <p className="text-muted-foreground text-sm font-medium">{location?.city}, {location?.state} {location?.pinCode}</p>}
                       </div>
                     </div>
 
                     <div className="bg-card rounded-2xl p-5 border border-border/50 shadow-sm flex-1">
                       <h4 className="text-[11px] font-bold text-emerald-600 dark:text-emerald-500 mb-3 uppercase tracking-widest flex items-center gap-2">
-                        <User size={16} /> Reported By
+                        <User size={16} /> {t('reported_by')}
                       </h4>
                       {!isAnonymous && reportedBy ? (
                         <div className="flex flex-col">
@@ -312,21 +310,21 @@ const IssueDetail = ({ issue, isOpen, onClose, hideConfirm = false, isAdminView 
                             <p className="text-foreground font-bold text-lg leading-tight">{reportedBy.name}</p>
                             {isVerified && (
                               <span className="flex items-center gap-1 text-emerald-600 dark:text-emerald-400 bg-emerald-500/10 px-2 py-0.5 rounded text-[10px] font-bold uppercase border border-emerald-500/20">
-                                <ShieldCheck size={12} /> Verified
+                                <ShieldCheck size={12} /> {t('verified')}
                               </span>
                             )}
                           </div>
                           <p className="text-muted-foreground text-sm font-medium mt-1">@{reportedBy.userName}</p>
 
                           <div className="mt-4 bg-background border border-border/50 px-4 py-2.5 rounded-xl inline-flex items-center gap-3 w-fit shadow-sm">
-                            <span className="text-xs text-muted-foreground font-medium">Civil Score: <strong className="text-foreground ml-1 text-sm">{reportedBy.civilScore}</strong></span>
+                            <span className="text-xs text-muted-foreground font-medium">{t('civil_score')} <strong className="text-foreground ml-1 text-sm">{reportedBy.civilScore}</strong></span>
                             <span className="w-px h-4 bg-border"></span>
-                            <span className="text-xs text-muted-foreground font-medium">Reports: <strong className="text-foreground ml-1 text-sm">{reportedBy.issuesReported}</strong></span>
+                            <span className="text-xs text-muted-foreground font-medium">{t('reports_count')} <strong className="text-foreground ml-1 text-sm">{reportedBy.issuesReported}</strong></span>
                           </div>
                         </div>
                       ) : (
                         <div className="flex items-center gap-2 text-muted-foreground font-medium">
-                          <User size={18} /> Anonymous Citizen
+                          <User size={18} /> {t('anonymous_citizen')}
                         </div>
                       )}
                     </div>
@@ -335,7 +333,7 @@ const IssueDetail = ({ issue, isOpen, onClose, hideConfirm = false, isAdminView 
 
                 <div className="bg-card rounded-2xl p-5 md:p-6 mb-6 border border-border/50 shadow-sm">
                   <h4 className="text-sm font-bold text-blue-600 dark:text-blue-500 mb-3 flex items-center gap-2 uppercase tracking-widest">
-                    <FileText size={16} /> Description
+                    <FileText size={16} /> {t('description')}
                   </h4>
                   <p className="text-sm md:text-base text-foreground/80 leading-relaxed whitespace-pre-wrap">
                     {description}
@@ -345,30 +343,29 @@ const IssueDetail = ({ issue, isOpen, onClose, hideConfirm = false, isAdminView 
                 <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 md:gap-4">
                   <div className="bg-card border border-border/50 rounded-xl p-4 text-center shadow-sm">
                     <div className="text-2xl font-black text-emerald-600 dark:text-emerald-500 mb-1">{localConfirmationCount}</div>
-                    <div className="text-[10px] font-bold text-muted-foreground uppercase tracking-widest">Confirmations</div>
+                    <div className="text-[10px] font-bold text-muted-foreground uppercase tracking-widest">{t('confirmations')}</div>
                   </div>
                   <div className="bg-card border border-border/50 rounded-xl p-4 text-center shadow-sm">
                     <div className="text-2xl font-black text-orange-600 dark:text-orange-500 mb-1">{impactScore || 0}</div>
-                    <div className="text-[10px] font-bold text-muted-foreground uppercase tracking-widest">Impact Score</div>
+                    <div className="text-[10px] font-bold text-muted-foreground uppercase tracking-widest">{t('impact_score')}</div>
                   </div>
                   <div className="bg-card border border-border/50 rounded-xl p-4 text-center flex flex-col justify-center items-center shadow-sm">
                     <div className="text-sm font-bold text-foreground mb-1 mt-1">{formatDate(dateOfFormation || createdAt)}</div>
-                    <div className="text-[10px] font-bold text-muted-foreground uppercase tracking-widest">Reported</div>
+                    <div className="text-[10px] font-bold text-muted-foreground uppercase tracking-widest">{t('reported')}</div>
                   </div>
                   <div className="bg-card border border-border/50 rounded-xl p-4 text-center flex flex-col justify-center items-center shadow-sm">
-                    <div className="text-sm font-bold text-foreground mb-1 mt-1">{isPublic ? 'Public' : 'Private'}</div>
-                    <div className="text-[10px] font-bold text-muted-foreground uppercase tracking-widest">Visibility</div>
+                    <div className="text-sm font-bold text-foreground mb-1 mt-1">{isPublic ? t('public') : t('private')}</div>
+                    <div className="text-[10px] font-bold text-muted-foreground uppercase tracking-widest">{t('visibility')}</div>
                   </div>
                 </div>
               </div>
 
-              {/* Footer */}
               <div className="p-4 md:px-5 border-t border-border/50 bg-muted/30 shrink-0 flex flex-col sm:flex-row items-center justify-between gap-4 z-10 rounded-b-2xl">
                 <div className="flex items-center justify-between sm:justify-start w-full sm:w-auto gap-4">
                   <div className="text-sm text-muted-foreground font-medium flex gap-3">
-                    <span><strong className="text-foreground">{localShareCount}</strong> Shares</span>
+                    <span><strong className="text-foreground">{localShareCount}</strong> {t('shares')}</span>
                     <span>•</span>
-                    <span><strong className="text-foreground">{localFlagCount}</strong> Flags</span>
+                    <span><strong className="text-foreground">{localFlagCount}</strong> {t('flags')}</span>
                   </div>
 
                   <div className="flex items-center gap-2 pl-4 border-l border-border/50">
@@ -383,7 +380,7 @@ const IssueDetail = ({ issue, isOpen, onClose, hideConfirm = false, isAdminView 
 
                 <div className="flex items-center gap-3 w-full sm:w-auto">
                   <button onClick={() => setIsFlagOpen(true)} className="flex-1 sm:flex-none flex items-center justify-center gap-2 px-5 py-2.5 sm:py-3 rounded-xl text-sm font-bold transition-all bg-red-500/10 text-red-600 dark:text-red-500 border border-red-500/20 hover:bg-red-500/20">
-                    <Flag size={16} /> Flag
+                    <Flag size={16} /> {t('flag_issue')}
                   </button>
 
                   {!hideConfirm && (
@@ -400,9 +397,9 @@ const IssueDetail = ({ issue, isOpen, onClose, hideConfirm = false, isAdminView 
                       {confirmLoading ? (
                         "..."
                       ) : isConfirmedByUser ? (
-                        <><CheckCircle2 size={18} /> Confirmed</>
+                        <><CheckCircle2 size={18} /> {t('confirmed')}</>
                       ) : (
-                        <><CheckCircle2 size={18} /> I Confirm This</>
+                        <><CheckCircle2 size={18} /> {t('i_confirm_this')}</>
                       )}
                     </button>
                   )}
@@ -422,7 +419,7 @@ const IssueDetail = ({ issue, isOpen, onClose, hideConfirm = false, isAdminView 
                   <div className="p-2.5 bg-red-500/10 rounded-full text-red-500">
                     <Flag size={20} />
                   </div>
-                  <h3 className="text-xl font-bold text-foreground">Flag Issue</h3>
+                  <h3 className="text-xl font-bold text-foreground">{t('flag_issue')}</h3>
                 </div>
                 <button onClick={() => setIsFlagOpen(false)} className="p-2 rounded-full bg-background text-muted-foreground hover:text-foreground hover:bg-muted transition-colors border border-border/50">
                   <X size={18} />
@@ -431,35 +428,36 @@ const IssueDetail = ({ issue, isOpen, onClose, hideConfirm = false, isAdminView 
 
               <AlertTriangle className="w-12 h-12 text-yellow-500 mb-4" />
               <p className="text-sm text-muted-foreground text-center mb-6 font-medium">
-                Please select a reason for flagging this issue. This helps us understand and review the report appropriately.
+                {t('flag_reason_desc')}
               </p>
 
               <div className="w-full mb-6 text-left">
-                <span className="text-xs font-bold text-foreground mb-3 block">Flag Reason <span className="text-red-500">*</span></span>
+                <span className="text-xs font-bold text-foreground mb-3 block">{t('flag_reason')} <span className="text-red-500">*</span></span>
 
                 <div className="space-y-2.5 max-h-[240px] overflow-y-auto thin-scrollbar pr-2">
-                  {FLAG_REASONS.map((reason) => (
-                    <label key={reason} className={`flex items-center gap-3 p-3.5 rounded-xl border cursor-pointer transition-all duration-200 ${flagReason === reason ? 'bg-red-500/10 border-red-500 shadow-sm' : 'bg-background border-border hover:border-muted-foreground/30'
-                      }`}>
-                      <div className={`w-4 h-4 rounded-full border flex items-center justify-center shrink-0 transition-colors ${flagReason === reason ? 'border-red-500' : 'border-muted-foreground/50'}`}>
-                        {flagReason === reason && <div className="w-2 h-2 rounded-full bg-red-500" />}
-                      </div>
-                      <span className={`text-[13px] font-bold tracking-widest uppercase flex-1 transition-colors ${flagReason === reason ? 'text-red-600 dark:text-red-500' : 'text-muted-foreground'}`}>
-                        {reason}
-                      </span>
-                      <input type="radio" className="hidden" value={reason} checked={flagReason === reason} onChange={(e) => setFlagReason(e.target.value)} />
-                    </label>
-                  ))}
+                  {FLAG_REASONS.map((reason) => {
+                    const translationKey = reason.toLowerCase().replace(' ', '_');
+                    return (
+                      <label key={reason} className={`flex items-center gap-3 p-3.5 rounded-xl border cursor-pointer transition-all duration-200 ${flagReason === reason ? 'bg-red-500/10 border-red-500 shadow-sm' : 'bg-background border-border hover:border-muted-foreground/30'}`}>
+                        <div className={`w-4 h-4 rounded-full border flex items-center justify-center shrink-0 transition-colors ${flagReason === reason ? 'border-red-500' : 'border-muted-foreground/50'}`}>
+                          {flagReason === reason && <div className="w-2 h-2 rounded-full bg-red-500" />}
+                        </div>
+                        <span className={`text-[13px] font-bold tracking-widest uppercase flex-1 transition-colors ${flagReason === reason ? 'text-red-600 dark:text-red-500' : 'text-muted-foreground'}`}>
+                          {t(translationKey)}
+                        </span>
+                        <input type="radio" className="hidden" value={reason} checked={flagReason === reason} onChange={(e) => setFlagReason(e.target.value)} />
+                      </label>
+                    );
+                  })}
                 </div>
               </div>
 
               <div className="w-full flex gap-3 pt-2">
                 <button onClick={() => setIsFlagOpen(false)} className="flex-1 py-3.5 rounded-xl border border-border bg-background text-foreground hover:bg-muted font-bold transition-colors shadow-sm">
-                  Cancel
+                  {t('cancel')}
                 </button>
-                <button onClick={submitFlag} disabled={isFlagging} className={`flex-1 py-3.5 rounded-xl font-bold transition-all duration-200 ${flagReason ? 'bg-red-600 hover:bg-red-700 text-white shadow-lg' : 'bg-red-600/30 text-white/40 cursor-not-allowed'
-                  }`}>
-                  {isFlagging ? 'Submitting...' : 'Flag Issue'}
+                <button onClick={submitFlag} disabled={isFlagging} className={`flex-1 py-3.5 rounded-xl font-bold transition-all duration-200 ${flagReason ? 'bg-red-600 hover:bg-red-700 text-white shadow-lg' : 'bg-red-600/30 text-white/40 cursor-not-allowed'}`}>
+                  {isFlagging ? t('submitting') : t('flag_issue')}
                 </button>
               </div>
 

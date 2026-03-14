@@ -3,9 +3,11 @@ import { useDispatch } from "react-redux";
 import { useNavigate } from "react-router-dom";
 import { Calendar, CheckCircle, Flag, TrendingUp, Image as ImageIcon, Edit2, X, Loader2 } from "lucide-react";
 import axiosInstance from "../utils/axios";
-import { showToast } from "../utils/toast"; // Assuming you have a toast utility
+import { showToast } from "../utils/toast";
+import { useTranslation } from "react-i18next";
 
 const IssuesPosted = () => {
+  const { t } = useTranslation();
   const dispatch = useDispatch();
   const navigate = useNavigate();
 
@@ -15,7 +17,6 @@ const IssuesPosted = () => {
   const [hasMore, setHasMore] = useState(true);
   const [displayedIssues, setDisplayedIssues] = useState([]);
 
-  // Edit Modal State
   const [editingIssue, setEditingIssue] = useState(null);
 
   useEffect(() => {
@@ -50,14 +51,12 @@ const IssuesPosted = () => {
     }
   };
 
-  // Update specific issue in local state instantly after successful edit
   const handleIssueUpdated = (updatedIssue) => {
     setIssues(prev => prev.map(issue => issue._id === updatedIssue._id ? updatedIssue : issue));
     setDisplayedIssues(prev => prev.map(issue => issue._id === updatedIssue._id ? updatedIssue : issue));
     setEditingIssue(null);
   };
 
-  // Helper for consistent status colors
   const getStatusStyles = (status) => {
     const s = status?.toUpperCase() || 'OPEN';
     if (s === 'RESOLVED') return 'bg-blue-500/10 text-blue-600 border-blue-500/20';
@@ -78,7 +77,7 @@ const IssuesPosted = () => {
     <div className="space-y-4">
       {issues.length === 0 && !loading ? (
         <div className="text-center py-12 bg-muted/30 rounded-xl border border-border/50">
-          <p className="text-muted-foreground">You haven't posted any issues yet.</p>
+          <p className="text-muted-foreground">{t('no_posted_issues')}</p>
         </div>
       ) : (
         <>
@@ -98,22 +97,21 @@ const IssuesPosted = () => {
                     <div className="flex justify-between items-start">
                       <div className="flex items-center gap-2 mb-2 flex-wrap">
                         <span className={`text-[10px] md:text-xs px-2.5 py-1 rounded-lg border font-bold uppercase tracking-wider ${getStatusStyles(issue.status)}`}>
-                          {issue.status || 'OPEN'}
+                          {t(issue.status?.toLowerCase() || 'open')}
                         </span>
                         <span className="text-[10px] md:text-xs px-2.5 py-1 rounded-lg bg-muted text-muted-foreground border border-border font-medium">
-                          {issue.category}
+                          {t(issue.category?.toLowerCase()) || issue.category}
                         </span>
                       </div>
 
-                      {/* EDIT BUTTON - Only show if OPEN */}
                       {issue.status === 'OPEN' && (
                         <button
                           onClick={(e) => {
-                            e.stopPropagation(); // Prevents navigating to dashboard
+                            e.stopPropagation();
                             setEditingIssue(issue);
                           }}
                           className="p-1.5 md:p-2 text-muted-foreground hover:text-primary hover:bg-primary/10 rounded-lg transition-colors"
-                          title="Edit Issue"
+                          title={t('edit_issue')}
                         >
                           <Edit2 size={16} />
                         </button>
@@ -138,22 +136,21 @@ const IssuesPosted = () => {
 
                       <span className="flex items-center gap-1.5 text-emerald-600 dark:text-emerald-400/80 bg-emerald-500/10 px-2 py-0.5 rounded-md">
                         <CheckCircle size={14} />
-                        {issue.confirmationCount || 0} Confirmed
+                        {issue.confirmationCount || 0} {t('confirmed')}
                       </span>
 
                       <span className="flex items-center gap-1.5 text-rose-600 dark:text-rose-400/80 bg-rose-500/10 px-2 py-0.5 rounded-md">
                         <Flag size={14} />
-                        {issue.flagCount || 0} Flags
+                        {issue.flagCount || 0} {t('flags')}
                       </span>
 
                       <span className="flex items-center gap-1.5 text-amber-600 dark:text-amber-400/80 bg-amber-500/10 px-2 py-0.5 rounded-md">
                         <TrendingUp size={14} />
-                        {issue.impactScore || 0} Impact
+                        {issue.impactScore || 0} {t('impact')}
                       </span>
                     </div>
                   </div>
 
-                  {/* Issue Image / Media Thumbnail */}
                   <div className="w-full sm:w-28 sm:h-28 h-40 rounded-xl bg-muted flex-shrink-0 sm:ml-2 overflow-hidden border border-border/50 relative">
                     {displayMedia ? (
                       isVideo ? (
@@ -164,7 +161,7 @@ const IssuesPosted = () => {
                     ) : (
                       <div className="w-full h-full flex flex-col items-center justify-center text-muted-foreground/50">
                         <ImageIcon size={24} />
-                        <span className="text-[10px] mt-1 font-medium">No Media</span>
+                        <span className="text-[10px] mt-1 font-medium">{t('no_media')}</span>
                       </div>
                     )}
                   </div>
@@ -173,7 +170,6 @@ const IssuesPosted = () => {
             })}
           </div>
 
-          {/* Pagination Controls */}
           {(displayedIssues.length >= 5 || issues.length > 5) && (
             <div className="flex justify-between items-center mt-6 pt-4 border-t border-border/50 gap-4">
               <button
@@ -185,10 +181,10 @@ const IssuesPosted = () => {
                 disabled={displayedIssues.length <= 5}
                 className="px-4 py-2 bg-card/50 border border-border/50 rounded-xl text-sm font-medium text-foreground hover:bg-muted transition-all duration-200 disabled:opacity-40 disabled:cursor-not-allowed"
               >
-                Previous
+                {t('previous')}
               </button>
               <span className="text-xs md:text-sm font-medium text-muted-foreground bg-muted/50 px-3 py-1 rounded-full">
-                {Math.min(displayedIssues.length, issues.length)} of {issues.length} issues
+                {Math.min(displayedIssues.length, issues.length)} {t('of')} {issues.length} {t('issues')}
               </span>
               <button
                 onClick={() => {
@@ -201,14 +197,13 @@ const IssuesPosted = () => {
                 disabled={displayedIssues.length >= issues.length && !hasMore}
                 className="px-4 py-2 bg-card/50 border border-border/50 rounded-xl text-sm font-medium text-foreground hover:bg-muted transition-all duration-200 disabled:opacity-40 disabled:cursor-not-allowed"
               >
-                Next
+                {t('next')}
               </button>
             </div>
           )}
         </>
       )}
 
-      {/* Render Edit Modal if an issue is selected */}
       {editingIssue && (
         <EditIssueModal
           issue={editingIssue}
@@ -220,8 +215,8 @@ const IssuesPosted = () => {
   );
 };
 
-// --- NEW EDIT MODAL COMPONENT ---
 const EditIssueModal = ({ issue, onClose, onSuccess }) => {
+  const { t } = useTranslation();
   const [formData, setFormData] = useState({
     title: issue.title,
     category: issue.category,
@@ -239,15 +234,14 @@ const EditIssueModal = ({ issue, onClose, onSuccess }) => {
     setIsSaving(true);
 
     try {
-      // Patch to the specific issue ID route
       const response = await axiosInstance.patch(`/issue/${issue._id}`, formData);
       if (response.data.success) {
-        showToast({ icon: "success", title: "Issue updated successfully!" });
-        onSuccess(response.data.issue); // Pass updated issue back to parent
+        showToast({ icon: "success", title: t('issue_updated_success') });
+        onSuccess(response.data.issue);
       }
     } catch (error) {
       console.error("Update failed:", error);
-      showToast({ icon: "error", title: error?.response?.data?.message || "Failed to update issue" });
+      showToast({ icon: "error", title: error?.response?.data?.message || t('issue_update_failed') });
     } finally {
       setIsSaving(false);
     }
@@ -256,71 +250,63 @@ const EditIssueModal = ({ issue, onClose, onSuccess }) => {
   return (
     <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/60 backdrop-blur-sm p-4 animate-fade-in">
       <div className="bg-card glass-card border border-border/50 rounded-2xl w-full max-w-lg shadow-2xl overflow-hidden flex flex-col max-h-[90vh]">
-
-        {/* Modal Header */}
         <div className="flex justify-between items-center p-4 md:p-6 border-b border-border/50">
-          <h3 className="text-xl font-bold text-foreground">Edit Issue</h3>
+          <h3 className="text-xl font-bold text-foreground">{t('edit_issue')}</h3>
           <button onClick={onClose} className="p-2 rounded-full text-muted-foreground hover:bg-muted transition-colors">
             <X size={20} />
           </button>
         </div>
 
-        {/* Modal Body */}
         <div className="p-4 md:p-6 overflow-y-auto thin-scrollbar flex-1">
           <form id="edit-issue-form" onSubmit={handleSubmit} className="space-y-5">
-
-            {/* Title */}
             <div className="space-y-1.5">
-              <label className="text-sm font-semibold text-muted-foreground ml-1">Issue Title <span className="text-red-500">*</span></label>
+              <label className="text-sm font-semibold text-muted-foreground ml-1">{t('issue_title')} <span className="text-red-500">*</span></label>
               <input
                 type="text"
                 required
                 value={formData.title}
                 onChange={(e) => setFormData({ ...formData, title: e.target.value })}
                 className="w-full px-4 py-3 bg-background border border-border/50 rounded-xl text-sm focus:outline-none focus:border-primary transition-colors"
-                placeholder="Brief title of the issue"
+                placeholder={t('brief_title')}
               />
             </div>
 
-            {/* Category */}
             <div className="space-y-1.5">
-              <label className="text-sm font-semibold text-muted-foreground ml-1">Category <span className="text-red-500">*</span></label>
+              <label className="text-sm font-semibold text-muted-foreground ml-1">{t('category')} <span className="text-red-500">*</span></label>
               <select
                 required
                 value={formData.category}
                 onChange={(e) => setFormData({ ...formData, category: e.target.value })}
                 className="w-full px-4 py-3 bg-background border border-border/50 rounded-xl text-sm focus:outline-none focus:border-primary transition-colors appearance-none cursor-pointer"
               >
-                <option value="" disabled>Select a category</option>
+                <option value="" disabled>{t('select_category')}</option>
                 {categories.map((cat) => (
                   <option key={cat} value={cat}>
-                    {cat.replace(/_/g, ' ')}
+                    {t(cat.toLowerCase()) || cat.replace(/_/g, ' ')}
                   </option>
                 ))}
               </select>
             </div>
 
-            {/* Description */}
             <div className="space-y-1.5">
-              <label className="text-sm font-semibold text-muted-foreground ml-1">Description <span className="text-red-500">*</span></label>
+              <label className="text-sm font-semibold text-muted-foreground ml-1">{t('description')} <span className="text-red-500">*</span></label>
               <textarea
                 required
                 rows={5}
                 value={formData.description}
                 onChange={(e) => setFormData({ ...formData, description: e.target.value })}
                 className="w-full px-4 py-3 bg-background border border-border/50 rounded-xl text-sm focus:outline-none focus:border-primary transition-colors resize-none"
-                placeholder="Provide details about the issue..."
+                placeholder={t('issue_desc_placeholder')}
               />
             </div>
 
             <p className="text-xs text-muted-foreground italic ml-1">
-              Note: To update location or media, please delete and report a new issue.
+              {t('edit_note')}
             </p>
 
           </form>
         </div>
 
-        {/* Modal Footer */}
         <div className="p-4 md:p-6 border-t border-border/50 bg-muted/20 flex gap-3">
           <button
             type="button"
@@ -328,7 +314,7 @@ const EditIssueModal = ({ issue, onClose, onSuccess }) => {
             disabled={isSaving}
             className="flex-1 py-3 rounded-xl font-semibold border border-border bg-card hover:bg-muted transition-colors text-sm"
           >
-            Cancel
+            {t('cancel')}
           </button>
           <button
             type="submit"
@@ -337,8 +323,8 @@ const EditIssueModal = ({ issue, onClose, onSuccess }) => {
             className="flex-1 btn-gradient py-3 rounded-xl font-semibold shadow-md disabled:opacity-50 disabled:cursor-not-allowed flex justify-center items-center gap-2 text-sm"
           >
             {isSaving ? (
-              <><Loader2 className="w-4 h-4 animate-spin" /> Saving...</>
-            ) : "Save Changes"}
+              <><Loader2 className="w-4 h-4 animate-spin" /> {t('saving')}</>
+            ) : t('save_changes')}
           </button>
         </div>
 

@@ -7,19 +7,20 @@ import { Avatar, AvatarFallback, AvatarImage } from '../components/ui/avatar'
 import ChatInput from '../components/ChatInput'
 import IssueCard from '../components/IssueCard'
 import axiosInstance from '../utils/axios'
-
-const QUICK_FAQS = [
-  { icon: "📝", text: "How do I post a report?" },
-  { icon: "🕵️‍♂️", text: "Can I post anonymously?" },
-  { icon: "📍", text: "What issues are near me?" },
-  { icon: "🏆", text: "Show me the city leaderboard" }
-];
+import { useTranslation } from "react-i18next";
 
 const Assistant = () => {
+  const { t } = useTranslation();
   const navigate = useNavigate();
   const user = useSelector((state) => state.auth?.user);
 
-  // --- SECURE SESSION STORAGE (Tied to specific User ID) ---
+  const QUICK_FAQS = [
+    { icon: "📝", text: t('faq_how_report') },
+    { icon: "🕵️‍♂️", text: t('faq_anonymous') },
+    { icon: "📍", text: t('faq_near_me') },
+    { icon: "🏆", text: t('faq_leaderboard') }
+  ];
+
   const userId = user?._id || 'guest';
 
   const [messages, setMessages] = useState(() => {
@@ -43,8 +44,6 @@ const Assistant = () => {
   const [pendingReport, setPendingReport] = useState(null)
   const messagesEndRef = useRef(null);
 
-  // --- HANDLE USER SWITCHING IN SAME TAB ---
-  // If the logged-in user changes without refreshing the page, swap their chat histories securely
   useEffect(() => {
     const savedMessages = sessionStorage.getItem(`lokai_messages_${userId}`);
     if (savedMessages) {
@@ -61,7 +60,6 @@ const Assistant = () => {
     setPendingReport(null);
   }, [userId]);
 
-  // --- SAVE TO USER-SPECIFIC SESSION STORAGE ON CHANGE ---
   useEffect(() => {
     sessionStorage.setItem(`lokai_messages_${userId}`, JSON.stringify(messages));
   }, [messages, userId]);
@@ -70,12 +68,10 @@ const Assistant = () => {
     sessionStorage.setItem(`lokai_history_${userId}`, JSON.stringify(chatHistory));
   }, [chatHistory, userId]);
 
-  // Scroll to bottom
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' })
   }, [messages])
 
-  // Get Location
   useEffect(() => {
     const cachedData = localStorage.getItem('cached_geo_location');
     if (cachedData) {
@@ -84,10 +80,9 @@ const Assistant = () => {
         lat: parsed.latitude,
         lng: parsed.longitude,
         city: parsed.city,
-        address: parsed.state // Gives extra context to AI
+        address: parsed.state
       });
     } else if (navigator.geolocation) {
-      // Fallback if they opened Assistant before Feed
       navigator.geolocation.getCurrentPosition(
         (pos) => setUserLocation(prev => ({ ...prev, lat: pos.coords.latitude, lng: pos.coords.longitude })),
         (err) => console.warn("Geolocation blocked:", err.message)
@@ -95,7 +90,6 @@ const Assistant = () => {
     }
   }, []);
 
-  // Clear Chat Function (Only clears current user's chat)
   const handleNewChat = () => {
     setMessages([]);
     setChatHistory([]);
@@ -107,7 +101,7 @@ const Assistant = () => {
   const handleSendMessage = async (textMsg, file = null, fileType = null) => {
     let displayMsg = textMsg;
     if (file) {
-      displayMsg = textMsg ? `[Attached ${fileType}]: ${textMsg}` : `[Attached ${fileType}]`;
+      displayMsg = textMsg ? `[${t('attached')} ${fileType}]: ${textMsg}` : `[${t('attached')} ${fileType}]`;
     }
     setMessages(prev => [...prev, { id: Date.now(), type: 'user', content: displayMsg, timestamp: new Date() }]);
     setIsTyping(true);
@@ -115,7 +109,7 @@ const Assistant = () => {
     if (pendingReport) {
       if (pendingReport.missing === 'image') {
         if (!file || fileType !== 'image') {
-          setMessages(prev => [...prev, { id: Date.now(), type: 'assistant', content: "To complete your audio report, please click the '+' icon and upload an image.", timestamp: new Date() }]);
+          setMessages(prev => [...prev, { id: Date.now(), type: 'assistant', content: t('lokai_req_image_upload'), timestamp: new Date() }]);
           setIsTyping(false);
           return;
         }
@@ -140,7 +134,7 @@ const Assistant = () => {
           showDraftCard(updatedDraft);
           return;
         } else {
-          setMessages(prev => [...prev, { id: Date.now(), type: 'assistant', content: "Please provide it exactly as 'State, City, Pincode' (e.g. 'Uttar Pradesh, Sultanpur, 228001').", timestamp: new Date() }]);
+          setMessages(prev => [...prev, { id: Date.now(), type: 'assistant', content: t('lokai_req_exact_location'), timestamp: new Date() }]);
           setIsTyping(false);
           return;
         }
@@ -178,15 +172,15 @@ const Assistant = () => {
             setMessages(prev => [...prev, {
               id: Date.now(),
               type: 'assistant',
-              content: "I've drafted the report from your audio! However, LocalAwaaz requires an image for all issues. Please click the '+' icon to upload an image of the problem (max 30MB).",
+              content: t('lokai_drafted_audio'),
               timestamp: new Date()
             }]);
           }
         } else {
-          setMessages(prev => [...prev, { id: Date.now(), type: 'assistant', content: data.message || "I couldn't process that media properly.", timestamp: new Date() }]);
+          setMessages(prev => [...prev, { id: Date.now(), type: 'assistant', content: data.message || t('lokai_process_media_fail'), timestamp: new Date() }]);
         }
       } catch (error) {
-        setMessages(prev => [...prev, { id: Date.now(), type: 'assistant', content: "Failed to upload and analyze media.", timestamp: new Date() }]);
+        setMessages(prev => [...prev, { id: Date.now(), type: 'assistant', content: t('lokai_upload_fail'), timestamp: new Date() }]);
       } finally {
         setIsTyping(false);
       }
@@ -212,7 +206,7 @@ const Assistant = () => {
 
       let displayReply = data.reply;
       if (data.toolUsed && Array.isArray(data.data) && data.data.length > 0) {
-        displayReply = "Here are the most relevant issues I found based on your request:";
+        displayReply = t('lokai_relevant_issues');
       }
 
       setMessages(prev => [...prev, {
@@ -224,7 +218,7 @@ const Assistant = () => {
         timestamp: new Date()
       }]);
     } catch (error) {
-      setMessages(prev => [...prev, { id: Date.now(), type: 'assistant', content: "Sorry, I am having trouble connecting to the server.", timestamp: new Date() }])
+      setMessages(prev => [...prev, { id: Date.now(), type: 'assistant', content: t('lokai_server_err'), timestamp: new Date() }])
     } finally {
       setIsTyping(false);
     }
@@ -238,7 +232,7 @@ const Assistant = () => {
       setMessages(prev => [...prev, {
         id: Date.now(),
         type: 'assistant',
-        content: "I need your exact GPS coordinates to submit this report. Since location services are disabled, please click 'Modify Details' to capture your location on the map.",
+        content: t('lokai_req_gps'),
         isDraftReport: true,
         draftData: draftData,
         timestamp: new Date()
@@ -254,7 +248,7 @@ const Assistant = () => {
       setMessages(prev => [...prev, {
         id: Date.now(),
         type: 'assistant',
-        content: "To complete your draft, I need your State, City, and Pincode. Please reply with them separated by commas (e.g. 'Uttar Pradesh, Sultanpur, 228001').",
+        content: t('lokai_req_text_location'),
         timestamp: new Date()
       }]);
       setIsTyping(false);
@@ -269,7 +263,7 @@ const Assistant = () => {
     setMessages(prev => [...prev, {
       id: Date.now(),
       type: 'assistant',
-      content: "Your report is ready! What would you like to do?",
+      content: t('lokai_report_ready'),
       isDraftReport: true,
       draftData: draftData,
       timestamp: new Date()
@@ -285,7 +279,7 @@ const Assistant = () => {
   const handleDirectSubmit = async (draftData) => {
     setIsTyping(true);
     try {
-      setMessages(prev => [...prev, { id: Date.now(), type: 'assistant', content: "[1/2] Uploading media to LocalAwaaz...", timestamp: new Date() }]);
+      setMessages(prev => [...prev, { id: Date.now(), type: 'assistant', content: t('lokai_submitting_media'), timestamp: new Date() }]);
 
       let finalMediaUrl = [];
       if (draftData.originalFile) {
@@ -302,7 +296,7 @@ const Assistant = () => {
         finalMediaUrl = Array.isArray(uploadRes.data.media) ? uploadRes.data.media : [uploadRes.data.media];
       }
 
-      setMessages(prev => [...prev.slice(0, -1), { id: Date.now(), type: 'assistant', content: "[2/2] Finalizing report...", timestamp: new Date() }]);
+      setMessages(prev => [...prev.slice(0, -1), { id: Date.now(), type: 'assistant', content: t('lokai_finalizing'), timestamp: new Date() }]);
 
       const payload = {
         title: draftData.title,
@@ -325,14 +319,14 @@ const Assistant = () => {
       const response = await axiosInstance.post('/issue', payload);
 
       if (response.data && response.data.success) {
-        setMessages(prev => [...prev.slice(0, -1), { id: Date.now(), type: 'assistant', content: "Success! Your issue has been officially reported to LocalAwaaz.", timestamp: new Date() }]);
+        setMessages(prev => [...prev.slice(0, -1), { id: Date.now(), type: 'assistant', content: t('lokai_submit_success'), timestamp: new Date() }]);
       } else {
         throw new Error(response.data?.message || "Server issue creation failed");
       }
     } catch (error) {
       console.error("Direct Submit Error:", error);
       const errorMsg = error.response?.data?.message || error.message;
-      setMessages(prev => [...prev.slice(0, -1), { id: Date.now(), type: 'assistant', content: `Failed to submit directly: ${errorMsg}`, timestamp: new Date() }]);
+      setMessages(prev => [...prev.slice(0, -1), { id: Date.now(), type: 'assistant', content: `${t('lokai_submit_fail')} ${errorMsg}`, timestamp: new Date() }]);
     } finally {
       setIsTyping(false);
     }
@@ -346,7 +340,6 @@ const Assistant = () => {
           <IssueCard
             key={issue._id}
             issue={issue}
-            // --- FIXED: This now routes to the dashboard and triggers the modal instantly! ---
             onClick={() => navigate('/dashboard', {
               state: { selectedIssueId: issue._id }
             })}
@@ -363,7 +356,7 @@ const Assistant = () => {
       <div className="mt-3 bg-card border border-border/50 rounded-xl overflow-hidden shadow-md max-w-lg">
         <div className="bg-primary/10 px-4 py-2 border-b border-border/50 flex items-center gap-2">
           <AlertTriangle size={16} className="text-primary" />
-          <span className="text-sm font-semibold text-primary">Draft Report Generated</span>
+          <span className="text-sm font-semibold text-primary">{t('draft_report_gen')}</span>
         </div>
         <div className="p-4 flex flex-col gap-3 text-foreground">
 
@@ -374,17 +367,17 @@ const Assistant = () => {
           )}
 
           <div>
-            <div className="text-[11px] text-muted-foreground uppercase tracking-wider mb-0.5">Title</div>
+            <div className="text-[11px] text-muted-foreground uppercase tracking-wider mb-0.5">{t('title')}</div>
             <div className="text-sm font-semibold leading-tight">{draftData.title}</div>
           </div>
           <div>
-            <div className="text-[11px] text-muted-foreground uppercase tracking-wider mb-1">Category</div>
+            <div className="text-[11px] text-muted-foreground uppercase tracking-wider mb-1">{t('category')}</div>
             <div className="text-sm">
-              <span className="px-2.5 py-1 bg-muted rounded-full border border-border/50">{draftData.category}</span>
+              <span className="px-2.5 py-1 bg-muted rounded-full border border-border/50">{t(draftData.category?.toLowerCase()) || draftData.category}</span>
             </div>
           </div>
           <div>
-            <div className="text-[11px] text-muted-foreground uppercase tracking-wider mb-0.5">Description Draft</div>
+            <div className="text-[11px] text-muted-foreground uppercase tracking-wider mb-0.5">{t('desc_draft')}</div>
             <div className="text-xs leading-relaxed text-muted-foreground line-clamp-2">{draftData.description}</div>
           </div>
 
@@ -393,13 +386,13 @@ const Assistant = () => {
               onClick={() => handleModifyDraft(draftData)}
               className="flex-1 py-2 px-3 flex items-center justify-center gap-2 text-xs font-medium bg-muted hover:bg-muted/80 text-foreground rounded-lg transition-colors border border-border"
             >
-              <FileEdit size={16} /> Modify Details
+              <FileEdit size={16} /> {t('mod_details')}
             </button>
             <button
               onClick={() => handleDirectSubmit(draftData)}
               className="flex-1 py-2 px-3 flex items-center justify-center gap-2 text-xs font-medium bg-primary hover:opacity-90 text-white rounded-lg transition-colors shadow-sm"
             >
-              <SendHorizontal size={16} /> Submit Now
+              <SendHorizontal size={16} /> {t('submit_now')}
             </button>
           </div>
         </div>
@@ -422,7 +415,7 @@ const Assistant = () => {
               <h3 className="font-semibold text-foreground text-sm md:text-base">LokAI Assistant</h3>
               <div className="flex items-center space-x-2">
                 <div className="h-1.5 w-1.5 md:h-2 md:w-2 bg-emerald-500 rounded-full animate-pulse"></div>
-                <span className="text-[10px] md:text-xs text-muted-foreground">Online</span>
+                <span className="text-[10px] md:text-xs text-muted-foreground">{t('online')}</span>
               </div>
             </div>
           </div>
@@ -432,7 +425,7 @@ const Assistant = () => {
             className='px-3 py-1.5 md:px-4 md:py-2 text-xs md:text-sm btn-gradient flex items-center gap-1.5 md:gap-2 border rounded-lg text-white'
           >
             <Plus className="w-4 h-4" />
-            <span className="hidden sm:inline">New Chat</span>
+            <span className="hidden sm:inline">{t('new_chat')}</span>
           </button>
         </div>
       </div>
@@ -445,9 +438,9 @@ const Assistant = () => {
               <div className="w-16 h-16 md:w-20 md:h-20 bg-gradient-to-br from-primary to-secondary rounded-full flex items-center justify-center mx-auto mb-6 shadow-lg shadow-primary/20">
                 <Bot className="h-8 w-8 md:h-10 md:w-10 text-white" />
               </div>
-              <h2 className="text-xl md:text-2xl font-semibold text-foreground mb-3">Hello! I'm LokAI</h2>
+              <h2 className="text-xl md:text-2xl font-semibold text-foreground mb-3">{t('hello_lokai')}</h2>
               <p className="text-muted-foreground text-sm md:text-base max-w-md mx-auto mb-8 leading-relaxed">
-                Your civic assistant. Describe an issue, check your city's leaderboard, or upload a photo/audio to instantly draft a report.
+                {t('lokai_desc')}
               </p>
 
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-3.5 w-full max-w-lg">
@@ -535,4 +528,4 @@ const Assistant = () => {
   )
 }
 
-export default Assistant
+export default Assistant;

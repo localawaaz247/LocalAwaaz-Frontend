@@ -1,11 +1,15 @@
 /* eslint-disable react-hooks/set-state-in-effect */
 import React, { useState, useEffect } from "react";
 import { Settings, Bell, Mail, Shield, ArrowRight, Globe } from "lucide-react";
-import { useSelector } from "react-redux";
+import { useSelector, useDispatch } from "react-redux"; // <-- 1. Added useDispatch
 import axiosInstance from "../../utils/axios";
 import { showToast } from "../../utils/toast";
+import { useTranslation } from "react-i18next";
+import { setUser } from "../../reducer/authReducer";
 
 const SettingsModal = ({ isOpen, onClose }) => {
+  const { t, i18n } = useTranslation();
+  const dispatch = useDispatch(); // <-- 3. Initialize dispatch
   const user = useSelector((state) => state.auth?.user);
 
   const preferences = user?.preferences || {};
@@ -13,7 +17,7 @@ const SettingsModal = ({ isOpen, onClose }) => {
   const [settings, setSettings] = useState({
     emailNotifications: preferences.globalNotifications !== undefined ? preferences.globalNotifications : true,
     anonymousReports: preferences.globalAnonymous !== undefined ? preferences.globalAnonymous : false,
-    language: preferences.language || "en", // <-- Added language
+    language: preferences.language || "en",
   });
 
   useEffect(() => {
@@ -21,42 +25,48 @@ const SettingsModal = ({ isOpen, onClose }) => {
       setSettings({
         emailNotifications: user.preferences.globalNotifications !== undefined ? user.preferences.globalNotifications : true,
         anonymousReports: user.preferences.globalAnonymous !== undefined ? user.preferences.globalAnonymous : false,
-        language: user.preferences.language || "en", // <-- Added language
+        language: user.preferences.language || "en",
       });
     }
   }, [user]);
 
   const handleToggle = (setting) => {
-    setSettings(prev => ({
-      ...prev,
-      [setting]: !prev[setting]
-    }));
+    setSettings(prev => ({ ...prev, [setting]: !prev[setting] }));
   };
 
   const handleSubmit = async () => {
     try {
       const payload = {
         globalNotification: settings.emailNotifications,
-        isAnonymous: settings.anonymousReports, // <-- RESTORED your original working logic!
-        language: settings.language // <-- Added language to payload
+        isAnonymous: settings.anonymousReports,
+        language: settings.language
       };
 
+      // 1. Send update to the database
       const response = await axiosInstance.patch('/me/profile', payload);
 
-      console.log("Settings saved:", response.data);
+      // 2. PERMANENT REDUX FIX: 
+      // Update Redux immediately with the fresh data from the backend. 
+      // (Your backend returns the updated user inside response.data.data)
+      dispatch(setUser(response.data.data));
+
+      // 3. Change the language visually on the screen instantly
+      i18n.changeLanguage(settings.language);
+
       showToast({
         icon: 'success',
-        title: 'Settings saved successfully!',
-        subtitle: 'Your preferences have been updated'
+        title: t('settings_saved'),
+        subtitle: t('preferences_updated')
       });
+
       onClose();
 
     } catch (error) {
       console.error("Error saving settings:", error);
       showToast({
         icon: 'error',
-        title: 'Failed to save settings',
-        subtitle: error.response?.data?.message || 'Please try again'
+        title: t('failed_save'),
+        subtitle: error.response?.data?.message || t('please_try_again')
       });
     }
   };
@@ -68,7 +78,7 @@ const SettingsModal = ({ isOpen, onClose }) => {
       <div className="glass-card bg-card border border-border/50 rounded-2xl p-6 w-full max-w-xl shadow-2xl animate-fade-in-up">
         <div className="flex justify-between items-center mb-8">
           <h2 className="text-2xl font-bold bg-gradient-to-r from-primary to-accent bg-clip-text text-transparent">
-            Settings
+            {t('settings')}
           </h2>
           <button
             onClick={onClose}
@@ -81,25 +91,23 @@ const SettingsModal = ({ isOpen, onClose }) => {
         <div className="space-y-6">
           <div className="text-center">
             <Settings className="mx-auto w-14 h-14 text-primary" />
-            <h3 className="text-xl font-bold mt-4 text-foreground">General Settings</h3>
+            <h3 className="text-xl font-bold mt-4 text-foreground">{t('general_settings')}</h3>
             <p className="text-sm text-muted-foreground">
-              Manage your global app preferences
+              {t('manage_preferences')}
             </p>
           </div>
 
-          {/* --- NEW LANGUAGE OPTION START --- */}
           <div className="flex items-center justify-between p-4 bg-muted/30 rounded-xl border border-border/50 hover:border-border transition-colors">
             <div className="flex items-center gap-3">
               <div className="w-10 h-10 rounded-lg bg-primary/10 flex items-center justify-center border border-primary/20">
                 <Globe className="w-5 h-5 text-primary" />
               </div>
               <div>
-                <h4 className="font-semibold text-foreground text-sm sm:text-base">Language</h4>
-                <p className="text-xs sm:text-sm text-muted-foreground">Choose your preferred language</p>
+                <h4 className="font-semibold text-foreground text-sm sm:text-base">{t('language')}</h4>
+                <p className="text-xs sm:text-sm text-muted-foreground">{t('choose_language')}</p>
               </div>
             </div>
 
-            {/* UPDATED CSS HERE */}
             <select
               value={settings.language}
               onChange={(e) => setSettings(prev => ({ ...prev, language: e.target.value }))}
@@ -113,9 +121,18 @@ const SettingsModal = ({ isOpen, onClose }) => {
             >
               <option value="en">English</option>
               <option value="hi">हिंदी (Hindi)</option>
+              <option value="awa">अवधी (Awadhi)</option>
+              <option value="bho">भोजपुरी (Bhojpuri)</option>
+              <option value="mr">मराठी (Marathi)</option>
+              <option value="raj">राजस्थानी (Rajasthani)</option>
+              <option value="har">हरियाणवी (Haryanvi)</option>
+              <option value="gu">ગુજરાती (Gujarati)</option>
+              <option value="te">తెలుగు (Telugu)</option>
+              <option value="ta">தமிழ் (Tamil)</option>
+              <option value="kn">ಕన్నడ (Kannada)</option>
+              <option value="bn">বাংলা (Bengali)</option>
             </select>
           </div>
-          {/* --- NEW LANGUAGE OPTION END --- */}
 
           <div className="flex items-center justify-between p-4 bg-muted/30 rounded-xl border border-border/50 hover:border-border transition-colors">
             <div className="flex items-center gap-3">
@@ -123,19 +140,15 @@ const SettingsModal = ({ isOpen, onClose }) => {
                 <Mail className="w-5 h-5 text-primary" />
               </div>
               <div>
-                <h4 className="font-semibold text-foreground text-sm sm:text-base">Email Notifications</h4>
-                <p className="text-xs sm:text-sm text-muted-foreground">Receive important updates via email</p>
+                <h4 className="font-semibold text-foreground text-sm sm:text-base">{t('email_notifications')}</h4>
+                <p className="text-xs sm:text-sm text-muted-foreground">{t('receive_updates')}</p>
               </div>
             </div>
             <button
               onClick={() => handleToggle('emailNotifications')}
-              className={`relative w-12 h-6 rounded-full transition-colors duration-200 flex-shrink-0 ${settings.emailNotifications ? 'bg-primary' : 'bg-muted border border-border'
-                }`}
+              className={`relative w-12 h-6 rounded-full transition-colors duration-200 flex-shrink-0 ${settings.emailNotifications ? 'bg-primary' : 'bg-muted border border-border'}`}
             >
-              <div
-                className={`absolute top-0.5 w-5 h-5 bg-white rounded-full transition-transform duration-200 shadow-sm ${settings.emailNotifications ? 'translate-x-6' : 'translate-x-0.5'
-                  }`}
-              />
+              <div className={`absolute top-0.5 w-5 h-5 bg-white rounded-full transition-transform duration-200 shadow-sm ${settings.emailNotifications ? 'translate-x-6' : 'translate-x-0.5'}`} />
             </button>
           </div>
 
@@ -145,19 +158,15 @@ const SettingsModal = ({ isOpen, onClose }) => {
                 <Shield className="w-5 h-5 text-primary" />
               </div>
               <div>
-                <h4 className="font-semibold text-foreground text-sm sm:text-base">Global Anonymous Mode</h4>
-                <p className="text-xs sm:text-sm text-muted-foreground">Hide identity by default on all reports</p>
+                <h4 className="font-semibold text-foreground text-sm sm:text-base">{t('global_anonymous')}</h4>
+                <p className="text-xs sm:text-sm text-muted-foreground">{t('hide_identity')}</p>
               </div>
             </div>
             <button
               onClick={() => handleToggle('anonymousReports')}
-              className={`relative w-12 h-6 rounded-full transition-colors duration-200 flex-shrink-0 ${settings.anonymousReports ? 'bg-primary' : 'bg-muted border border-border'
-                }`}
+              className={`relative w-12 h-6 rounded-full transition-colors duration-200 flex-shrink-0 ${settings.anonymousReports ? 'bg-primary' : 'bg-muted border border-border'}`}
             >
-              <div
-                className={`absolute top-0.5 w-5 h-5 bg-white rounded-full transition-transform duration-200 shadow-sm ${settings.anonymousReports ? 'translate-x-6' : 'translate-x-0.5'
-                  }`}
-              />
+              <div className={`absolute top-0.5 w-5 h-5 bg-white rounded-full transition-transform duration-200 shadow-sm ${settings.anonymousReports ? 'translate-x-6' : 'translate-x-0.5'}`} />
             </button>
           </div>
 
@@ -166,7 +175,7 @@ const SettingsModal = ({ isOpen, onClose }) => {
               onClick={handleSubmit}
               className="w-full btn-gradient flex items-center justify-center gap-2 py-3 rounded-xl font-semibold text-white shadow-lg transition-all duration-200 hover:scale-[1.02] active:scale-[0.98]"
             >
-              Save Settings <ArrowRight className="w-4 h-4" />
+              {t('save_settings')} <ArrowRight className="w-4 h-4" />
             </button>
           </div>
         </div>

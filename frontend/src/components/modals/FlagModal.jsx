@@ -1,5 +1,6 @@
 import React, { useState } from "react";
 import { Flag, AlertTriangle } from "lucide-react";
+import { useTranslation } from "react-i18next";
 
 const FLAG_OPTIONS = [
   'SPAM',
@@ -12,12 +13,13 @@ const FLAG_OPTIONS = [
 ];
 
 const FlagModal = ({ isOpen, onClose, onSubmit, isLoading }) => {
+  const { t } = useTranslation();
   const [selectedFlag, setSelectedFlag] = useState("");
   const [error, setError] = useState("");
 
   const handleSubmit = () => {
     if (!selectedFlag) {
-      setError("Please select a flag reason");
+      setError(t('select_flag_reason'));
       return;
     }
     
@@ -50,7 +52,7 @@ const FlagModal = ({ isOpen, onClose, onSubmit, isLoading }) => {
             <div className="w-10 h-10 rounded-full bg-red-100 flex items-center justify-center">
               <Flag className="w-5 h-5 text-red-600" />
             </div>
-            <h2 className="text-xl font-bold text-foreground">Flag Issue</h2>
+            <h2 className="text-xl font-bold text-foreground">{t('flag_issue')}</h2>
           </div>
           <button
             onClick={handleClose}
@@ -64,43 +66,46 @@ const FlagModal = ({ isOpen, onClose, onSubmit, isLoading }) => {
           <div className="text-center mb-4">
             <AlertTriangle className="mx-auto w-12 h-12 text-amber-500 mb-3" />
             <p className="text-sm text-muted-foreground">
-              Please select a reason for flagging this issue. This helps us understand and review the report appropriately.
+              {t('flag_reason_desc')}
             </p>
           </div>
 
           <div className="space-y-2">
             <label className="text-sm font-semibold text-foreground">
-              Flag Reason <span className="text-destructive">*</span>
+              {t('flag_reason')} <span className="text-destructive">*</span>
             </label>
             <div className="grid grid-cols-1 gap-2 max-h-48 overflow-y-auto thin-scrollbar">
-              {FLAG_OPTIONS.map((option) => (
-                <button
-                  key={option}
-                  onClick={() => {
-                    setSelectedFlag(option);
-                    setError("");
-                  }}
-                  disabled={isLoading}
-                  className={`px-4 py-3 rounded-xl text-left transition-all duration-200 border ${
-                    selectedFlag === option
-                      ? "bg-red-50 border-red-200 text-red-700 dark:bg-red-900/20 dark:border-red-800 dark:text-red-400"
-                      : "bg-card/50 border-border hover:bg-muted/50 hover:border-border/80"
-                  } disabled:opacity-50 disabled:cursor-not-allowed`}
-                >
-                  <div className="flex items-center gap-3">
-                    <div className={`w-4 h-4 rounded-full border-2 flex items-center justify-center ${
+              {FLAG_OPTIONS.map((option) => {
+                const translationKey = option.toLowerCase().replace(' ', '_');
+                return (
+                  <button
+                    key={option}
+                    onClick={() => {
+                      setSelectedFlag(option);
+                      setError("");
+                    }}
+                    disabled={isLoading}
+                    className={`px-4 py-3 rounded-xl text-left transition-all duration-200 border ${
                       selectedFlag === option
-                        ? "border-red-500 bg-red-500"
-                        : "border-border"
-                    }`}>
-                      {selectedFlag === option && (
-                        <div className="w-2 h-2 rounded-full bg-white" />
-                      )}
+                        ? "bg-red-50 border-red-200 text-red-700 dark:bg-red-900/20 dark:border-red-800 dark:text-red-400"
+                        : "bg-card/50 border-border hover:bg-muted/50 hover:border-border/80"
+                    } disabled:opacity-50 disabled:cursor-not-allowed`}
+                  >
+                    <div className="flex items-center gap-3">
+                      <div className={`w-4 h-4 rounded-full border-2 flex items-center justify-center ${
+                        selectedFlag === option
+                          ? "border-red-500 bg-red-500"
+                          : "border-border"
+                      }`}>
+                        {selectedFlag === option && (
+                          <div className="w-2 h-2 rounded-full bg-white" />
+                        )}
+                      </div>
+                      <span className="text-sm font-medium">{t(translationKey)}</span>
                     </div>
-                    <span className="text-sm font-medium">{option}</span>
-                  </div>
-                </button>
-              ))}
+                  </button>
+                );
+              })}
             </div>
             {error && (
               <p className="text-xs text-destructive flex items-center gap-1">
@@ -116,14 +121,14 @@ const FlagModal = ({ isOpen, onClose, onSubmit, isLoading }) => {
               disabled={isLoading}
               className="flex-1 px-4 py-3 rounded-xl font-semibold border border-border bg-card/50 hover:bg-card transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed"
             >
-              Cancel
+              {t('cancel')}
             </button>
             <button
               onClick={handleSubmit}
               disabled={isLoading || !selectedFlag}
               className="flex-1 px-4 py-3 rounded-xl font-semibold bg-red-600 text-white hover:bg-red-700 transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed hover:scale-[1.02] disabled:hover:scale-100"
             >
-              {isLoading ? "Flagging..." : "Flag Issue"}
+              {isLoading ? t('flagging') : t('flag_issue')}
             </button>
           </div>
         </div>

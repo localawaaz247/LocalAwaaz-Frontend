@@ -7,8 +7,10 @@ import SettingsModal from "../components/modals/SettingsModal";
 import IssuesPosted from "../components/IssuesPosted";
 import ConfirmedIssues from "../components/ConfirmedIssues";
 import SavedIssues from "../components/SavedIssues";
+import { useTranslation } from "react-i18next";
 
 const Profile = () => {
+  const { t } = useTranslation();
   const dispatch = useDispatch();
   const profileData = useSelector((state) => state.profile.profileDetail);
   const [isEditModalOpen, setIsEditModalOpen] = useState(false);
@@ -25,22 +27,18 @@ const Profile = () => {
     <div className="w-full bg-texture min-h-[100dvh] pb-20 md:pb-8">
       {!profileData ? (
         <div className="flex items-center justify-center min-h-screen">
-          <p className="text-muted-foreground">Loading profile...</p>
+          <p className="text-muted-foreground">{t('loading_profile')}</p>
         </div>
       ) : (
         <>
-          {/* Cover */}
           <div className="h-32 md:h-48 w-full bg-gradient-to-r from-slate-900 to-cyan-800 rounded-b-lg md:rounded-none" />
 
-          {/* Profile Card */}
           <div className="max-w-6xl mx-auto -mt-12 md:-mt-16 px-3 md:px-6 relative z-10">
             <div className="glass-card rounded-xl p-4 md:p-6">
 
-              {/* Top Section */}
               <div className="flex flex-col sm:flex-row justify-between items-start gap-4 sm:gap-0">
                 <div className="flex gap-3 md:gap-4 items-start w-full">
 
-                  {/* Profile Picture or Initials Badge */}
                   <div className="w-12 h-12 md:w-14 md:h-14 rounded-xl bg-primary/10 flex items-center justify-center border border-primary/20 flex-shrink-0 overflow-hidden">
                     {profileData?.profilePic ? (
                       <img
@@ -56,38 +54,36 @@ const Profile = () => {
                     )}
                   </div>
 
-                  {/* Info */}
                   <div className="flex-1">
                     <div className="flex items-center gap-2">
                       <h2 className="text-lg md:text-xl font-bold text-foreground line-clamp-1">
-                        {profileData?.name || 'Loading...'}
+                        {profileData?.name || t('loading')}
                       </h2>
                       {profileData?.isEmailVerified && (
                         <span className="text-accent text-xs md:text-sm">✔</span>
                       )}
                     </div>
 
-                    <p className="text-muted-foreground text-xs md:text-sm">@{profileData?.userName || 'username'}</p>
+                    <p className="text-muted-foreground text-xs md:text-sm">@{profileData?.userName || t('username')}</p>
 
                     <p className="mt-1.5 md:mt-2 text-muted-foreground text-xs md:text-sm max-w-md leading-relaxed line-clamp-3 md:line-clamp-none">
-                      {profileData?.bio || 'No bio available'}
+                      {profileData?.bio || t('no_bio')}
                     </p>
 
                     <div className="flex flex-col sm:flex-row sm:items-center gap-1 sm:gap-4 mt-2 md:mt-3 text-[11px] md:text-sm text-muted-foreground">
-                      <span>📍 {profileData?.contact?.city || 'Unknown'}, {profileData?.contact?.state || 'Unknown'}</span>
+                      <span>📍 {profileData?.contact?.city || t('unknown')}, {profileData?.contact?.state || t('unknown')}</span>
                       <span className="hidden sm:inline">•</span>
-                      <span>📅 Joined {new Date(profileData?.createdAt || Date.now()).toLocaleDateString('en-US', { month: 'long', year: 'numeric' })}</span>
+                      <span>📅 {t('joined')} {new Date(profileData?.createdAt || Date.now()).toLocaleDateString('en-US', { month: 'long', year: 'numeric' })}</span>
                     </div>
                   </div>
                 </div>
 
-                {/* Actions */}
                 <div className="flex gap-2 w-full sm:w-auto mt-2 sm:mt-0 flex-shrink-0">
                   <button
                     onClick={() => setIsEditModalOpen(true)}
                     className="btn-gradient flex-1 sm:flex-none px-4 py-2 rounded-xl text-xs md:text-sm font-medium transition-transform hover:scale-[1.02] active:scale-[0.98]"
                   >
-                    Edit Profile
+                    {t('edit_profile')}
                   </button>
                   <button
                     onClick={() => setIsSettingsModalOpen(true)}
@@ -98,13 +94,12 @@ const Profile = () => {
                 </div>
               </div>
 
-              {/* Stats */}
               <div className="grid grid-cols-2 md:grid-cols-4 gap-3 md:gap-4 mt-6 md:mt-8">
                 {[
-                  { label: "Issues Reported", value: profileData?.issuesReported || 0 },
-                  { label: "Issues Resolved", value: profileData?.issuesResolved || 0 },
-                  { label: "Issues Confirmed", value: profileData?.issuesConfirmed || 0 },
-                  { label: "Civil Score", value: profileData?.civilScore || 0 },
+                  { label: t('issues_reported'), value: profileData?.issuesReported || 0 },
+                  { label: t('issues_resolved'), value: profileData?.issuesResolved || 0 },
+                  { label: t('issues_confirmed'), value: profileData?.issuesConfirmed || 0 },
+                  { label: t('civil_score'), value: profileData?.civilScore || 0 },
                 ].map((item, i) => (
                   <div
                     key={i}
@@ -118,41 +113,37 @@ const Profile = () => {
                 ))}
               </div>
 
-              {/* Badges */}
               <div className="mt-6 md:mt-8">
                 <h3 className="text-xs md:text-sm font-semibold text-foreground mb-2 md:mb-3">
-                  Contribution Badges
+                  {t('contribution_badges')}
                 </h3>
                 <div className="flex gap-2 md:gap-3 flex-wrap">
                   
-                  {/* 1. Dynamic Rank Display */}
                   {profileData?.rank && (
                     <span className="px-2.5 py-1 md:px-3 md:py-1 text-[11px] md:text-sm bg-primary/10 text-primary border border-primary/20 rounded-lg font-bold">
                       🏆 {profileData.rank}
                     </span>
                   )}
 
-                  {/* 2. Dynamic Badges Map */}
                   {profileData?.badges && profileData.badges.length > 0 ? (
                     profileData.badges.map((badge, index) => (
                       <span 
                         key={badge._id || index} 
                         className="px-2.5 py-1 md:px-3 md:py-1 text-[11px] md:text-sm bg-secondary/20 text-secondary border border-secondary/30 rounded-lg cursor-help transition-all hover:scale-105"
-                        title={badge.description || "Earned badge"} 
+                        title={badge.description || t('earned_badge')} 
                       >
                         {badge.icon || '⭐'} {badge.name}
                       </span>
                     ))
                   ) : (
                     <span className="text-xs text-muted-foreground italic">
-                      Start reporting issues to earn badges!
+                      {t('start_reporting_badges')}
                     </span>
                   )}
                   
                 </div>
               </div>
 
-              {/* Tabs */}
               <div className="mt-6 md:mt-8 border-b border-border flex gap-4 md:gap-6 text-xs md:text-sm overflow-x-auto no-scrollbar whitespace-nowrap">
                 <button
                   onClick={() => setActiveTab('posted')}
@@ -161,7 +152,7 @@ const Profile = () => {
                       : 'border-transparent text-muted-foreground hover:text-foreground'
                     }`}
                 >
-                  Issues Posted
+                  {t('issues_posted')}
                 </button>
                 <button
                   onClick={() => setActiveTab('confirmed')}
@@ -170,7 +161,7 @@ const Profile = () => {
                       : 'border-transparent text-muted-foreground hover:text-foreground'
                     }`}
                 >
-                  Issues Confirmed
+                  {t('issues_confirmed_tab')}
                 </button>
                 <button
                   onClick={() => setActiveTab('saved')}
@@ -179,11 +170,10 @@ const Profile = () => {
                       : 'border-transparent text-muted-foreground hover:text-foreground'
                     }`}
                 >
-                  Saved Issues
+                  {t('saved_issues')}
                 </button>
               </div>
 
-              {/* Tab Content */}
               <div className="mt-4 md:mt-6">
                 {activeTab === 'posted' && <IssuesPosted />}
                 {activeTab === 'confirmed' && <ConfirmedIssues />}

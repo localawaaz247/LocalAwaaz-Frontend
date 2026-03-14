@@ -1,7 +1,9 @@
 import React, { useState } from 'react';
 import { X, Copy, Check, Share2 } from 'lucide-react';
+import { useTranslation } from "react-i18next";
 
 const ShareLinkModal = ({ isOpen, onClose, shareLink }) => {
+  const { t } = useTranslation();
   const [copied, setCopied] = useState(false);
 
   if (!isOpen) return null;
@@ -21,13 +23,12 @@ const ShareLinkModal = ({ isOpen, onClose, shareLink }) => {
         className="bg-card border border-border/50 rounded-2xl w-full max-w-md shadow-2xl overflow-hidden animate-fade-in-up"
         onClick={(e) => e.stopPropagation()}
       >
-        {/* Header */}
         <div className="flex justify-between items-center p-4 md:p-5 border-b border-border/50 bg-muted/20">
           <h3 className="text-base md:text-lg font-semibold text-foreground flex items-center gap-2">
             <div className="p-1.5 bg-primary/10 rounded-full">
               <Share2 size={16} className="text-primary" />
             </div>
-            Share Issue
+            {t('share_issue')}
           </h3>
           <button 
             onClick={onClose} 
@@ -37,15 +38,13 @@ const ShareLinkModal = ({ isOpen, onClose, shareLink }) => {
           </button>
         </div>
         
-        {/* Body */}
         <div className="p-4 md:p-5">
           <p className="text-sm text-muted-foreground mb-4 text-center md:text-left">
-            Share this link with others to let them view this issue.
+            {t('share_desc')}
           </p>
           
           <div className="mb-2">
-            <label className="block text-xs font-semibold text-foreground mb-1.5">Share Link</label>
-            {/* THIS IS THE RESPONSIVE FIX: flex-col on mobile, flex-row on sm screens */}
+            <label className="block text-xs font-semibold text-foreground mb-1.5">{t('share_link')}</label>
             <div className="flex flex-col sm:flex-row items-center gap-2">
               <input 
                 type="text" 
@@ -61,12 +60,12 @@ const ShareLinkModal = ({ isOpen, onClose, shareLink }) => {
                     : 'btn-gradient text-white hover:opacity-90 shadow-sm'
                 }`}
               >
-                {copied ? <><Check size={16} /> Copied</> : <><Copy size={16} /> Copy</>}
+                {copied ? <><Check size={16} /> {t('copied')}</> : <><Copy size={16} /> {t('copy')}</>}
               </button>
             </div>
           </div>
           <p className="text-[10px] md:text-xs text-muted-foreground text-center md:text-left mt-3">
-            Anyone with this link can view this issue.
+            {t('anyone_with_link')}
           </p>
         </div>
       </div>

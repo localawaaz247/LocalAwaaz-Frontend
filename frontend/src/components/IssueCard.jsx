@@ -3,6 +3,7 @@ import { useState, useEffect } from "react";
 import { useSelector } from "react-redux";
 import axiosInstance from "../utils/axios";
 import { showToast } from "../utils/toast";
+import { useTranslation } from "react-i18next";
 
 const WhatsappIcon = ({ size = 20, className = "" }) => (
   <svg xmlns="http://www.w3.org/2000/svg" width={size} height={size} viewBox="0 0 24 24" fill="currentColor" className={className}>
@@ -11,6 +12,7 @@ const WhatsappIcon = ({ size = 20, className = "" }) => (
 );
 
 const IssueCard = ({ issue, onClick, onFlagClick }) => {
+  const { t } = useTranslation();
   const [currentImageIndex, setCurrentImageIndex] = useState(0);
   const [confirmLoading, setConfirmLoading] = useState(false);
   const [isPaused, setIsPaused] = useState(false);
@@ -27,10 +29,9 @@ const IssueCard = ({ issue, onClick, onFlagClick }) => {
     _id, status, category, title, description, location,
     confirmationCount, impactScore, impact, isVerified, priority,
     reportedBy, isAnonymous, media, dateOfFormation, createdAt, shareCount,
-    confirmations, hasConfirmed // Look for boolean flag if backend sends it
+    confirmations, hasConfirmed
   } = issue || {};
 
-  // 🟢 ROBUST SYNC LOGIC
   useEffect(() => {
     setLocalConfirmationCount(confirmationCount || 0);
     setLocalShareCount(shareCount || 0);
@@ -38,13 +39,11 @@ const IssueCard = ({ issue, onClick, onFlagClick }) => {
     if (currentUser && currentUser._id) {
       const currentUserId = String(currentUser._id);
 
-      // 1. Check if backend sent an explicit boolean flag (Now populated from updated backend)
       if (hasConfirmed === true || issue.isConfirmed === true) {
         setIsConfirmedByUser(true);
         return;
       }
 
-      // 2. Safely parse the confirmations array using Strings as a fallback
       if (Array.isArray(confirmations)) {
         const confirmed = confirmations.some((conf) => {
           const confId = conf?.user?._id || conf?.user || conf?._id || conf;
@@ -93,26 +92,25 @@ const IssueCard = ({ issue, onClick, onFlagClick }) => {
 
   const handleWhatsappShare = (e) => {
     e.stopPropagation(); setLocalShareCount(prev => prev + 1); incrementShare();
-    const text = encodeURIComponent(`Check out this issue on LocalAwaaz: ${title}\n\n${window.location.origin}/issue/${_id}`);
+    const text = encodeURIComponent(`${t('check_out_issue')}: ${title}\n\n${window.location.origin}/issue/${_id}`);
     window.open(`https://wa.me/?text=${text}`, '_blank');
   };
 
   const handleCopyLink = (e) => {
     e.stopPropagation(); setLocalShareCount(prev => prev + 1); incrementShare();
     navigator.clipboard.writeText(`${window.location.origin}/issue/${_id}`);
-    setIsCopied(true); showToast({ icon: 'success', title: 'Link copied to clipboard!' });
+    setIsCopied(true); showToast({ icon: 'success', title: t('link_copied') });
     setTimeout(() => setIsCopied(false), 2000);
   };
 
   const handleSaveToggle = async (e) => {
     e.stopPropagation(); const newSavedState = !isSaved; setIsSaved(newSavedState);
     try {
-      if (newSavedState) { await axiosInstance.post(`/save-issue/${_id}`); showToast({ icon: 'success', title: 'Issue saved!' }); }
-      else { await axiosInstance.delete(`/remove/saved-issue/${_id}`); showToast({ icon: 'success', title: 'Removed from saved!' }); }
-    } catch (error) { setIsSaved(!newSavedState); showToast({ icon: 'error', title: 'Failed to update saved status' }); }
+      if (newSavedState) { await axiosInstance.post(`/save-issue/${_id}`); showToast({ icon: 'success', title: t('issue_saved') }); }
+      else { await axiosInstance.delete(`/remove/saved-issue/${_id}`); showToast({ icon: 'success', title: t('removed_saved') }); }
+    } catch (error) { setIsSaved(!newSavedState); showToast({ icon: 'error', title: t('failed_update_saved') }); }
   };
 
-  // 🟢 ENHANCED CONFIRM LOGIC
   const handleConfirm = async (e) => {
     e.stopPropagation();
     try {
@@ -123,25 +121,21 @@ const IssueCard = ({ issue, onClick, onFlagClick }) => {
 
       const response = await axiosInstance.post(url);
 
-      // If successful
       if (!isConfirmedByUser && response.data?.success) {
         setLocalConfirmationCount(prev => prev + 1);
         setIsConfirmedByUser(true);
       }
 
-      // Shows success message or backend generated message
-      showToast({ icon: 'success', title: response.data?.message || 'Issue Confirmed successfully!' });
+      showToast({ icon: 'success', title: response.data?.message || t('issue_confirmed_success') });
 
     } catch (error) {
       const errorMsg = error.response?.data?.message?.toLowerCase() || "";
 
-      // If the backend rejects because it's ALREADY confirmed, auto-correct UI to Green and show backend message!
       if (errorMsg.includes("already") || errorMsg.includes("confirmed")) {
         setIsConfirmedByUser(true);
-        // Specifically using the backend error message for the toast
-        showToast({ icon: 'info', title: error.response?.data?.message || 'You have already confirmed this issue.' });
+        showToast({ icon: 'info', title: error.response?.data?.message || t('already_confirmed') });
       } else {
-        showToast({ icon: 'error', title: error.response?.data?.message || 'Action completed or already applied.' });
+        showToast({ icon: 'error', title: error.response?.data?.message || t('action_completed') });
       }
     } finally {
       setConfirmLoading(false);
@@ -151,14 +145,14 @@ const IssueCard = ({ issue, onClick, onFlagClick }) => {
   const handleFlagClickAction = (e) => { e.stopPropagation(); if (onFlagClick) onFlagClick(); };
 
   function formatDate(isoDate) {
-    if (!isoDate) return 'Recent';
+    if (!isoDate) return t('recent');
     const date = new Date(isoDate);
-    if (isNaN(date.getTime())) return 'Recent';
+    if (isNaN(date.getTime())) return t('recent');
     return date.toLocaleDateString("en-GB", { day: "2-digit", month: "short", year: "numeric" });
   }
 
   function truncateDescription(text, maxWords = 30) {
-    if (!text) return 'View details to see more information about this issue.';
+    if (!text) return t('view_details_placeholder');
     const words = text.split(' ');
     if (words.length <= maxWords) return text;
     return words.slice(0, maxWords).join(' ') + '...';
@@ -168,17 +162,17 @@ const IssueCard = ({ issue, onClick, onFlagClick }) => {
     <div className="glass-card p-4 md:p-5 rounded-xl hover:shadow-lg transition-all cursor-pointer flex flex-col h-full border border-border/50 overflow-hidden" onClick={onClick}>
       <div className="flex justify-between items-start mb-3 gap-2">
         <div className="flex gap-1.5 md:gap-2 flex-wrap">
-          <span className={`text-[10px] md:text-xs px-2.5 py-1 rounded-full font-bold ${colors[color]}`}>{status || 'OPEN'}</span>
-          <span className="text-[10px] md:text-xs px-2.5 py-1 rounded-full bg-muted text-muted-foreground border border-border font-medium">{category}</span>
-          {priority && <span className={`text-[10px] md:text-xs px-2.5 py-1 rounded-full ${priorityColors[priority]} flex items-center gap-1 font-semibold`}><AlertTriangle size={12} /> {priority}</span>}
+          <span className={`text-[10px] md:text-xs px-2.5 py-1 rounded-full font-bold ${colors[color]}`}>{t(status?.toLowerCase() || 'open')}</span>
+          <span className="text-[10px] md:text-xs px-2.5 py-1 rounded-full bg-muted text-muted-foreground border border-border font-medium">{t(category?.toLowerCase()) || category}</span>
+          {priority && <span className={`text-[10px] md:text-xs px-2.5 py-1 rounded-full ${priorityColors[priority]} flex items-center gap-1 font-semibold`}><AlertTriangle size={12} /> {t(priority.toLowerCase())}</span>}
         </div>
         <div className="flex flex-col items-end gap-1.5 flex-shrink-0">
           <span className="text-[10px] md:text-xs text-muted-foreground font-medium whitespace-nowrap">{formatDate(dateOfFormation || createdAt)}</span>
           <div className="flex items-center gap-1.5">
-            <span className="text-[10px] text-muted-foreground mr-1 hidden sm:inline-block"><strong>{localShareCount}</strong> Shares</span>
-            <button onClick={handleSaveToggle} className={`p-1.5 rounded-full transition-all shadow-sm border ${isSaved ? "bg-primary/10 text-primary border-primary/20 hover:bg-primary/20" : "bg-card text-muted-foreground border-border hover:bg-muted/80 hover:text-foreground"}`} title={isSaved ? "Remove from Saved" : "Save Issue"}><Bookmark size={14} className={isSaved ? "fill-primary" : ""} /></button>
-            <button onClick={handleWhatsappShare} className="p-1.5 rounded-full bg-green-500/10 border border-green-500/20 text-green-600 hover:bg-green-500 hover:text-white transition-all shadow-sm" title="Share to WhatsApp"><WhatsappIcon size={14} /></button>
-            <button onClick={handleCopyLink} className={`p-1.5 rounded-full transition-all shadow-sm border ${isCopied ? "bg-green-500 text-white border-green-500" : "bg-card text-muted-foreground border-border hover:text-foreground hover:bg-muted/80"}`} title="Copy Link">{isCopied ? <Check size={14} /> : <Copy size={14} />}</button>
+            <span className="text-[10px] text-muted-foreground mr-1 hidden sm:inline-block"><strong>{localShareCount}</strong> {t('shares')}</span>
+            <button onClick={handleSaveToggle} className={`p-1.5 rounded-full transition-all shadow-sm border ${isSaved ? "bg-primary/10 text-primary border-primary/20 hover:bg-primary/20" : "bg-card text-muted-foreground border-border hover:bg-muted/80 hover:text-foreground"}`} title={isSaved ? t('remove_saved') : t('save_issue')}><Bookmark size={14} className={isSaved ? "fill-primary" : ""} /></button>
+            <button onClick={handleWhatsappShare} className="p-1.5 rounded-full bg-green-500/10 border border-green-500/20 text-green-600 hover:bg-green-500 hover:text-white transition-all shadow-sm" title={t('share_whatsapp')}><WhatsappIcon size={14} /></button>
+            <button onClick={handleCopyLink} className={`p-1.5 rounded-full transition-all shadow-sm border ${isCopied ? "bg-green-500 text-white border-green-500" : "bg-card text-muted-foreground border-border hover:text-foreground hover:bg-muted/80"}`} title={t('copy_link')}>{isCopied ? <Check size={14} /> : <Copy size={14} />}</button>
           </div>
         </div>
       </div>
@@ -206,22 +200,22 @@ const IssueCard = ({ issue, onClick, onFlagClick }) => {
       )}
 
       <div className="flex flex-col gap-2 text-[11px] md:text-sm text-muted-foreground mb-3 md:mb-4">
-        <div className="flex items-center gap-1.5 md:gap-2 line-clamp-1"><MapPin size={14} className="flex-shrink-0 text-primary" /><span className="truncate">{typeof location === 'string' ? location : location?.address || location?.city || 'Location not specified'}</span></div>
+        <div className="flex items-center gap-1.5 md:gap-2 line-clamp-1"><MapPin size={14} className="flex-shrink-0 text-primary" /><span className="truncate">{typeof location === 'string' ? location : location?.address || location?.city || t('location_not_specified')}</span></div>
         <div className="flex items-center gap-2 flex-wrap">
-          {isAnonymous ? <span className="flex items-center gap-1 text-muted-foreground"><User size={14} /> Anonymous</span> : reportedBy?.name ? <span className="flex items-center gap-1 text-muted-foreground"><User size={14} /> {reportedBy.name}</span> : null}
-          {isVerified && <span className="flex items-center gap-1 text-accent"><ShieldCheck size={14} /> Verified</span>}
+          {isAnonymous ? <span className="flex items-center gap-1 text-muted-foreground"><User size={14} /> {t('anonymous')}</span> : reportedBy?.name ? <span className="flex items-center gap-1 text-muted-foreground"><User size={14} /> {reportedBy.name}</span> : null}
+          {isVerified && <span className="flex items-center gap-1 text-accent"><ShieldCheck size={14} /> {t('verified')}</span>}
         </div>
       </div>
 
       <div className="flex flex-wrap items-center justify-between gap-3 pt-3 border-t border-border/50 mt-auto">
         <div className="flex items-center gap-3 md:gap-4 text-xs md:text-sm">
-          <span className="text-foreground whitespace-nowrap"><strong>{localConfirmationCount}</strong> Confirmed</span>
-          <span className="text-foreground whitespace-nowrap"><strong>{impactScore || impact || 0}</strong> Impact</span>
+          <span className="text-foreground whitespace-nowrap"><strong>{localConfirmationCount}</strong> {t('confirmed')}</span>
+          <span className="text-foreground whitespace-nowrap"><strong>{impactScore || impact || 0}</strong> {t('impact')}</span>
         </div>
 
         <div className="flex items-center gap-2 w-full sm:w-auto flex-1 min-w-[fit-content] justify-end">
           <button onClick={handleFlagClickAction} className="flex-1 sm:flex-none max-w-[120px] flex items-center justify-center gap-1 px-3 py-1.5 md:py-2 rounded-xl text-xs md:text-sm font-medium transition-all bg-red-100 text-red-700 border border-red-200 hover:bg-red-200">
-            <Flag size={14} /> Flag
+            <Flag size={14} /> {t('flag')}
           </button>
 
           <button
@@ -235,9 +229,9 @@ const IssueCard = ({ issue, onClick, onFlagClick }) => {
               }`}
           >
             {confirmLoading ? "..." : isConfirmedByUser ? (
-              <><CheckCircle2 size={14} className="mr-1" /> Confirmed</>
+              <><CheckCircle2 size={14} className="mr-1" /> {t('confirmed')}</>
             ) : (
-              "I Confirm"
+              t('i_confirm')
             )}
           </button>
         </div>

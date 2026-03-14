@@ -4,8 +4,10 @@ import { Button } from './ui/button'
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from './ui/dialog'
 import { getUserLocation, reverseGeocode, saveChosenLocation, getCurrentPosition, saveCurrentLocation } from '../utils/locationUtils'
 import axiosInstance from '../utils/axios'
+import { useTranslation } from "react-i18next";
 
 const LocationModal = ({ isOpen, onClose, forceLocation = false }) => {
+  const { t } = useTranslation();
   const [isLoading, setIsLoading] = useState(false)
   const [error, setError] = useState('')
   const [location, setLocation] = useState(null)
@@ -14,18 +16,14 @@ const LocationModal = ({ isOpen, onClose, forceLocation = false }) => {
   const [isSearching, setIsSearching] = useState(false)
 
   useEffect(() => {
-    // Check if location is already saved
     const savedLocation = getUserLocation()
     if (savedLocation) {
       setLocation(savedLocation)
     }
   }, [])
 
-  // --- 500ms DEBOUNCE AUTO-SEARCH LOGIC ---
   useEffect(() => {
-    // Wait 500ms after the user stops typing
     const delayDebounceFn = setTimeout(async () => {
-      // Only search if they typed at least 3 characters
       if (searchQuery.trim().length > 2) {
         setIsSearching(true)
         setError('')
@@ -35,53 +33,50 @@ const LocationModal = ({ isOpen, onClose, forceLocation = false }) => {
           })
           setSearchResults(response.data.data || [])
         } catch (err) {
-          setError('Failed to search location. Please try again.')
+          setError(t('failed_search_location'))
           console.error('Search error:', err)
         } finally {
           setIsSearching(false)
         }
       } else {
-        setSearchResults([]) // Clear results if input is cleared or too short
+        setSearchResults([])
       }
     }, 500)
 
-    // Cleanup function cancels the previous timer if user keeps typing
     return () => clearTimeout(delayDebounceFn)
-  }, [searchQuery])
+  }, [searchQuery, t])
 
   const selectLocation = async (result) => {
     setIsLoading(true)
     setError('')
-    
+
     try {
-      // Save the location data from your backend API response
       const locationData = {
         latitude: null,
         longitude: null,
         address: result.fullAddress,
         city: result.name,
         state: result.state,
-        country: 'India', // Default since API seems to be for Indian locations
+        country: 'India',
         postcode: result.pincode === 'N/A' ? null : result.pincode
       }
-      
-      // Remove currentLocation from localStorage if user is selecting typed location
+
       localStorage.removeItem('currentLocation');
-      
+
       const success = saveChosenLocation(locationData)
       if (success) {
         setLocation(locationData)
         setTimeout(() => {
           onClose()
-          setSearchQuery('') // Reset input for next time
+          setSearchQuery('')
           setSearchResults([])
-        }, 1000) // Sped up the close animation slightly
+        }, 1000)
       } else {
-        setError('Failed to save location. Please try again.')
+        setError(t('failed_save_location'))
       }
     } catch (err) {
       console.error(err)
-      setError('Failed to save location. Please try again.')
+      setError(t('failed_save_location'))
     } finally {
       setIsLoading(false)
     }
@@ -90,46 +85,43 @@ const LocationModal = ({ isOpen, onClose, forceLocation = false }) => {
   const handleCurrentLocation = async () => {
     setIsLoading(true)
     setError('')
-    
+
     try {
       const position = await getCurrentPosition();
       const locationData = await reverseGeocode(position.latitude, position.longitude);
-      
+
       if (locationData.latitude !== null && locationData.longitude !== null) {
-        // Save the full location data (including coords) to chosen location
         const fullLocationData = {
           ...locationData,
           latitude: position.latitude,
           longitude: position.longitude
         }
         const success = saveChosenLocation(fullLocationData)
-        
-        // Also save coordinates separately for current location API calls
+
         const coordsSaved = saveCurrentLocation({
           latitude: position.latitude,
           longitude: position.longitude
         })
-        
+
         if (success && coordsSaved) {
           setLocation(fullLocationData)
 
-          // ✅ SYNC WITH FEED & LOKAI ASSISTANT 2-HOUR CACHE
           localStorage.setItem('cached_geo_location', JSON.stringify({
-             ...fullLocationData,
-             timestamp: Date.now()
+            ...fullLocationData,
+            timestamp: Date.now()
           }));
 
           setTimeout(() => {
             onClose()
           }, 1000)
         } else {
-          setError('Failed to save location. Please try again.')
+          setError(t('failed_save_location'))
         }
       } else {
-        setError('Invalid location coordinates. Please try again.')
+        setError(t('invalid_coords'))
       }
     } catch (err) {
-      setError(err.message || 'Failed to get current location. Please enable location permissions.')
+      setError(err.message || t('failed_get_current_location'))
     } finally {
       setIsLoading(false)
     }
@@ -137,7 +129,6 @@ const LocationModal = ({ isOpen, onClose, forceLocation = false }) => {
 
   return (
     <Dialog open={isOpen} onOpenChange={(open) => {
-      // Prevent closing if forceLocation is true and no location is set
       if (forceLocation && !location && open === false) {
         return
       }
@@ -147,20 +138,19 @@ const LocationModal = ({ isOpen, onClose, forceLocation = false }) => {
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
             <MapPin className="h-5 w-5 text-accent" />
-            {forceLocation ? 'Set Your Location' : 'Change Location'}
+            {forceLocation ? t('set_your_location') : t('change_location')}
           </DialogTitle>
         </DialogHeader>
-        
+
         <div className="space-y-4">
           <p className="text-sm text-muted-foreground">
-            {forceLocation 
-              ? 'Please set your location to continue. You can use your current location or search for any area.'
-              : 'Search for any location to view issues from that area.'
+            {forceLocation
+              ? t('set_location_desc')
+              : t('search_location_desc')
             }
           </p>
-          
-          {/* Current Location Button */}
-          <Button 
+
+          <Button
             onClick={handleCurrentLocation}
             disabled={isLoading || isSearching}
             className="w-full hover:bg-transparent"
@@ -169,12 +159,12 @@ const LocationModal = ({ isOpen, onClose, forceLocation = false }) => {
             {isLoading ? (
               <>
                 <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                Getting Location...
+                {t('getting_location')}
               </>
             ) : (
               <>
                 <Navigation className="mr-2 h-4 w-4" />
-                Use Current Location
+                {t('use_current_location')}
               </>
             )}
           </Button>
@@ -185,12 +175,11 @@ const LocationModal = ({ isOpen, onClose, forceLocation = false }) => {
             </div>
             <div className="relative flex justify-center text-xs uppercase">
               <span className="bg-background px-2 text-muted-foreground">
-                Or search manually
+                {t('or_search_manually')}
               </span>
             </div>
           </div>
 
-          {/* Search Input (Dynamic) */}
           <div className="relative">
             {isSearching ? (
               <Loader2 className="absolute left-3 top-3.5 h-5 w-5 text-cyan-600 animate-spin" />
@@ -199,7 +188,7 @@ const LocationModal = ({ isOpen, onClose, forceLocation = false }) => {
             )}
             <input
               type="text"
-              placeholder="Search for a city, pincode, or area..."
+              placeholder={t('search_placeholder')}
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
               className="w-full pl-10 pr-10 py-3 rounded-xl border-2 border-border bg-background outline-none transition-all focus:border-cyan-600 focus:ring-2 focus:ring-cyan-600/20"
@@ -214,7 +203,6 @@ const LocationModal = ({ isOpen, onClose, forceLocation = false }) => {
             )}
           </div>
 
-          {/* Search Results */}
           {searchQuery.trim().length > 2 && (
             <>
               {searchResults.length > 0 ? (
@@ -237,8 +225,8 @@ const LocationModal = ({ isOpen, onClose, forceLocation = false }) => {
               ) : (
                 !isSearching && (
                   <div className="p-4 text-center bg-muted/30 rounded-xl border border-border">
-                    <p className="text-sm font-medium text-foreground">No locations found</p>
-                    <p className="text-xs text-muted-foreground mt-1">Try searching for a broader area or pincode</p>
+                    <p className="text-sm font-medium text-foreground">{t('no_locations_found')}</p>
+                    <p className="text-xs text-muted-foreground mt-1">{t('try_broader_search')}</p>
                   </div>
                 )
               )}
@@ -248,17 +236,17 @@ const LocationModal = ({ isOpen, onClose, forceLocation = false }) => {
           {location && (
             <div className="p-3 bg-accent/10 rounded-xl border border-accent/20 animate-fade-in">
               <p className="text-sm font-medium text-accent flex items-center gap-2">
-                <MapPin className="h-4 w-4" /> Location updated successfully
+                <MapPin className="h-4 w-4" /> {t('location_updated_success')}
               </p>
               <p className="text-xs text-muted-foreground mt-1.5 pl-6">
-                {location.city && location.state 
+                {location.city && location.state
                   ? `${location.city}, ${location.state}`
-                  : location.address || 'Location saved'
+                  : location.address || t('location_saved')
                 }
               </p>
             </div>
           )}
-          
+
           {error && (
             <div className="p-3 bg-red-500/10 rounded-xl border border-red-500/20 animate-fade-in">
               <p className="text-sm text-red-500 font-medium">
@@ -266,10 +254,10 @@ const LocationModal = ({ isOpen, onClose, forceLocation = false }) => {
               </p>
             </div>
           )}
-          
+
           {forceLocation && !location && (
             <p className="text-xs text-muted-foreground text-center font-medium">
-              Location is required to view your local feed.
+              {t('location_required_feed')}
             </p>
           )}
         </div>

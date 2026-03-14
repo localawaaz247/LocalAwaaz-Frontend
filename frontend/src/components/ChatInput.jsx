@@ -1,16 +1,16 @@
 import { useState, useRef, useEffect } from "react";
 import { Plus, Mic, Send, Camera, Image as ImageIcon, X, FileAudio, Trash2, Square } from "lucide-react";
+import { useTranslation } from "react-i18next";
 
 const ChatInput = ({ onSendMessage }) => {
+  const { t } = useTranslation();
   const [message, setMessage] = useState("");
   const [showPlusMenu, setShowPlusMenu] = useState(false);
   
-  // File holding states
   const [selectedFile, setSelectedFile] = useState(null);
   const [selectedFileType, setSelectedFileType] = useState(null);
   const [previewUrl, setPreviewUrl] = useState(null);
 
-  // Audio Recording states
   const [isRecording, setIsRecording] = useState(false);
   const [recordingTime, setRecordingTime] = useState(0);
 
@@ -21,13 +21,11 @@ const ChatInput = ({ onSendMessage }) => {
   const imageInputRef = useRef(null);
   const audioInputRef = useRef(null);
 
-  // MediaRecorder refs
   const mediaRecorderRef = useRef(null);
   const audioChunksRef = useRef([]);
   const timerRef = useRef(null);
   const isCancelledRef = useRef(false);
 
-  // Auto-resize textarea
   useEffect(() => {
     const textarea = textareaRef.current;
     if (textarea && !isRecording) {
@@ -36,7 +34,6 @@ const ChatInput = ({ onSendMessage }) => {
     }
   }, [message, isRecording]);
 
-  // Click outside to close Plus Menu
   useEffect(() => {
     const handleClickOutside = (event) => {
       if (plusMenuRef.current && !plusMenuRef.current.contains(event.target)) {
@@ -72,7 +69,6 @@ const ChatInput = ({ onSendMessage }) => {
     }
   };
 
-  // --- MENU HANDLERS ---
   const handleCamera = () => { cameraInputRef.current?.click(); setShowPlusMenu(false); };
   const handleBrowseImages = () => { imageInputRef.current?.click(); setShowPlusMenu(false); };
   const handleBrowseAudio = () => { audioInputRef.current?.click(); setShowPlusMenu(false); };
@@ -82,12 +78,12 @@ const ChatInput = ({ onSendMessage }) => {
     if (!file) return;
 
     if (type === 'audio' && file.size > 5 * 1024 * 1024) {
-      alert("Audio file size must be less than 5 MB.");
+      alert(t('audio_size_limit'));
       e.target.value = ""; 
       return;
     }
     if (type === 'image' && file.size > 30 * 1024 * 1024) {
-      alert("Image file size must be less than 30 MB.");
+      alert(t('image_size_limit'));
       e.target.value = ""; 
       return;
     }
@@ -102,7 +98,6 @@ const ChatInput = ({ onSendMessage }) => {
     e.target.value = "";
   };
 
-  // --- AUDIO RECORDING HANDLERS ---
   const startRecording = async () => {
     try {
       const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
@@ -115,15 +110,15 @@ const ChatInput = ({ onSendMessage }) => {
       };
 
       mediaRecorderRef.current.onstop = () => {
-        stream.getTracks().forEach(track => track.stop()); // Release mic
+        stream.getTracks().forEach(track => track.stop()); 
         
-        if (isCancelledRef.current) return; // Ignore if user canceled
+        if (isCancelledRef.current) return; 
 
         const audioBlob = new Blob(audioChunksRef.current, { type: 'audio/webm' });
         const file = new File([audioBlob], "voice_message.webm", { type: 'audio/webm' });
 
         if (file.size > 5 * 1024 * 1024) {
-          alert("Recorded audio exceeds 5 MB limit. Please try a shorter message.");
+          alert(t('audio_limit_exceeded'));
           return;
         }
 
@@ -140,7 +135,7 @@ const ChatInput = ({ onSendMessage }) => {
       }, 1000);
     } catch (err) {
       console.error("Mic error:", err);
-      alert("Could not access microphone. Please ensure permissions are granted.");
+      alert(t('mic_error'));
     }
   };
 
@@ -163,7 +158,6 @@ const ChatInput = ({ onSendMessage }) => {
     return `${m}:${s < 10 ? '0' : ''}${s}`;
   };
 
-  // Dynamic state for Send button
   const hasContent = message.trim().length > 0 || selectedFile !== null;
 
   return (
@@ -174,7 +168,6 @@ const ChatInput = ({ onSendMessage }) => {
         <div className="relative bg-card/80 backdrop-blur-xl border border-border/50 rounded-[24px] p-2 shadow-sm transition-all duration-300 focus-within:bg-card/95 focus-within:border-primary/40 focus-within:shadow-md flex flex-col min-h-[60px] justify-center">
           
           {isRecording ? (
-            // --- LIVE RECORDING UI ---
             <div className="flex items-center justify-between w-full px-3 py-1 animate-fade-in">
               <div className="flex items-center gap-3">
                 <div className="w-3 h-3 bg-red-500 rounded-full animate-pulse shadow-[0_0_8px_rgba(239,68,68,0.6)]"></div>
@@ -184,23 +177,21 @@ const ChatInput = ({ onSendMessage }) => {
                 <button 
                   onClick={cancelRecording} 
                   className="p-2.5 text-muted-foreground hover:text-red-500 hover:bg-red-500/10 rounded-full transition-colors"
-                  title="Cancel Recording"
+                  title={t('cancel_recording')}
                 >
                   <Trash2 size={18} />
                 </button>
                 <button 
                   onClick={stopRecording} 
                   className="p-2.5 bg-primary text-primary-foreground rounded-full hover:opacity-90 shadow-md transition-all scale-105"
-                  title="Stop & Attach"
+                  title={t('stop_attach')}
                 >
                   <Square size={16} fill="currentColor" />
                 </button>
               </div>
             </div>
           ) : (
-            // --- STANDARD CHAT UI ---
             <>
-              {/* FILE PREVIEW UI */}
               {selectedFile && (
                 <div className="flex items-center gap-3 p-2 mb-2 mx-2 mt-1 bg-muted/60 border border-border/50 rounded-xl w-max max-w-full relative group animate-fade-in-up">
                   {selectedFileType === 'image' ? (
@@ -228,10 +219,9 @@ const ChatInput = ({ onSendMessage }) => {
               )}
 
               <div className="flex items-end w-full">
-                {/* Text Area */}
                 <textarea
                   ref={textareaRef}
-                  placeholder={selectedFile ? "Add a message about this file (optional)..." : "Message LokAI..."}
+                  placeholder={selectedFile ? t('add_message_file') : t('message_lokai')}
                   value={message}
                   onChange={(e) => setMessage(e.target.value)}
                   onKeyDown={handleKeyPress}
@@ -240,10 +230,8 @@ const ChatInput = ({ onSendMessage }) => {
                   style={{ minHeight: "44px" }}
                 />
 
-                {/* Action Buttons */}
                 <div className="flex items-center gap-1.5 pb-1.5 pr-1">
                   
-                  {/* PLUS MENU */}
                   <div className="relative" ref={plusMenuRef}>
                     <button 
                       onClick={() => setShowPlusMenu(!showPlusMenu)}
@@ -256,21 +244,20 @@ const ChatInput = ({ onSendMessage }) => {
                       <div className="absolute bottom-full right-0 mb-3 w-48 bg-card/95 backdrop-blur-xl border border-border/50 rounded-2xl shadow-xl overflow-hidden animate-fade-in-up z-50 py-1.5">
                         <button onClick={handleCamera} className="w-full flex items-center gap-3 px-4 py-2.5 hover:bg-muted/80 text-sm transition-colors text-foreground font-medium">
                           <Camera className="w-4 h-4 text-primary" />
-                          Take Photo
+                          {t('take_photo')}
                         </button>
                         <button onClick={handleBrowseImages} className="w-full flex items-center gap-3 px-4 py-2.5 hover:bg-muted/80 text-sm transition-colors text-foreground font-medium">
                           <ImageIcon className="w-4 h-4 text-primary" />
-                          Upload Image
+                          {t('upload_image')}
                         </button>
                         <button onClick={handleBrowseAudio} className="w-full flex items-center gap-3 px-4 py-2.5 hover:bg-muted/80 text-sm transition-colors text-foreground font-medium">
                           <FileAudio className="w-4 h-4 text-primary" />
-                          Upload Audio
+                          {t('upload_audio')}
                         </button>
                       </div>
                     )}
                   </div>
 
-                  {/* DYNAMIC SEND / MIC BUTTON */}
                   {hasContent ? (
                     <button 
                       onClick={handleSend}
@@ -282,7 +269,7 @@ const ChatInput = ({ onSendMessage }) => {
                     <button
                       onClick={startRecording}
                       className="p-2 rounded-full transition-all duration-200 flex items-center justify-center text-muted-foreground hover:bg-muted hover:text-foreground scale-100 animate-in zoom-in"
-                      title="Record Audio"
+                      title={t('record_audio')}
                     >
                       <Mic size={20} strokeWidth={2.5} />
                     </button>
@@ -294,7 +281,6 @@ const ChatInput = ({ onSendMessage }) => {
         </div>
       </div>
 
-      {/* Hidden File Inputs */}
       <input type="file" accept="image/*" capture="environment" ref={cameraInputRef} onChange={(e) => handleFileChange(e, 'image')} className="hidden" />
       <input type="file" accept="image/*" ref={imageInputRef} onChange={(e) => handleFileChange(e, 'image')} className="hidden" />
       <input type="file" accept="audio/*" ref={audioInputRef} onChange={(e) => handleFileChange(e, 'audio')} className="hidden" />

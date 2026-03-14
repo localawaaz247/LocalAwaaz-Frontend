@@ -1,20 +1,4 @@
-/* eslint-disable no-unused-vars */
-import {
-  Megaphone,
-  Construction,
-  Droplet,
-  Zap,
-  Trash2,
-  Waves,
-  Lightbulb,
-  TrafficCone,
-  AlertTriangle,
-  Camera,
-  HeartPulse,
-  GraduationCap,
-  ShieldAlert,
-  Sparkles
-} from "lucide-react";
+import { Megaphone, Construction, Droplet, Zap, Trash2, Waves, Lightbulb, TrafficCone, AlertTriangle, Camera, HeartPulse, GraduationCap, ShieldAlert, Sparkles } from "lucide-react";
 import { useState, useEffect } from "react";
 import { useLocation } from "react-router-dom";
 import { useSelector } from "react-redux";
@@ -22,25 +6,27 @@ import { saveCurrentLocation } from "../utils/locationUtils";
 import CurrentLocationModal from "../components/CurrentLocationModal";
 import axiosInstance from "../utils/axios";
 import { showToast } from "../utils/toast";
-
-const categories = [
-  { label: "Roads & Potholes", value: "ROAD_&_POTHOLES", icon: Construction },
-  { label: "Water Supply", value: "WATER_SUPPLY", icon: Droplet },
-  { label: "Electricity", value: "ELECTRICITY", icon: Zap },
-  { label: "Sanitation", value: "SANITATION", icon: Trash2 },
-  { label: "Garbage Collection", value: "GARBAGE", icon: Trash2 },
-  { label: "Drainage", value: "DRAINAGE", icon: Waves },
-  { label: "Street Lights", value: "STREET_LIGHTS", icon: Lightbulb },
-  { label: "Traffic", value: "TRAFFIC", icon: TrafficCone },
-  { label: "Encroachment", value: "ENCROACHMENT", icon: AlertTriangle },
-  { label: "Health & Medical", value: "HEALTH", icon: HeartPulse },
-  { label: "Education", value: "EDUCATION", icon: GraduationCap },
-  { label: "Corruption", value: "CORRUPTION", icon: ShieldAlert },
-];
+import { useTranslation } from "react-i18next";
 
 export default function ReportIssue() {
+  const { t } = useTranslation();
   const routerLocation = useLocation();
   const prefilledData = routerLocation.state?.prefilledData;
+
+  const categories = [
+    { label: t('road_&_potholes'), value: "ROAD_&_POTHOLES", icon: Construction },
+    { label: t('water_supply'), value: "WATER_SUPPLY", icon: Droplet },
+    { label: t('electricity'), value: "ELECTRICITY", icon: Zap },
+    { label: t('sanitation'), value: "SANITATION", icon: Trash2 },
+    { label: t('garbage'), value: "GARBAGE", icon: Trash2 },
+    { label: t('drainage'), value: "DRAINAGE", icon: Waves },
+    { label: t('street_lights'), value: "STREET_LIGHTS", icon: Lightbulb },
+    { label: t('traffic'), value: "TRAFFIC", icon: TrafficCone },
+    { label: t('encroachment'), value: "ENCROACHMENT", icon: AlertTriangle },
+    { label: t('health'), value: "HEALTH", icon: HeartPulse },
+    { label: t('education'), value: "EDUCATION", icon: GraduationCap },
+    { label: t('corruption'), value: "CORRUPTION", icon: ShieldAlert },
+  ];
 
   const user = useSelector((state) => state.auth?.user);
 
@@ -63,8 +49,6 @@ export default function ReportIssue() {
     isAnonymous: false
   });
 
-  // --- 1. BULLETPROOF GLOBAL ANONYMOUS FIX ---
-  // FIX: Accurately point to user.preferences.globalAnonymous as defined in your MongoDB schema
   useEffect(() => {
     if (user) {
       const isAnon = Boolean(user.preferences?.globalAnonymous);
@@ -84,14 +68,10 @@ export default function ReportIssue() {
   const [isAILoading, setIsAILoading] = useState(false);
   const [totalResolved, setTotalResolved] = useState(0);
 
-  // --- 2. GLOBAL RESOLVED COUNT (Irrespective of Location) ---
   useEffect(() => {
     const fetchGlobalResolvedCount = async () => {
       try {
-        // Point this to an endpoint that calculates DB-wide resolved issues without location filters
         const res = await axiosInstance.get('/issue/global/resolved-count');
-
-        // Handles multiple common response structures
         const count = res.data?.resolvedCount || res.data?.count || res.data?.totalResolved;
         if (count !== undefined) {
           setTotalResolved(count);
@@ -138,13 +118,12 @@ export default function ReportIssue() {
     return () => {
       previewUrls.forEach(url => URL.revokeObjectURL(url));
     };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   const handleFillWithAI = async () => {
     if (formData.media.length === 0) {
-      setUploadError("AI requires an image to analyze the issue.");
-      showToast({ icon: "warning", title: "Please select an image first" });
+      setUploadError(t('ai_req_image'));
+      showToast({ icon: "warning", title: t('select_image_first') });
       return;
     }
 
@@ -152,8 +131,8 @@ export default function ReportIssue() {
     const hasGPS = formData.location.geoData.coordinates !== null;
 
     if (!hasTextLocation && !hasGPS) {
-      setErrors(prev => ({ ...prev, location: "AI needs your State, City, Pincode OR GPS Location to draft accurately." }));
-      showToast({ icon: "warning", title: "Location Details Required" });
+      setErrors(prev => ({ ...prev, location: t('ai_req_location') }));
+      showToast({ icon: "warning", title: t('location_details_req') });
       return;
     }
 
@@ -191,13 +170,13 @@ export default function ReportIssue() {
           description: aiResult.description || prev.description
         }));
 
-        showToast({ icon: "success", title: "AI successfully drafted your report!" });
+        showToast({ icon: "success", title: t('ai_draft_success') });
       } else {
-        throw new Error(data?.message || "AI Analysis failed");
+        throw new Error(data?.message || t('ai_analysis_fail'));
       }
     } catch (error) {
       console.error("AI Fill Error:", error);
-      showToast({ icon: "error", title: "Failed to generate AI details. Please type manually." });
+      showToast({ icon: "error", title: t('ai_fill_fail') });
     } finally {
       setIsAILoading(false);
     }
@@ -245,7 +224,7 @@ export default function ReportIssue() {
     if (totalFilesAfterAdd > 3) {
       setErrors(prev => ({
         ...prev,
-        media: `Cannot add ${files.length} file(s). You can only have a maximum of 3 files.`
+        media: `${t('cannot_add')} ${files.length} ${t('files_max_3')}`
       }));
       return;
     }
@@ -254,14 +233,14 @@ export default function ReportIssue() {
     const invalidFiles = files.filter(file => !validTypes.includes(file.type));
 
     if (invalidFiles.length > 0) {
-      setErrors(prev => ({ ...prev, media: "Only PNG, JPG, JPEG images are allowed." }));
+      setErrors(prev => ({ ...prev, media: t('invalid_img_type') }));
       return;
     }
 
     const currentTotalSize = formData.media.reduce((total, file) => total + file.size, 0);
     const newFilesSize = files.reduce((total, file) => total + file.size, 0);
     if (currentTotalSize + newFilesSize > 30 * 1024 * 1024) {
-      setErrors(prev => ({ ...prev, media: `Combined file size exceeds 30MB limit.` }));
+      setErrors(prev => ({ ...prev, media: t('size_limit_exceeded') }));
       return;
     }
 
@@ -294,7 +273,7 @@ export default function ReportIssue() {
 
   const handleUploadMedia = async () => {
     if (formData.media.length === 0) {
-      setUploadError('Please select files to upload first');
+      setUploadError(t('select_files_first'));
       return;
     }
 
@@ -317,10 +296,10 @@ export default function ReportIssue() {
           mediaUrls: response.data.media
         }));
       } else {
-        setUploadError('Failed to upload files. Please try again.');
+        setUploadError(t('upload_fail_retry'));
       }
     } catch (error) {
-      setUploadError('Failed to upload files. Please try again.');
+      setUploadError(t('upload_fail_retry'));
     } finally {
       setIsUploading(false);
     }
@@ -335,19 +314,19 @@ export default function ReportIssue() {
     const validateForm = () => {
       const newErrors = {};
 
-      if (!formData.title || !formData.title.trim()) newErrors.title = 'Title is required';
-      else if (formData.title.trim().length < 3) newErrors.title = 'Title must be at least 3 characters long';
+      if (!formData.title || !formData.title.trim()) newErrors.title = t('title_req');
+      else if (formData.title.trim().length < 3) newErrors.title = t('title_length');
 
-      if (!formData.category) newErrors.category = 'Please select a category';
+      if (!formData.category) newErrors.category = t('category_req');
 
-      if (!formData.description || !formData.description.trim()) newErrors.description = 'Description is required';
-      else if (formData.description.trim().length < 10) newErrors.description = 'Description must be at least 10 characters long';
+      if (!formData.description || !formData.description.trim()) newErrors.description = t('desc_req');
+      else if (formData.description.trim().length < 10) newErrors.description = t('desc_length');
 
-      if (!formData.location.address.trim()) newErrors.location = 'Location is required';
-      if (!formData.location.geoData.coordinates) newErrors.geoData = 'GPS coordinates are required.';
+      if (!formData.location.address.trim()) newErrors.location = t('location_req');
+      if (!formData.location.geoData.coordinates) newErrors.geoData = t('gps_req');
 
       if (formData.media.length > 0 && formData.mediaUrls.length === 0) {
-        setUploadError("Please click 'Upload Files' before submitting your issue.");
+        setUploadError(t('click_upload_before_submit'));
         setIsSubmitting(false);
         return false;
       }
@@ -379,7 +358,6 @@ export default function ReportIssue() {
 
       if (response.data) {
         setSubmitSuccess(true);
-        // FIX: Ensure reset state properly relies on accurate preference field
         setFormData({
           title: '', category: '', description: '',
           location: { address: '', city: '', pinCode: '', state: '', geoData: { type: 'Point', coordinates: null } },
@@ -391,12 +369,11 @@ export default function ReportIssue() {
         setErrors({});
         localStorage.removeItem('currentLocation');
 
-        // Optimistically update total resolved
         setTotalResolved(prev => prev + 1);
       }
 
     } catch (error) {
-      setSubmitError(error.response?.data?.message || "Something went wrong.");
+      setSubmitError(error.response?.data?.message || t('something_went_wrong'));
     } finally {
       setIsSubmitting(false);
     }
@@ -404,7 +381,6 @@ export default function ReportIssue() {
 
   return (
     <div className="min-h-[100dvh] bg-texture pb-20 md:pb-8">
-      {/* Header */}
       <header className="glass-card sticky top-2 md:top-4 z-40 mx-2 md:mx-4 rounded-xl md:rounded-2xl shadow-sm border-b border-border/50">
         <div className="flex items-center justify-between px-4 py-3 md:px-8 md:py-6">
           <div className="flex items-center gap-2 md:gap-3">
@@ -413,44 +389,41 @@ export default function ReportIssue() {
             </div>
             <div>
               <h1 className="text-lg md:text-xl font-bold text-gradient leading-tight">LocalAwaaz</h1>
-              <p className="text-[10px] md:text-xs text-muted-foreground">Community Voice Platform</p>
+              <p className="text-[10px] md:text-xs text-muted-foreground">{t('community_voice')}</p>
             </div>
           </div>
         </div>
       </header>
 
-      {/* Hero */}
       <section className="relative mx-2 md:mx-6 mt-4 md:mt-8 rounded-2xl md:rounded-3xl glass-card p-6 md:p-8 text-center shadow-xl">
         <div className="animate-fade-in-up">
           <h1 className="mb-2 md:mb-4 text-2xl md:text-4xl lg:text-5xl font-bold text-gradient">
-            Report a Local Issue
+            {t('report_local_issue')}
           </h1>
           <p className="mx-auto max-w-2xl text-sm md:text-lg text-muted-foreground">
-            Help improve your neighborhood by reporting issues directly to local authorities.
+            {t('report_desc')}
           </p>
           <div className="mt-4 md:mt-6 flex flex-wrap justify-center gap-2 md:gap-4">
             <div className="flex items-center gap-1.5 md:gap-2 rounded-full bg-cyan-950 px-3 md:px-4 py-1.5 md:py-2 text-xs md:text-sm font-medium text-accent-foreground border border-cyan-800">
               <div className="h-1.5 w-1.5 md:h-2 md:w-2 rounded-full bg-white animate-pulse"></div>
-              Active Community
+              {t('active_community')}
             </div>
             {totalResolved > 0 && (
               <div className="flex items-center gap-1.5 md:gap-2 rounded-full bg-cyan-950 px-3 md:px-4 py-1.5 md:py-2 text-xs md:text-sm font-medium text-accent-foreground border border-cyan-800">
-                {totalResolved.toLocaleString()} Total Issues Resolved
+                {totalResolved.toLocaleString()} {t('total_issues_resolved')}
               </div>
             )}
           </div>
         </div>
       </section>
 
-      {/* Main Card */}
       <div className="mx-auto mt-6 md:mt-10 max-w-7xl px-2 md:px-4">
         <div className="glass-card p-4 md:p-8 shadow-xl rounded-2xl md:rounded-3xl relative">
 
-          {/* AI Fill Button */}
           <div className="flex flex-col sm:flex-row justify-between items-start sm:items-end mb-6 md:mb-8 gap-4 border-b border-border/50 pb-4">
             <div>
-              <h2 className="mb-1 md:mb-2 text-xl md:text-2xl font-bold text-foreground">Select Issue Category<span className="text-red-600"> *</span></h2>
-              <p className="text-xs md:text-sm text-muted-foreground">Choose the category that best describes your issue</p>
+              <h2 className="mb-1 md:mb-2 text-xl md:text-2xl font-bold text-foreground">{t('select_category_header')}<span className="text-red-600"> *</span></h2>
+              <p className="text-xs md:text-sm text-muted-foreground">{t('select_category_desc')}</p>
               {errors.category && <p className="mt-1 text-xs text-red-600">{errors.category}</p>}
             </div>
 
@@ -458,14 +431,14 @@ export default function ReportIssue() {
               onClick={handleFillWithAI}
               disabled={isAILoading}
               className={`flex items-center justify-center gap-2 w-full sm:w-auto px-4 py-2.5 rounded-xl font-medium text-sm transition-all shadow-lg ${isAILoading
-                  ? 'bg-muted text-muted-foreground cursor-wait'
-                  : 'btn-gradient text-white hover:scale-[1.02] active:scale-[0.98]'
+                ? 'bg-muted text-muted-foreground cursor-wait'
+                : 'btn-gradient text-white hover:scale-[1.02] active:scale-[0.98]'
                 }`}
             >
               {isAILoading ? (
-                <><div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white"></div>Analyzing...</>
+                <><div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white"></div>{t('analyzing')}</>
               ) : (
-                <><Sparkles className="w-4 h-4" />Auto-fill with AI</>
+                <><Sparkles className="w-4 h-4" />{t('auto_fill_ai')}</>
               )}
             </button>
           </div>
@@ -485,41 +458,39 @@ export default function ReportIssue() {
             ))}
           </div>
 
-          {/* Form */}
           <div className="mt-8 md:mt-10 grid gap-6 md:gap-8 lg:grid-cols-3">
-            {/* Left Column (Inputs) */}
             <div className="space-y-4 md:space-y-6 lg:col-span-2">
               <div>
-                <label className="mb-1.5 md:mb-2 block text-sm font-semibold text-foreground">Issue Title<span className="text-red-600"> *</span></label>
+                <label className="mb-1.5 md:mb-2 block text-sm font-semibold text-foreground">{t('issue_title')}<span className="text-red-600"> *</span></label>
                 <input
                   type="text"
-                  placeholder="Brief title of the issue"
+                  placeholder={t('brief_title')}
                   value={formData.title}
                   onChange={(e) => handleInputChange('title', e.target.value)}
                   className="w-full rounded-xl border-2 border-border bg-background px-3 md:px-4 py-2.5 md:py-3 text-sm md:text-base outline-none transition-all focus:border-cyan-600 focus:ring-2 focus:ring-cyan-600/20"
                 />
-                <p className="mt-1 text-[10px] md:text-xs text-muted-foreground">{formData.title.length}/100 characters</p>
+                <p className="mt-1 text-[10px] md:text-xs text-muted-foreground">{formData.title.length}/100 {t('characters')}</p>
                 {errors.title && <p className="mt-1 text-xs text-red-600">{errors.title}</p>}
               </div>
 
               <div>
-                <label className="mb-1.5 md:mb-2 block text-sm font-semibold text-foreground">Detailed Description<span className="text-red-600"> *</span></label>
+                <label className="mb-1.5 md:mb-2 block text-sm font-semibold text-foreground">{t('detailed_desc')}<span className="text-red-600"> *</span></label>
                 <textarea
-                  placeholder="Provide more details about the issue..."
+                  placeholder={t('issue_desc_placeholder')}
                   value={formData.description}
                   onChange={(e) => handleInputChange('description', e.target.value)}
                   className="w-full rounded-xl border-2 border-border bg-background px-3 md:px-4 py-2.5 md:py-3 text-sm md:text-base outline-none transition-all focus:border-cyan-600 focus:ring-2 focus:ring-cyan-600/20 resize-none"
                   rows={4}
                 />
-                <p className="mt-1 text-[10px] md:text-xs text-muted-foreground">{formData.description.length}/500 characters</p>
+                <p className="mt-1 text-[10px] md:text-xs text-muted-foreground">{formData.description.length}/500 {t('characters')}</p>
                 {errors.description && <p className="mt-1 text-xs text-red-600">{errors.description}</p>}
               </div>
 
               <div>
-                <label className="mb-1.5 md:mb-2 block text-sm font-semibold text-foreground">Specific Location</label>
+                <label className="mb-1.5 md:mb-2 block text-sm font-semibold text-foreground">{t('specific_location')}</label>
                 <input
                   type="text"
-                  placeholder="e.g., Near SBI Bank, Main Road"
+                  placeholder={t('location_placeholder')}
                   value={formData.location.address}
                   onChange={(e) => handleInputChange('location.address', e.target.value)}
                   className="w-full rounded-xl border-2 border-border bg-background px-3 md:px-4 py-2.5 md:py-3 text-sm md:text-base outline-none transition-all focus:border-cyan-600 focus:ring-2 focus:ring-cyan-600/20"
@@ -529,45 +500,44 @@ export default function ReportIssue() {
 
               <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 md:gap-4">
                 <div>
-                  <label className="mb-1.5 md:mb-2 block text-sm font-semibold text-foreground">State</label>
+                  <label className="mb-1.5 md:mb-2 block text-sm font-semibold text-foreground">{t('state')}</label>
                   <input
-                    type="text" placeholder="e.g. Assam" value={formData.location.state}
+                    type="text" placeholder={t('state_placeholder')} value={formData.location.state}
                     onChange={(e) => handleInputChange('location.state', e.target.value)}
                     className="w-full rounded-xl border-2 border-border bg-background px-3 md:px-4 py-2.5 md:py-3 text-sm md:text-base outline-none transition-all focus:border-cyan-600 focus:ring-2 focus:ring-cyan-600/20"
                   />
                 </div>
                 <div>
-                  <label className="mb-1.5 md:mb-2 block text-sm font-semibold text-foreground">City</label>
+                  <label className="mb-1.5 md:mb-2 block text-sm font-semibold text-foreground">{t('city')}</label>
                   <input
-                    type="text" placeholder="e.g. Mumbai" value={formData.location.city}
+                    type="text" placeholder={t('city_placeholder')} value={formData.location.city}
                     onChange={(e) => handleInputChange('location.city', e.target.value)}
                     className="w-full rounded-xl border-2 border-border bg-background px-3 md:px-4 py-2.5 md:py-3 text-sm md:text-base outline-none transition-all focus:border-cyan-600 focus:ring-2 focus:ring-cyan-600/20"
                   />
                 </div>
                 <div>
-                  <label className="mb-1.5 md:mb-2 block text-sm font-semibold text-foreground">Pin Code</label>
+                  <label className="mb-1.5 md:mb-2 block text-sm font-semibold text-foreground">{t('pin_code')}</label>
                   <input
-                    type="text" placeholder="e.g. 400001" value={formData.location.pinCode}
+                    type="text" placeholder={t('pincode_placeholder')} value={formData.location.pinCode}
                     onChange={(e) => handleInputChange('location.pinCode', e.target.value)}
                     className="w-full rounded-xl border-2 border-border bg-background px-3 md:px-4 py-2.5 md:py-3 text-sm md:text-base outline-none transition-all focus:border-cyan-600 focus:ring-2 focus:ring-cyan-600/20"
                   />
                 </div>
               </div>
 
-              {/* GPS Location Status */}
               <div className="mt-2 md:mt-4 p-3 md:p-4 rounded-xl bg-muted/50 border border-border">
                 <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 sm:gap-0">
                   <div className="flex items-center gap-2">
-                    <span className="text-sm font-semibold text-foreground">GPS Location<span className="text-red-600"> *</span></span>
+                    <span className="text-sm font-semibold text-foreground">{t('gps_location')}<span className="text-red-600"> *</span></span>
                     {formData.location.geoData.coordinates ? (
                       <div className="flex items-center gap-1.5 bg-green-500/10 px-2 py-1 rounded-full">
                         <div className="h-2.5 w-2.5 rounded-full bg-green-600"></div>
-                        <span className="text-xs font-medium text-green-600">Captured</span>
+                        <span className="text-xs font-medium text-green-600">{t('captured')}</span>
                       </div>
                     ) : (
                       <div className="flex items-center gap-1.5 bg-yellow-500/10 px-2 py-1 rounded-full">
                         <div className="h-2.5 w-2.5 rounded-full bg-yellow-600"></div>
-                        <span className="text-xs font-medium text-yellow-600">Not captured</span>
+                        <span className="text-xs font-medium text-yellow-600">{t('not_captured')}</span>
                       </div>
                     )}
                   </div>
@@ -576,22 +546,21 @@ export default function ReportIssue() {
                       type="button" onClick={() => setShowLocationModal(true)}
                       className="text-xs md:text-sm bg-cyan-600 text-white hover:bg-cyan-700 px-3 py-1.5 md:px-4 md:py-2 rounded-lg transition-colors font-medium self-start sm:self-auto"
                     >
-                      Get Current Location
+                      {t('get_current_location')}
                     </button>
                   )}
                 </div>
                 <p className="mt-2 text-[11px] md:text-xs text-muted-foreground leading-relaxed">
-                  Click "Get Current Location" to capture your GPS coordinates.
+                  {t('gps_desc')}
                 </p>
                 {errors.geoData && <p className="mt-2 text-xs text-red-600 font-medium">{errors.geoData}</p>}
               </div>
             </div>
 
-            {/* Right Column (Upload & Submit) */}
             <div className="space-y-6">
               <div>
                 <label className="mb-1.5 md:mb-2 block text-sm font-semibold text-foreground">
-                  Add Photos<span className="font-normal text-red-600"> *</span>
+                  {t('add_photos')}<span className="font-normal text-red-600"> *</span>
                 </label>
                 <div className="group relative">
                   <div className="h-36 md:h-44 cursor-pointer rounded-xl border-2 border-dashed border-border bg-muted/50 transition-all hover:border-cyan-600 hover:bg-muted">
@@ -604,7 +573,7 @@ export default function ReportIssue() {
                       {formData.media.length > 0 ? (
                         <>
                           <Camera className="h-6 w-6 md:h-8 md:w-8 text-green-600" />
-                          <span className="text-xs md:text-sm font-medium text-foreground">{formData.media.length} file(s) selected</span>
+                          <span className="text-xs md:text-sm font-medium text-foreground">{formData.media.length} {t('files_selected')}</span>
                           <div className="text-[10px] md:text-xs text-muted-foreground max-w-[200px] md:max-w-xs">
                             {formData.media.map((file, index) => (
                               <div key={index} className="truncate">
@@ -614,15 +583,15 @@ export default function ReportIssue() {
                           </div>
                           {!formData.mediaUrls.length && (
                             <div className="flex flex-col mt-1">
-                              <span className="text-[10px] md:text-xs text-cyan-600 font-medium">Click to add more</span>
+                              <span className="text-[10px] md:text-xs text-cyan-600 font-medium">{t('click_add_more')}</span>
                             </div>
                           )}
                         </>
                       ) : (
                         <>
                           <Camera className="h-6 w-6 md:h-8 md:w-8 text-muted-foreground transition-colors group-hover:text-primary" />
-                          <span className="text-xs md:text-sm font-medium text-muted-foreground transition-colors group-hover:text-foreground">Upload Photos</span>
-                          <span className="text-[10px] md:text-xs text-muted-foreground mt-1 px-2">PNG, JPG, JPEG only<br />(max 3 files, 30MB total)</span>
+                          <span className="text-xs md:text-sm font-medium text-muted-foreground transition-colors group-hover:text-foreground">{t('upload_photos')}</span>
+                          <span className="text-[10px] md:text-xs text-muted-foreground mt-1 px-2">{t('img_formats_limit')}</span>
                         </>
                       )}
                     </div>
@@ -630,14 +599,13 @@ export default function ReportIssue() {
                   {errors.media && <p className="mt-2 text-xs text-red-600">{errors.media}</p>}
                 </div>
 
-                {/* Upload Button - HIDDEN IF ALREADY UPLOADED */}
                 {formData.media.length > 0 && formData.mediaUrls.length === 0 && (
                   <div className="mt-4">
                     <button
                       type="button" onClick={handleUploadMedia} disabled={isUploading}
                       className="w-full rounded-xl py-2.5 md:py-3 text-sm md:text-base font-semibold text-white shadow-lg transition-all hover:scale-[1.02] active:scale-[0.98] disabled:opacity-50 disabled:cursor-not-allowed bg-gradient-to-r from-cyan-600 to-teal-600"
                     >
-                      {isUploading ? 'Uploading...' : 'Upload Files'}
+                      {isUploading ? t('uploading') : t('upload_files_btn')}
                     </button>
                     {uploadError && (
                       <div className="mt-2 rounded-lg bg-red-500/10 border border-red-500/20 p-3">
@@ -647,7 +615,6 @@ export default function ReportIssue() {
                   </div>
                 )}
 
-                {/* Success Message */}
                 {formData.mediaUrls.length > 0 && (
                   <div className="mt-4">
                     <div className="w-full rounded-xl py-4 md:py-6 px-4 bg-green-500/10 border border-green-500/20 text-center">
@@ -655,18 +622,17 @@ export default function ReportIssue() {
                         <svg className="w-6 h-6 md:w-8 md:h-8 text-green-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
                         </svg>
-                        <span className="text-green-600 text-xs md:text-sm font-semibold">Images uploaded successfully</span>
-                        <span className="text-green-600/80 text-[10px] md:text-xs">{formData.mediaUrls.length} image(s) ready to submit</span>
+                        <span className="text-green-600 text-xs md:text-sm font-semibold">{t('img_up_success')}</span>
+                        <span className="text-green-600/80 text-[10px] md:text-xs">{formData.mediaUrls.length} {t('img_ready')}</span>
                       </div>
                     </div>
                   </div>
                 )}
               </div>
 
-              {/* File Preview Section - HIDDEN IF ALREADY UPLOADED */}
               {formData.media.length > 0 && formData.mediaUrls.length === 0 && (
                 <div className="mt-4 md:mt-6">
-                  <h3 className="mb-2 md:mb-3 text-xs md:text-sm font-semibold text-foreground">Selected Files ({formData.media.length}/3)</h3>
+                  <h3 className="mb-2 md:mb-3 text-xs md:text-sm font-semibold text-foreground">{t('selected_files')} ({formData.media.length}/3)</h3>
                   <div className="grid grid-cols-3 gap-2 md:gap-3">
                     {formData.media.map((file, index) => (
                       <div key={index} className="relative group">
@@ -695,10 +661,10 @@ export default function ReportIssue() {
                     onChange={(e) => handleInputChange('isAnonymous', e.target.checked)}
                     className="h-4 w-4 rounded border-border bg-background text-cyan-600 focus:ring-2 focus:ring-cyan-600/20 focus:outline-none"
                   />
-                  Post Anonymously
+                  {t('post_anonymously')}
                 </label>
                 <p className="text-[11px] md:text-xs text-muted-foreground ml-7 mt-1">
-                  Your personal details won't be shown to the public
+                  {t('anon_desc')}
                 </p>
               </div>
 
@@ -708,7 +674,7 @@ export default function ReportIssue() {
                   disabled={isSubmitting}
                   className="btn-gradient w-full rounded-xl py-3 text-sm md:text-base font-semibold text-white shadow-lg transition-all hover:scale-[1.02] active:scale-[0.98] disabled:opacity-50 disabled:cursor-not-allowed"
                 >
-                  {isSubmitting ? 'Submitting...' : 'Submit Issue'}
+                  {isSubmitting ? t('submitting') : t('submit_issue')}
                 </button>
 
                 {submitError && (
@@ -723,9 +689,9 @@ export default function ReportIssue() {
                       <svg className="w-5 h-5 text-green-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
                       </svg>
-                      <p className="text-sm text-green-500 font-semibold">Issue submitted successfully!</p>
+                      <p className="text-sm text-green-500 font-semibold">{t('issue_submit_success')}</p>
                     </div>
-                    <p className="text-xs text-green-600/80 mt-1.5 ml-7">Your report has been received and will be reviewed shortly.</p>
+                    <p className="text-xs text-green-600/80 mt-1.5 ml-7">{t('issue_review_shortly')}</p>
                   </div>
                 )}
               </div>

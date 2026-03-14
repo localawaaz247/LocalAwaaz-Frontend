@@ -3,7 +3,7 @@ import { useState, useEffect, useMemo } from "react";
 import { useDispatch, useSelector } from "react-redux";
 import { useNavigate, useLocation, useOutletContext } from 'react-router-dom';
 import InfiniteScroll from "react-infinite-scroll-component";
-import { getChosenLocation, formatLocationDisplay, getCurrentLocationStored } from "../utils/locationUtils";
+import { getChosenLocation, formatLocationDisplay } from "../utils/locationUtils";
 import LocationModal from "../components/LocationModal";
 import IssueCard from "../components/IssueCard";
 import IssueDetail from "../components/IssueDetail";
@@ -11,8 +11,10 @@ import FlagModal from "../components/modals/FlagModal";
 import axiosInstance from "../utils/axios";
 import { fetchIssues, clearIssues } from "../reducer/issueFeedReducer";
 import { showToast } from "../utils/toast";
+import { useTranslation } from "react-i18next";
 
 const Feed = () => {
+  const { t } = useTranslation();
   const [chosenLocation, setChosenLocation] = useState(() => getChosenLocation());
   const [showLocationModal, setShowLocationModal] = useState(false);
   const [selectedIssue, setSelectedIssue] = useState(null);
@@ -34,10 +36,9 @@ const Feed = () => {
 
   const { issues, loading, error, pagination } = useSelector((state) => state.issueFeed);
 
-  const displayLocation = chosenLocation ? formatLocationDisplay(chosenLocation) : "Locating...";
+  const displayLocation = chosenLocation ? formatLocationDisplay(chosenLocation) : t('locating');
   const activeIssuesCount = pagination?.totalIssues || issues?.length || 0;
 
-  // --- AUTO-OPEN ISSUE FROM NOTIFICATIONS ---
   useEffect(() => {
     const fetchAndOpenIssue = async () => {
       if (!selectedIssueId) return;
@@ -53,14 +54,13 @@ const Feed = () => {
         setIsDetailOpen(true);
       } catch (err) {
         console.error("Failed to fetch specific issue details:", err);
-        showToast({ icon: "error", title: "Issue not found or has been deleted" });
+        showToast({ icon: "error", title: t('issue_not_found') });
         if (setSelectedIssueId) setSelectedIssueId(null);
       }
     };
     fetchAndOpenIssue();
-  }, [selectedIssueId, issues, setSelectedIssueId]);
+  }, [selectedIssueId, issues, setSelectedIssueId, t]);
 
-  // --- FETCH DATA HELPER ---
   const fetchData = (currentPage, specificLocation = null) => {
     const locToUse = specificLocation || getChosenLocation();
     if (locToUse) {
@@ -76,7 +76,6 @@ const Feed = () => {
     }
   };
 
-  // --- 🌍 2-HOUR AUTO LOCATION LOGIC ---
   useEffect(() => {
     const CACHE_TIME_LIMIT = 2 * 60 * 60 * 1000;
     const checkAndFetchLocation = async () => {
@@ -91,7 +90,7 @@ const Feed = () => {
       }
 
       if (navigator.geolocation) {
-        showToast({ icon: "info", title: "Locating your neighborhood..." });
+        showToast({ icon: "info", title: t('locating_neighborhood') });
         navigator.geolocation.getCurrentPosition(
           async (pos) => {
             const { latitude, longitude } = pos.coords;
@@ -123,7 +122,7 @@ const Feed = () => {
       }
     };
     checkAndFetchLocation();
-  }, [dispatch]);
+  }, [dispatch, t]);
 
   const handleLocationUpdate = () => {
     const updatedLocation = getChosenLocation();
@@ -156,13 +155,13 @@ const Feed = () => {
       const latitude = coords?.latitude;
 
       const response = await axiosInstance.post(`/issue/${selectedIssueForFlag._id}/${flagReason}?lng=${longitude}&lat=${latitude}`);
-      showToast({ icon: "success", title: response.data?.message || "Issue successfully flagged!" });
+      showToast({ icon: "success", title: response.data?.message || t('issue_flagged_success') });
       setShowFlagModal(false);
       setSelectedIssueForFlag(null);
       setPage(1);
       fetchData(1);
     } catch (error) {
-      showToast({ icon: "error", title: error.response?.data?.message || "Failed to flag issue" });
+      showToast({ icon: "error", title: error.response?.data?.message || t('flag_failed') });
     } finally {
       setFlagLoading(false);
     }
@@ -170,7 +169,7 @@ const Feed = () => {
 
   const dynamicStats = useMemo(() => {
     let resolved = 0; let pending = 0; let totalImpact = 0;
-    if (!issues || issues.length === 0) return { resolved: 0, pending: 0, impactLevel: "Evaluating..." };
+    if (!issues || issues.length === 0) return { resolved: 0, pending: 0, impactLevel: t('evaluating') };
 
     issues.forEach(issue => {
       const stat = issue.status?.toUpperCase() || 'OPEN';
@@ -179,14 +178,14 @@ const Feed = () => {
       totalImpact += (issue.impactScore || issue.impact || 0) + (issue.confirmationCount || 0);
     });
 
-    let impactLevel = "Low";
-    if (totalImpact > 100) impactLevel = "Critical";
-    else if (totalImpact > 50) impactLevel = "High";
-    else if (totalImpact > 20) impactLevel = "Medium";
-    else if (totalImpact > 0) impactLevel = "Emerging";
+    let impactLevel = t('low');
+    if (totalImpact > 100) impactLevel = t('critical');
+    else if (totalImpact > 50) impactLevel = t('high');
+    else if (totalImpact > 20) impactLevel = t('medium');
+    else if (totalImpact > 0) impactLevel = t('emerging');
 
     return { resolved, pending, impactLevel };
-  }, [issues]);
+  }, [issues, t]);
 
   const sortedIssues = useMemo(() => {
     if (!issues) return [];
@@ -204,7 +203,6 @@ const Feed = () => {
 
   return (
     <div className="bg-texture min-h-[100dvh] pb-20 md:pb-8">
-      {/* Dynamic Keyframes for Shimmer injected into DOM */}
       <style>{`
         @keyframes shimmerSweep {
           0% { transform: translateX(-100%); }
@@ -215,81 +213,72 @@ const Feed = () => {
         }
       `}</style>
 
-      {/* HEADER (Sticky) */}
       <div className="px-3 md:px-6 py-3 md:py-4 sticky top-2 glass-card z-40 rounded-lg border-0 border-b border-border mx-2 md:mx-4 shadow-sm">
         <div className="flex justify-between items-center">
           <div className="min-w-0 pr-2">
             <h2 className="text-base md:text-lg font-bold text-foreground truncate">{displayLocation}</h2>
             <div className="flex items-center gap-1 text-[11px] md:text-sm text-muted-foreground truncate">
               <MapPin size={14} className="flex-shrink-0" />
-              <span className="truncate">{chosenLocation?.country || "Locating..."}</span>
+              <span className="truncate">{chosenLocation?.country || t('locating')}</span>
               <button
                 className="ml-1 md:ml-2 text-accent font-medium transition-colors hover:text-accent/80 flex-shrink-0"
                 onClick={() => setShowLocationModal(true)}
               >
-                Change
+                {t('change')}
               </button>
             </div>
           </div>
 
           <div className="flex items-center gap-2 md:gap-3 flex-shrink-0">
             <span className="hidden lg:block text-xs md:text-sm bg-cyan-800 text-accent-foreground px-3 py-1.5 md:py-2 rounded-full border border-accent/30">
-              ● {activeIssuesCount} Active {activeIssuesCount === 1 ? 'Issue' : 'Issues'}
+              ● {activeIssuesCount} {t('active')} {activeIssuesCount === 1 ? t('issue_singular') : t('issues_label')}
             </span>
             <button
               className="btn-gradient flex items-center gap-1.5 md:gap-2 px-3 md:px-4 py-1.5 md:py-2 rounded-xl whitespace-nowrap"
               onClick={() => navigate("/dashboard/report")}
             >
               <Plus size={16} />
-              <span className="hidden sm:inline text-sm">New Issue</span>
-              <span className="sm:hidden text-xs">Report</span>
+              <span className="hidden sm:inline text-sm">{t('new_issue')}</span>
+              <span className="sm:hidden text-xs">{t('report')}</span>
             </button>
           </div>
         </div>
       </div>
 
-      {/* DYNAMIC STATS - Hidden on mobile/tablet */}
       <div className="hidden lg:block mt-6 px-6 relative z-10">
         <div className="grid grid-cols-3 gap-6">
-          <StatCard icon={<CheckCircle2 className="text-secondary w-6 h-6" />} label="Recently Resolved" value={dynamicStats.resolved} />
-          <StatCard icon={<Clock className="text-secondary w-6 h-6" />} label="Pending Verification" value={dynamicStats.pending} />
-          <StatCard icon={<Users className="text-accent w-6 h-6" />} label="Area Impact" value={dynamicStats.impactLevel} />
+          <StatCard icon={<CheckCircle2 className="text-secondary w-6 h-6" />} label={t('recently_resolved')} value={dynamicStats.resolved} />
+          <StatCard icon={<Clock className="text-secondary w-6 h-6" />} label={t('pending_verification')} value={dynamicStats.pending} />
+          <StatCard icon={<Users className="text-accent w-6 h-6" />} label={t('area_impact')} value={dynamicStats.impactLevel} />
         </div>
       </div>
 
-      {/* PRIORITY ISSUES */}
       <div className="px-2 md:px-6 mt-4 lg:mt-8">
         <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 sm:gap-0 mb-4 md:mb-6">
-          <h3 className="text-lg md:text-xl font-bold text-foreground">Priority Issues in Your Area</h3>
+          <h3 className="text-lg md:text-xl font-bold text-foreground">{t('priority_issues')}</h3>
           <div className="flex flex-wrap gap-2">
-            <button onClick={() => setSortBy("newest")} className={`px-3 md:px-4 py-1.5 md:py-2 rounded-xl text-xs md:text-sm transition-all duration-200 ${sortBy === "newest" ? "btn-gradient text-white shadow-md font-medium" : "border border-border bg-card text-muted-foreground hover:bg-muted"}`}>Newest</button>
-            <button onClick={() => setSortBy("impactful")} className={`px-3 md:px-4 py-1.5 md:py-2 rounded-xl text-xs md:text-sm transition-all duration-200 ${sortBy === "impactful" ? "btn-gradient text-white shadow-md font-medium" : "border border-border bg-card text-muted-foreground hover:bg-muted"}`}>Most Impactful</button>
+            <button onClick={() => setSortBy("newest")} className={`px-3 md:px-4 py-1.5 md:py-2 rounded-xl text-xs md:text-sm transition-all duration-200 ${sortBy === "newest" ? "btn-gradient text-white shadow-md font-medium" : "border border-border bg-card text-muted-foreground hover:bg-muted"}`}>{t('newest')}</button>
+            <button onClick={() => setSortBy("impactful")} className={`px-3 md:px-4 py-1.5 md:py-2 rounded-xl text-xs md:text-sm transition-all duration-200 ${sortBy === "impactful" ? "btn-gradient text-white shadow-md font-medium" : "border border-border bg-card text-muted-foreground hover:bg-muted"}`}>{t('most_impactful')}</button>
           </div>
         </div>
 
-        {/* 🟢 CONDITIONAL RENDERING ENGINE 🟢 */}
-
-        {/* 1. INITIAL LOADING (YouTube-style Shimmer) */}
         {loading && sortedIssues.length === 0 ? (
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 md:gap-6 pt-2 pb-2 overflow-hidden w-full">
             {[1, 2, 3, 4].map(n => <IssueSkeleton key={n} />)}
           </div>
         ) :
 
-          /* 2. NO ISSUES FOUND (Beautiful Empty State) */
           sortedIssues.length === 0 && !error ? (
-            <EmptyFeedState onReport={() => navigate("/dashboard/report")} />
+            <EmptyFeedState onReport={() => navigate("/dashboard/report")} t={t} />
           ) :
 
-            /* 3. ERROR FETCHING DATA */
             error && sortedIssues.length === 0 ? (
               <div className="text-center py-16 bg-card border border-border/50 rounded-2xl">
-                <p className="text-red-500 font-medium mb-2">Failed to load issues.</p>
-                <button onClick={() => fetchData(1)} className="px-4 py-2 bg-muted rounded-xl hover:bg-muted/80 transition-colors text-sm">Try Again</button>
+                <p className="text-red-500 font-medium mb-2">{t('failed_load_issues')}</p>
+                <button onClick={() => fetchData(1)} className="px-4 py-2 bg-muted rounded-xl hover:bg-muted/80 transition-colors text-sm">{t('try_again')}</button>
               </div>
             ) :
 
-              /* 4. MAIN INFINITE SCROLL FEED */
               (
                 <InfiniteScroll
                   dataLength={sortedIssues.length}
@@ -324,10 +313,6 @@ const Feed = () => {
 
 export default Feed;
 
-// ==========================================
-// UTILITY COMPONENTS
-// ==========================================
-
 const StatCard = ({ icon, label, value }) => (
   <div className="glass-card p-4 md:p-5 rounded-xl flex gap-3 md:gap-4 items-center hover:shadow-md md:hover:shadow-lg transition-all bg-card/80 backdrop-blur-md">
     <div className="p-2.5 md:p-3 bg-muted rounded-full">{icon}</div>
@@ -338,14 +323,11 @@ const StatCard = ({ icon, label, value }) => (
   </div>
 );
 
-// 🟢 YOUTUBE-STYLE SHIMMER SKELETON
 const IssueSkeleton = () => (
   <div className="bg-card border border-border/50 rounded-2xl p-5 w-full relative overflow-hidden flex flex-col justify-between h-auto min-h-[350px]">
-    {/* SHINY SWEEPING ANIMATION OVERLAY */}
     <div className="absolute inset-0 z-10 pointer-events-none bg-gradient-to-r from-transparent via-white/10 dark:via-white/5 to-transparent animate-shimmer" />
 
     <div>
-      {/* Header Badges & Date */}
       <div className="flex justify-between items-center mb-4">
         <div className="flex gap-2">
           <div className="w-14 h-5 bg-muted rounded-full" />
@@ -354,16 +336,13 @@ const IssueSkeleton = () => (
         <div className="w-24 h-4 bg-muted rounded-md" />
       </div>
 
-      {/* Title & Description Lines */}
       <div className="w-3/4 h-6 bg-muted rounded-lg mb-3" />
       <div className="w-full h-4 bg-muted rounded-md mb-2" />
       <div className="w-5/6 h-4 bg-muted rounded-md mb-5" />
 
-      {/* Media Box */}
       <div className="w-full h-48 sm:h-56 bg-muted rounded-xl mb-5" />
     </div>
 
-    {/* Footer (Location, Reporter, Buttons) */}
     <div className="flex justify-between items-end mt-auto">
       <div className="space-y-3 flex-1 pr-4">
         <div className="w-32 h-4 bg-muted rounded-md" />
@@ -377,11 +356,9 @@ const IssueSkeleton = () => (
   </div>
 );
 
-// 🟢 BEAUTIFUL EMPTY STATE
-const EmptyFeedState = ({ onReport }) => (
+const EmptyFeedState = ({ onReport, t }) => (
   <div className="col-span-full flex flex-col items-center justify-center py-20 px-4 text-center animate-fade-in-up bg-card/30 border border-border/50 rounded-2xl mt-4">
 
-    {/* Glowing Icon Design */}
     <div className="relative mb-6">
       <div className="absolute inset-0 bg-primary/20 rounded-full animate-ping opacity-60" />
       <div className="w-24 h-24 bg-primary/10 border border-primary/20 rounded-full flex items-center justify-center relative z-10 backdrop-blur-sm">
@@ -389,17 +366,17 @@ const EmptyFeedState = ({ onReport }) => (
       </div>
     </div>
 
-    <h3 className="text-2xl md:text-3xl font-bold text-foreground mb-3 font-display">All Clear Here!</h3>
+    <h3 className="text-2xl md:text-3xl font-bold text-foreground mb-3 font-display">{t('all_clear')}</h3>
 
     <p className="text-sm md:text-base text-muted-foreground max-w-md mb-8 leading-relaxed">
-      There are no reported issues in your current neighborhood right now. Enjoy the peace, or be the first to report something that needs attention.
+      {t('no_issues_neighborhood')}
     </p>
 
     <button
       onClick={onReport}
       className="btn-gradient px-8 py-3.5 rounded-xl font-bold text-white flex items-center gap-2 transition-transform hover:scale-105 hover:shadow-lg hover:shadow-primary/20"
     >
-      <Plus size={18} /> Report an Issue
+      <Plus size={18} /> {t('report_issue')}
     </button>
   </div>
 );

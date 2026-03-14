@@ -3,10 +3,12 @@ import { useDispatch } from "react-redux";
 import { useNavigate } from "react-router-dom";
 import { Calendar, CheckCircle, Flag, TrendingUp, Image as ImageIcon, ShieldCheck } from "lucide-react";
 import axiosInstance from "../utils/axios";
+import { useTranslation } from "react-i18next";
 
 const ConfirmedIssues = () => {
+  const { t } = useTranslation();
   const dispatch = useDispatch();
-  const navigate = useNavigate(); // Added for routing
+  const navigate = useNavigate();
 
   const [issues, setIssues] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -46,7 +48,6 @@ const ConfirmedIssues = () => {
     }
   };
 
-  // Helper for consistent status colors
   const getStatusStyles = (status) => {
     const s = status?.toUpperCase() || 'OPEN';
     if (s === 'RESOLVED') return 'bg-blue-500/10 text-blue-600 border-blue-500/20';
@@ -67,20 +68,18 @@ const ConfirmedIssues = () => {
     <div className="space-y-4">
       {issues.length === 0 && !loading ? (
         <div className="text-center py-12 bg-muted/30 rounded-xl border border-border/50">
-          <p className="text-muted-foreground">You haven't confirmed any issues yet.</p>
+          <p className="text-muted-foreground">{t('no_confirmed_issues')}</p>
         </div>
       ) : (
         <>
           <div className="space-y-4 max-h-[600px] overflow-y-auto thin-scrollbar pr-2">
             {displayedIssues.map((issue) => {
-              // Safely extract the first image if it exists
               const displayMedia = issue.media && issue.media.length > 0 ? issue.media[0].url : null;
               const isVideo = displayMedia && (displayMedia.match(/\.(mp4|webm|ogg)$/i));
 
               return (
                 <div 
                   key={issue._id} 
-                  // Instantly route to dashboard and open modal
                   onClick={() => navigate('/dashboard', { state: { selectedIssueId: issue._id } })}
                   className="glass-card rounded-xl p-4 md:p-5 flex flex-col sm:flex-row justify-between items-start gap-4 hover:shadow-md transition-all border border-border/50 cursor-pointer group"
                 >
@@ -92,9 +91,8 @@ const ConfirmedIssues = () => {
                       <span className="text-[10px] md:text-xs px-2.5 py-1 rounded-lg bg-muted text-muted-foreground border border-border font-medium">
                         {issue.category}
                       </span>
-                      {/* Special badge to show it was confirmed by the user */}
                       <span className="text-[10px] md:text-xs px-2.5 py-1 rounded-lg bg-emerald-500/10 text-emerald-600 border border-emerald-500/20 font-bold flex items-center gap-1">
-                        <ShieldCheck size={12} /> You Confirmed
+                        <ShieldCheck size={12} /> {t('you_confirmed')}
                       </span>
                     </div>
 
@@ -106,7 +104,6 @@ const ConfirmedIssues = () => {
                       {issue.description}
                     </p>
 
-                    {/* Dynamic Stats Footer */}
                     <div className="flex flex-wrap items-center gap-4 mt-4 text-xs font-medium text-muted-foreground">
                       <span className="flex items-center gap-1.5" title="Reported Date">
                         <Calendar size={14} className="opacity-70" /> 
@@ -117,22 +114,21 @@ const ConfirmedIssues = () => {
 
                       <span className="flex items-center gap-1.5 text-emerald-600 dark:text-emerald-400/80 bg-emerald-500/10 px-2 py-0.5 rounded-md">
                         <CheckCircle size={14} /> 
-                        {issue.confirmationCount || 0} Confirmed
+                        {issue.confirmationCount || 0} {t('confirmed')}
                       </span>
                       
                       <span className="flex items-center gap-1.5 text-rose-600 dark:text-rose-400/80 bg-rose-500/10 px-2 py-0.5 rounded-md">
                         <Flag size={14} /> 
-                        {issue.flagCount || 0} Flags
+                        {issue.flagCount || 0} {t('flags')}
                       </span>
                       
                       <span className="flex items-center gap-1.5 text-amber-600 dark:text-amber-400/80 bg-amber-500/10 px-2 py-0.5 rounded-md">
                         <TrendingUp size={14} /> 
-                        {issue.impactScore || 0} Impact
+                        {issue.impactScore || 0} {t('impact')}
                       </span>
                     </div>
                   </div>
 
-                  {/* Issue Image / Media Thumbnail */}
                   <div className="w-full sm:w-28 sm:h-28 h-40 rounded-xl bg-muted flex-shrink-0 sm:ml-2 overflow-hidden border border-border/50 relative">
                     {displayMedia ? (
                       isVideo ? (
@@ -143,7 +139,7 @@ const ConfirmedIssues = () => {
                     ) : (
                       <div className="w-full h-full flex flex-col items-center justify-center text-muted-foreground/50">
                         <ImageIcon size={24} />
-                        <span className="text-[10px] mt-1 font-medium">No Media</span>
+                        <span className="text-[10px] mt-1 font-medium">{t('no_media')}</span>
                       </div>
                     )}
                   </div>
@@ -152,7 +148,6 @@ const ConfirmedIssues = () => {
             })}
           </div>
 
-          {/* Pagination Controls */}
           {(displayedIssues.length >= 5 || issues.length > 5) && (
             <div className="flex justify-between items-center mt-6 pt-4 border-t border-border/50 gap-4">
               <button
@@ -164,16 +159,15 @@ const ConfirmedIssues = () => {
                 disabled={displayedIssues.length <= 5}
                 className="px-4 py-2 bg-card/50 border border-border/50 rounded-xl text-sm font-medium text-foreground hover:bg-muted transition-all duration-200 disabled:opacity-40 disabled:cursor-not-allowed"
               >
-                Previous
+                {t('previous')}
               </button>
               <span className="text-xs md:text-sm font-medium text-muted-foreground bg-muted/50 px-3 py-1 rounded-full">
-                {Math.min(displayedIssues.length, issues.length)} of {issues.length} issues
+                {Math.min(displayedIssues.length, issues.length)} {t('of')} {issues.length} {t('issues_label')}
               </span>
               <button
                 onClick={() => {
                   const nextIndex = Math.min(displayedIssues.length + 5, issues.length);
                   setDisplayedIssues(issues.slice(0, nextIndex));
-                  // If we need more from backend
                   if (nextIndex >= issues.length && hasMore) {
                      loadMore();
                   }
@@ -181,7 +175,7 @@ const ConfirmedIssues = () => {
                 disabled={displayedIssues.length >= issues.length && !hasMore}
                 className="px-4 py-2 bg-card/50 border border-border/50 rounded-xl text-sm font-medium text-foreground hover:bg-muted transition-all duration-200 disabled:opacity-40 disabled:cursor-not-allowed"
               >
-                Next
+                {t('next')}
               </button>
             </div>
           )}

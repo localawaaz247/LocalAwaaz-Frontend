@@ -3,14 +3,15 @@ import { MapPin, Loader2, X } from 'lucide-react'
 import { Button } from './ui/button'
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from './ui/dialog'
 import { reverseGeocode } from '../utils/locationUtils'
+import { useTranslation } from "react-i18next";
 
 const CurrentLocationModal = ({ isOpen, onClose, onLocationCaptured }) => {
+  const { t } = useTranslation();
   const [isLoading, setIsLoading] = useState(false)
   const [error, setError] = useState('')
   const [location, setLocation] = useState(null)
 
   useEffect(() => {
-    // Reset state when modal opens
     if (isOpen) {
       setError('')
       setLocation(null)
@@ -22,19 +23,15 @@ const CurrentLocationModal = ({ isOpen, onClose, onLocationCaptured }) => {
     setError('')
 
     if (!navigator.geolocation) {
-      setError('Geolocation is not supported by this browser')
+      setError(t('geo_not_supported'))
       setIsLoading(false)
       return
     }
 
     navigator.geolocation.getCurrentPosition(
       (position) => {
-       
-        
-        // Get address from coordinates using reverse geocoding
         reverseGeocode(position.coords.latitude, position.coords.longitude)
           .then(locationData => {
-            // Combine reverse geocode data with actual coordinates
             const fullLocationData = {
               ...locationData,
               latitude: position.coords.latitude,
@@ -44,17 +41,16 @@ const CurrentLocationModal = ({ isOpen, onClose, onLocationCaptured }) => {
             if (fullLocationData.latitude !== null && fullLocationData.longitude !== null) {
               setLocation(fullLocationData)
               
-              // Pass location data to parent component
               setTimeout(() => {
                 onLocationCaptured(fullLocationData)
                 onClose()
               }, 1500)
             } else {
-              setError('Invalid location coordinates. Please try again.')
+              setError(t('invalid_coords'))
             }
           })
           .catch(err => {
-            setError('Failed to get location address. Please try again.')
+            setError(t('failed_get_address'))
           })
           .finally(() => {
             setIsLoading(false)
@@ -66,23 +62,23 @@ const CurrentLocationModal = ({ isOpen, onClose, onLocationCaptured }) => {
         let errorMessage
         switch(error.code) {
           case error.PERMISSION_DENIED:
-            errorMessage = "Location access denied. Please enable location permissions."
+            errorMessage = t('location_denied')
             break
           case error.POSITION_UNAVAILABLE:
-            errorMessage = "Location information unavailable."
+            errorMessage = t('location_unavailable')
             break
           case error.TIMEOUT:
-            errorMessage = "Location request timed out."
+            errorMessage = t('location_timeout')
             break
           default:
-            errorMessage = "An unknown error occurred while getting location."
+            errorMessage = t('location_unknown_error')
         }
         setError(errorMessage)
       },
       {
         enableHighAccuracy: true,
         timeout: 10000,
-        maximumAge: 300000 // 5 minutes
+        maximumAge: 300000
       }
     )
   }
@@ -93,20 +89,20 @@ const CurrentLocationModal = ({ isOpen, onClose, onLocationCaptured }) => {
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
             <MapPin className="h-5 w-5 text-accent" />
-            Get Current Location
+            {t('get_current_location')}
           </DialogTitle>
         </DialogHeader>
         
         <div className="space-y-4">
           <div className="text-center space-y-2">
             <p className="text-sm text-muted-foreground">
-              We'll use your current location to tag this issue. This helps authorities locate and resolve the problem faster.
+              {t('location_modal_desc')}
             </p>
             
             {location && (
               <div className="p-3 bg-accent/10 rounded-lg border border-accent/20">
                 <p className="text-sm font-medium text-accent">
-                  ✓ Location captured successfully
+                  ✓ {t('location_captured_success')}
                 </p>
                 <p className="text-xs text-muted-foreground mt-1">
                   {location.city && location.state 
@@ -134,17 +130,17 @@ const CurrentLocationModal = ({ isOpen, onClose, onLocationCaptured }) => {
               {isLoading ? (
                 <>
                   <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                  Getting Location...
+                  {t('getting_location')}
                 </>
               ) : location ? (
                 <>
                   <MapPin className="mr-2 h-4 w-4" />
-                  Location Captured
+                  {t('location_captured_btn')}
                 </>
               ) : (
                 <>
                   <MapPin className="mr-2 h-4 w-4" />
-                  Get Current Location
+                  {t('get_current_location')}
                 </>
               )}
             </Button>
@@ -155,12 +151,12 @@ const CurrentLocationModal = ({ isOpen, onClose, onLocationCaptured }) => {
               disabled={isLoading}
               className="w-full"
             >
-              Cancel
+              {t('cancel')}
             </Button>
           </div>
           
           <p className="text-xs text-muted-foreground text-center">
-            Location access is required to post issues in your area
+            {t('location_access_required')}
           </p>
         </div>
       </DialogContent>
