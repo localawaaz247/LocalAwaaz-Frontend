@@ -3,6 +3,7 @@ import axiosInstance from '../../utils/axios';
 import { showToast } from '../../utils/toast';
 import { X, Mail, User, Calendar, CheckCheck, MessageSquare } from 'lucide-react';
 import MiniLoader from '../MiniLoader';
+import CustomSelect from '../CustomSelect'; // 🟢 Added import
 
 const AdminInquiries = () => {
     const [inquiries, setInquiries] = useState([]);
@@ -11,10 +12,23 @@ const AdminInquiries = () => {
     const [page, setPage] = useState(1);
     const [totalPages, setTotalPages] = useState(1);
 
-    // Modal & Animation State
     const [selectedInquiry, setSelectedInquiry] = useState(null);
-    const [isModalVisible, setIsModalVisible] = useState(false); // 🟢 Controls smooth animation
+    const [isModalVisible, setIsModalVisible] = useState(false);
     const [isMarkingAll, setIsMarkingAll] = useState(false);
+
+    // 🟢 Options arrays for CustomSelect
+    const FILTER_STATUS_OPTIONS = [
+        { value: '', label: 'All Inquiries' },
+        { value: 'unread', label: 'Unread' },
+        { value: 'read', label: 'Read' },
+        { value: 'resolved', label: 'Resolved' }
+    ];
+
+    const INQUIRY_STATUS_OPTIONS = [
+        { value: 'unread', label: 'Unread' },
+        { value: 'read', label: 'Read' },
+        { value: 'resolved', label: 'Resolved' }
+    ];
 
     useEffect(() => { fetchInquiries(); }, [statusFilter, page]);
 
@@ -75,13 +89,11 @@ const AdminInquiries = () => {
         }
     };
 
-    // 🟢 Smooth Open Engine
     const openModal = (inquiry) => {
         setSelectedInquiry(inquiry);
         setTimeout(() => setIsModalVisible(true), 10);
     };
 
-    // 🟢 Smooth Close Engine
     const closeModal = () => {
         setIsModalVisible(false);
         setTimeout(() => setSelectedInquiry(null), 300);
@@ -96,7 +108,6 @@ const AdminInquiries = () => {
     return (
         <div className="space-y-4 md:space-y-6 animate-fade-in flex flex-col h-full relative">
 
-            {/* Header & Actions */}
             <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3 md:gap-4">
                 <h2 className="text-xl md:text-2xl font-bold text-foreground">Platform Inquiries</h2>
 
@@ -110,24 +121,20 @@ const AdminInquiries = () => {
                         Mark All Read
                     </button>
 
-                    <select
-                        value={statusFilter}
-                        onChange={(e) => { setStatusFilter(e.target.value); setPage(1); }}
-                        className="w-full sm:w-auto px-3 md:px-4 py-2 md:py-2.5 bg-card border border-border/50 rounded-lg md:rounded-xl text-sm focus:border-primary outline-none transition-colors text-foreground shadow-sm cursor-pointer"
-                    >
-                        <option value="">All Inquiries</option>
-                        <option value="unread">Unread</option>
-                        <option value="read">Read</option>
-                        <option value="resolved">Resolved</option>
-                    </select>
+                    <div className="w-full sm:w-auto">
+                        <CustomSelect
+                            options={FILTER_STATUS_OPTIONS}
+                            value={statusFilter}
+                            onChange={(val) => { setStatusFilter(val); setPage(1); }}
+                        />
+                    </div>
                 </div>
             </div>
 
-            {/* Table Area */}
             <div className="bg-card glass-card border border-border/50 rounded-xl md:rounded-2xl overflow-hidden shadow-lg flex-1 flex flex-col min-h-0">
                 <div className="overflow-x-auto thin-scrollbar flex-1">
                     <table className="w-full text-left whitespace-nowrap">
-                        <thead className="bg-muted/30 border-b border-border/50 sticky top-0 z-10">
+                        <thead className="bg-card/95 backdrop-blur-md border-b border-border/50 sticky top-0 z-20 shadow-sm">
                             <tr className="text-muted-foreground text-xs md:text-sm">
                                 <th className="py-3 px-4 md:py-4 md:px-6 font-medium hidden sm:table-cell">Name</th>
                                 <th className="py-3 px-4 md:py-4 md:px-6 font-medium">Contact</th>
@@ -144,7 +151,7 @@ const AdminInquiries = () => {
                                 inquiries.map((inquiry) => (
                                     <tr
                                         key={inquiry._id}
-                                        onClick={() => openModal(inquiry)} // 🟢 Replaced standard state setter
+                                        onClick={() => openModal(inquiry)}
                                         className={`transition-colors group cursor-pointer ${inquiry.status === 'unread' ? 'bg-primary/5 hover:bg-primary/10' : 'hover:bg-muted/30'}`}
                                     >
                                         <td className="py-3 px-4 md:py-4 md:px-6 text-xs md:text-sm font-medium text-foreground hidden sm:table-cell">
@@ -161,20 +168,14 @@ const AdminInquiries = () => {
                                                 {inquiry.message}
                                             </span>
                                         </td>
-                                        <td className="py-3 px-4 md:py-4 md:px-6 text-right">
-                                            <select
-                                                value={inquiry.status}
-                                                onClick={(e) => e.stopPropagation()}
-                                                onChange={(e) => handleStatusChange(inquiry._id, e.target.value, e)}
-                                                className={`text-[10px] md:text-xs px-2 md:px-3 py-1 md:py-1.5 rounded-md md:rounded-lg font-semibold border outline-none cursor-pointer transition-colors ${inquiry.status === 'unread' ? 'bg-red-500/10 text-red-500 border-red-500/20' :
-                                                        inquiry.status === 'read' ? 'bg-blue-500/10 text-blue-500 border-blue-500/20' :
-                                                            'bg-green-500/10 text-green-500 border-green-500/20'
-                                                    }`}
-                                            >
-                                                <option value="unread" className="bg-card text-foreground">Unread</option>
-                                                <option value="read" className="bg-card text-foreground">Read</option>
-                                                <option value="resolved" className="bg-card text-foreground">Resolved</option>
-                                            </select>
+                                        <td className="py-3 px-4 md:py-4 md:px-6 text-right [&>div]:min-w-0" onClick={(e) => e.stopPropagation()}>
+                                            <div className="ml-auto flex justify-end">
+                                                <CustomSelect
+                                                    options={INQUIRY_STATUS_OPTIONS}
+                                                    value={inquiry.status}
+                                                    onChange={(val) => handleStatusChange(inquiry._id, val)}
+                                                />
+                                            </div>
                                         </td>
                                     </tr>
                                 ))
@@ -184,7 +185,6 @@ const AdminInquiries = () => {
                 </div>
             </div>
 
-            {/* Pagination */}
             {totalPages > 1 && (
                 <div className="flex justify-between items-center text-xs md:text-sm text-muted-foreground pt-2">
                     <span>Page {page} of {totalPages}</span>
@@ -195,26 +195,22 @@ const AdminInquiries = () => {
                 </div>
             )}
 
-            {/* 🟢 SMOOTH ANIMATED MODAL */}
             {selectedInquiry && (
                 <div className="fixed inset-0 z-[100] flex items-end sm:items-center justify-center sm:p-6">
 
-                    {/* Animated Backdrop */}
                     <div
                         className={`absolute inset-0 bg-black/80 backdrop-blur-sm transition-opacity duration-300 ease-in-out ${isModalVisible ? 'opacity-100' : 'opacity-0'}`}
                         onClick={closeModal}
                     />
 
-                    {/* Animated Modal Container */}
                     <div
                         className={`relative bg-card border-t sm:border border-border/50 rounded-t-2xl sm:rounded-2xl w-full max-w-2xl shadow-2xl flex flex-col max-h-[90vh] overflow-hidden transform transition-all duration-300 ease-out ${isModalVisible
-                                ? 'translate-y-0 sm:scale-100 opacity-100'
-                                : 'translate-y-full sm:translate-y-8 sm:scale-95 opacity-0'
+                            ? 'translate-y-0 sm:scale-100 opacity-100'
+                            : 'translate-y-full sm:translate-y-8 sm:scale-95 opacity-0'
                             }`}
                         onClick={e => e.stopPropagation()}
                     >
 
-                        {/* Modal Header */}
                         <div className="flex justify-between items-center p-4 border-b border-border/50 bg-muted/20">
                             <h3 className="text-lg font-bold text-foreground flex items-center gap-2">
                                 <MessageSquare className="text-primary w-5 h-5" />
@@ -225,7 +221,6 @@ const AdminInquiries = () => {
                             </button>
                         </div>
 
-                        {/* Modal Body */}
                         <div className="p-4 md:p-6 overflow-y-auto thin-scrollbar space-y-6 flex-1">
                             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                                 <div className="bg-background/50 border border-border/50 rounded-xl p-4">
@@ -259,26 +254,18 @@ const AdminInquiries = () => {
                             </div>
                         </div>
 
-                        {/* Modal Footer */}
                         <div className="p-4 border-t border-border/50 bg-muted/10 flex flex-col sm:flex-row items-center justify-between gap-4">
                             <span className="text-sm font-medium text-muted-foreground">Current Status:</span>
-                            <div className="flex w-full sm:w-auto items-center gap-2">
-                                <select
+                            <div className="flex w-full sm:w-auto items-center gap-2 [&>div]:w-full sm:[&>div]:w-auto">
+                                <CustomSelect
+                                    options={INQUIRY_STATUS_OPTIONS}
                                     value={selectedInquiry.status}
-                                    onChange={(e) => handleStatusChange(selectedInquiry._id, e.target.value)}
-                                    className={`w-full sm:w-auto px-4 py-2.5 rounded-xl text-sm font-semibold border outline-none cursor-pointer transition-colors appearance-none ${selectedInquiry.status === 'unread' ? 'bg-red-500/10 text-red-500 border-red-500/20' :
-                                            selectedInquiry.status === 'read' ? 'bg-blue-500/10 text-blue-500 border-blue-500/20' :
-                                                'bg-green-500/10 text-green-500 border-green-500/20'
-                                        }`}
-                                >
-                                    <option value="unread" className="bg-card text-foreground">Mark Unread</option>
-                                    <option value="read" className="bg-card text-foreground">Mark Read</option>
-                                    <option value="resolved" className="bg-card text-foreground">Mark Resolved</option>
-                                </select>
+                                    onChange={(val) => handleStatusChange(selectedInquiry._id, val)}
+                                />
 
                                 <a
                                     href={`mailto:${selectedInquiry.email}?subject=Re: Your Inquiry to LocalAwaaz`}
-                                    className="px-4 py-2.5 bg-primary text-primary-foreground font-semibold rounded-xl text-sm hover:bg-primary/90 transition-colors shadow-md text-center hidden sm:block"
+                                    className="px-4 py-2.5 bg-primary text-primary-foreground font-semibold rounded-xl text-sm hover:bg-primary/90 transition-colors shadow-md text-center hidden sm:block whitespace-nowrap"
                                 >
                                     Reply via Email
                                 </a>

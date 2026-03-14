@@ -3,6 +3,7 @@ import axiosInstance from '../../utils/axios';
 import { showToast } from '../../utils/toast';
 import { MapPin, X, User, FileText, ChevronLeft, ChevronRight, CheckCircle, AlertTriangle, Trash2 } from 'lucide-react';
 import MiniLoader from '../MiniLoader';
+import CustomSelect from '../CustomSelect';
 
 const AdminIssues = () => {
     const [issues, setIssues] = useState([]);
@@ -11,16 +12,29 @@ const AdminIssues = () => {
     const [page, setPage] = useState(1);
     const [totalPages, setTotalPages] = useState(1);
 
-    // Modal & Animation State
     const [selectedIssue, setSelectedIssue] = useState(null);
     const [isModalVisible, setIsModalVisible] = useState(false);
     const [updateData, setUpdateData] = useState({ status: '', adminRemark: '' });
     const [isUpdating, setIsUpdating] = useState(false);
     const [currentMediaIndex, setCurrentMediaIndex] = useState(0);
 
-    // Delete State
     const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
     const [isDeleting, setIsDeleting] = useState(false);
+
+    const FILTER_STATUS_OPTIONS = [
+        { value: '', label: 'All Statuses' },
+        { value: 'OPEN', label: 'Open' },
+        { value: 'IN_REVIEW', label: 'In Review' },
+        { value: 'RESOLVED', label: 'Resolved' },
+        { value: 'REJECTED', label: 'Rejected' }
+    ];
+
+    const UPDATE_STATUS_OPTIONS = [
+        { value: 'OPEN', label: 'OPEN (Requires Attention)' },
+        { value: 'IN_REVIEW', label: 'IN REVIEW (Action Initiated)' },
+        { value: 'RESOLVED', label: 'RESOLVED (Issue Fixed)' },
+        { value: 'REJECTED', label: 'REJECTED (Invalid/Spam)' }
+    ];
 
     useEffect(() => {
         const delayDebounceFn = setTimeout(() => { fetchIssues(); }, 500);
@@ -78,7 +92,7 @@ const AdminIssues = () => {
 
     const closeModal = () => {
         setIsModalVisible(false);
-        setShowDeleteConfirm(false); // Reset delete confirmation state
+        setShowDeleteConfirm(false);
         setTimeout(() => setSelectedIssue(null), 300);
     };
 
@@ -91,7 +105,6 @@ const AdminIssues = () => {
 
     return (
         <div className="space-y-4 md:space-y-6 animate-fade-in relative flex flex-col h-full">
-            {/* Header & Filters */}
             <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3 md:gap-4">
                 <h2 className="text-xl md:text-2xl font-bold text-foreground">Issue Management</h2>
                 <div className="flex flex-col sm:flex-row gap-2 md:gap-3 w-full sm:w-auto">
@@ -105,21 +118,16 @@ const AdminIssues = () => {
                             className="w-full pl-9 pr-4 py-2 md:py-2.5 bg-card border border-border/50 rounded-lg md:rounded-xl text-sm focus:border-primary outline-none transition-colors text-foreground"
                         />
                     </div>
-                    <select
-                        value={filters.status}
-                        onChange={(e) => setFilters({ ...filters, status: e.target.value })}
-                        className="w-full sm:w-auto px-3 py-2 md:py-2.5 bg-card border border-border/50 rounded-lg md:rounded-xl text-sm focus:border-primary outline-none transition-colors text-foreground cursor-pointer"
-                    >
-                        <option value="">All Statuses</option>
-                        <option value="OPEN">Open</option>
-                        <option value="IN_REVIEW">In Review</option>
-                        <option value="RESOLVED">Resolved</option>
-                        <option value="REJECTED">Rejected</option>
-                    </select>
+                    <div className="w-full sm:w-auto">
+                        <CustomSelect
+                            options={FILTER_STATUS_OPTIONS}
+                            value={filters.status}
+                            onChange={(val) => setFilters({ ...filters, status: val })}
+                        />
+                    </div>
                 </div>
             </div>
 
-            {/* Table */}
             <div className="bg-card glass-card border border-border/50 rounded-xl md:rounded-2xl overflow-hidden shadow-lg flex-1 flex flex-col min-h-0">
                 <div className="overflow-x-auto thin-scrollbar flex-1">
                     <table className="w-full text-left whitespace-nowrap">
@@ -161,7 +169,6 @@ const AdminIssues = () => {
                 </div>
             </div>
 
-            {/* Pagination */}
             {totalPages > 1 && (
                 <div className="flex justify-between items-center text-xs md:text-sm text-muted-foreground pt-2">
                     <span>Page {page} of {totalPages}</span>
@@ -172,17 +179,13 @@ const AdminIssues = () => {
                 </div>
             )}
 
-            {/* SMOOTH ANIMATED MODAL */}
             {selectedIssue && (
                 <div className="fixed inset-0 z-[100] flex items-end sm:items-center justify-center sm:p-6">
-
-                    {/* Animated Backdrop */}
                     <div
                         className={`absolute inset-0 bg-black/80 backdrop-blur-sm transition-opacity duration-300 ease-in-out ${isModalVisible ? 'opacity-100' : 'opacity-0'}`}
                         onClick={closeModal}
                     />
 
-                    {/* Animated Modal Container */}
                     <div
                         className={`relative bg-card border-t sm:border border-border/50 rounded-t-3xl sm:rounded-2xl w-full max-w-5xl shadow-2xl flex flex-col max-h-[82vh] sm:max-h-[90vh] overflow-hidden transform transition-all duration-300 ease-out ${isModalVisible
                             ? 'translate-y-0 sm:scale-100 opacity-100'
@@ -191,7 +194,6 @@ const AdminIssues = () => {
                         onClick={e => e.stopPropagation()}
                     >
 
-                        {/* Header */}
                         <div className="flex justify-between items-center p-4 md:p-5 border-b border-border/50 bg-muted/20 shrink-0">
                             <div className="flex items-center gap-2">
                                 <span className={`px-2.5 py-1 rounded-full text-[10px] font-bold uppercase tracking-wider ${statusColors[selectedIssue.status] || statusColors.OPEN}`}>
@@ -202,7 +204,6 @@ const AdminIssues = () => {
                                 </span>
                             </div>
                             <div className="flex items-center gap-2">
-                                {/* DELETE BUTTON */}
                                 <button
                                     onClick={() => setShowDeleteConfirm(true)}
                                     title="Delete Issue"
@@ -216,10 +217,7 @@ const AdminIssues = () => {
                             </div>
                         </div>
 
-                        {/* Body */}
                         <div className="flex flex-col lg:flex-row flex-1 overflow-y-auto thin-scrollbar">
-
-                            {/* Left Side: Detail & Media */}
                             <div className="flex-1 p-4 md:p-6 space-y-4 md:space-y-6">
                                 <h3 className="text-xl md:text-2xl font-bold text-foreground">{selectedIssue.title}</h3>
 
@@ -246,7 +244,6 @@ const AdminIssues = () => {
                                     )}
                                 </div>
 
-                                {/* Info Cards */}
                                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 md:gap-4">
                                     <div className="bg-background/40 border border-border/50 rounded-xl p-4">
                                         <h4 className="text-[11px] font-bold text-blue-400 mb-1.5 uppercase flex items-center gap-1.5"><MapPin size={14} /> Location</h4>
@@ -262,16 +259,13 @@ const AdminIssues = () => {
                                     </div>
                                 </div>
 
-                                {/* Description Box */}
                                 <div className="bg-background/40 border border-border/50 rounded-xl p-4">
                                     <h4 className="text-[11px] font-bold text-blue-400 mb-1.5 uppercase flex items-center gap-1.5"><FileText size={14} /> Description</h4>
                                     <p className="text-sm text-muted-foreground whitespace-pre-wrap leading-relaxed">{selectedIssue.description}</p>
                                 </div>
                             </div>
 
-                            {/* Right Side: Admin Panel */}
                             <div className="w-full lg:w-[350px] shrink-0 p-4 md:p-6 bg-muted/10 border-t lg:border-t-0 lg:border-l border-border/50 flex flex-col">
-
                                 <div className="grid grid-cols-2 gap-3 md:gap-4 mb-6">
                                     <div className="bg-card border border-border/50 rounded-xl p-3 md:p-4 flex flex-col items-center justify-center shadow-sm">
                                         <span className="text-xl md:text-2xl font-bold text-red-500">{selectedIssue.flagCount || 0}</span>
@@ -286,16 +280,11 @@ const AdminIssues = () => {
                                 <form onSubmit={handleUpdateIssue} className="flex flex-col space-y-4 md:space-y-5 flex-1">
                                     <div>
                                         <label className="text-sm font-bold text-foreground mb-1.5 block">Update Status</label>
-                                        <select
+                                        <CustomSelect
+                                            options={UPDATE_STATUS_OPTIONS}
                                             value={updateData.status}
-                                            onChange={(e) => setUpdateData({ ...updateData, status: e.target.value })}
-                                            className="w-full px-4 py-3 bg-card border border-border/50 rounded-xl text-sm focus:border-primary outline-none transition-colors text-foreground cursor-pointer appearance-none shadow-sm"
-                                        >
-                                            <option value="OPEN">OPEN (Requires Attention)</option>
-                                            <option value="IN_REVIEW">IN REVIEW (Action Initiated)</option>
-                                            <option value="RESOLVED">RESOLVED (Issue Fixed)</option>
-                                            <option value="REJECTED">REJECTED (Invalid/Spam)</option>
-                                        </select>
+                                            onChange={(val) => setUpdateData({ ...updateData, status: val })}
+                                        />
                                     </div>
 
                                     <div className="flex-1 flex flex-col">
@@ -320,7 +309,6 @@ const AdminIssues = () => {
                         </div>
                     </div>
 
-                    {/* DELETE CONFIRMATION MODAL OVERLAY */}
                     {showDeleteConfirm && (
                         <div className="fixed inset-0 z-[200] flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm animate-fade-in">
                             <div className="bg-card border border-border/50 rounded-2xl p-6 max-w-sm w-full shadow-2xl" onClick={e => e.stopPropagation()}>

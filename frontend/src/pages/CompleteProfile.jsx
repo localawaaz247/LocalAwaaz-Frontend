@@ -1,5 +1,5 @@
-import { useState, useEffect } from "react";
-import { UserCircle, MapPin, ArrowRight, ArrowLeft, User, Camera, Loader2 } from "lucide-react";
+import React, { useState, useEffect, useRef } from "react";
+import { UserCircle, MapPin, ArrowRight, ArrowLeft, User, Camera, Loader2, ChevronDown, Check } from "lucide-react";
 import { cscApi } from "../utils/cscAPI";
 import { useNavigate } from "react-router-dom";
 import { showToast } from "../utils/toast";
@@ -7,6 +7,61 @@ import axiosInstance from "../utils/axios";
 import { setUser } from "../reducer/authReducer";
 import { useDispatch, useSelector } from "react-redux";
 import { useTranslation } from "react-i18next";
+
+const CustomSelect = ({ value, onChange, options }) => {
+  const [isOpen, setIsOpen] = useState(false);
+  const dropdownRef = useRef(null);
+
+  useEffect(() => {
+    const handleClickOutside = (event) => {
+      if (dropdownRef.current && !dropdownRef.current.contains(event.target)) {
+        setIsOpen(false);
+      }
+    };
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, []);
+
+  const selectedOption = options.find(opt => opt.value === value);
+
+  return (
+    <div className="relative w-full" ref={dropdownRef}>
+      <button
+        type="button"
+        onClick={() => setIsOpen(!isOpen)}
+        className="w-full flex items-center justify-between bg-card border border-border/50 hover:border-border rounded-lg sm:rounded-xl px-3 py-3 sm:px-4 sm:py-3.5 text-xs sm:text-sm font-medium outline-none focus:ring-2 focus:ring-primary/50 text-foreground shadow-sm transition-all duration-200"
+      >
+        <span className="truncate pr-2 text-left">{selectedOption?.label || "Select..."}</span>
+        <ChevronDown
+          size={14}
+          className={`shrink-0 text-muted-foreground transition-transform duration-200 ${isOpen ? 'rotate-180' : ''}`}
+        />
+      </button>
+
+      {isOpen && (
+        <div className="absolute z-[9999] w-full left-0 mt-1.5 bg-card/95 backdrop-blur-xl border border-border/50 rounded-lg sm:rounded-xl shadow-xl overflow-hidden animate-in fade-in zoom-in-95 origin-top">
+          <div className="max-h-56 overflow-y-auto thin-scrollbar py-1">
+            {options.map((option) => (
+              <button
+                key={option.value}
+                type="button"
+                onClick={() => {
+                  onChange(option.value);
+                  setIsOpen(false);
+                }}
+                className={`w-full flex items-center justify-between px-3 sm:px-4 py-2 sm:py-2.5 text-xs sm:text-sm transition-colors hover:bg-muted/80 ${value === option.value ? 'bg-primary/10 text-primary font-semibold' : 'text-foreground'
+                  }`}
+              >
+                <span className="truncate text-left pr-2">{option.label}</span>
+                {value === option.value && <Check size={14} className="text-primary shrink-0" />}
+              </button>
+            ))}
+          </div>
+        </div>
+      )}
+    </div>
+  );
+};
 
 export default function CompleteProfile() {
   const { t } = useTranslation();
@@ -119,6 +174,28 @@ export default function CompleteProfile() {
     }
   };
 
+  const genderOptions = [
+    { value: "", label: t('select_gender') },
+    { value: "male", label: t('male') },
+    { value: "female", label: t('female') },
+    { value: "other", label: t('other') }
+  ];
+
+  const countryOptions = [
+    { value: "", label: t('select_country') },
+    ...countries.map(c => ({ value: c.iso2, label: c.name }))
+  ];
+
+  const stateOptions = [
+    { value: "", label: t('select_state') },
+    ...states.map(s => ({ value: s.iso2, label: s.name }))
+  ];
+
+  const cityOptions = [
+    { value: "", label: t('select_city') },
+    ...cities.map(c => ({ value: c.name, label: c.name }))
+  ];
+
   return (
     <div className="min-h-screen bg-texture flex items-center justify-center py-10">
       <div className="w-full max-w-lg glass-card p-8 shadow-2xl rounded-2xl relative overflow-hidden">
@@ -193,19 +270,11 @@ export default function CompleteProfile() {
               <label className="text-sm font-medium text-foreground">
                 {t('gender')}
               </label>
-              <div className="relative">
-                <UserCircle className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-foreground/40" />
-                <select
-                  value={gender}
-                  onChange={(e) => setGender(e.target.value)}
-                  className="w-full pl-11 pr-4 py-3 rounded-xl border border-border bg-card/50 focus:bg-card focus:border-primary focus:ring-2 focus:ring-primary/20 outline-none transition-all appearance-none"
-                >
-                  <option value="">{t('select_gender')}</option>
-                  <option value="male">{t('male')}</option>
-                  <option value="female">{t('female')}</option>
-                  <option value="other">{t('other')}</option>
-                </select>
-              </div>
+              <CustomSelect
+                value={gender}
+                onChange={(val) => setGender(val)}
+                options={genderOptions}
+              />
             </div>
 
             <button
@@ -232,69 +301,41 @@ export default function CompleteProfile() {
               <label className="text-sm font-medium text-foreground">
                 {t('country')}
               </label>
-              <div className="relative">
-                <MapPin className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-foreground/40" />
-                <select
-                  onChange={(e) => {
-                    const c = countries.find((x) => x.iso2 === e.target.value);
-                    setCountry(c?.name || "");
-                    setCountryCode(c?.iso2 || "");
-                  }}
-                  className="w-full pl-11 pr-4 py-3 rounded-xl border border-border bg-card/50 focus:bg-card focus:border-primary focus:ring-2 focus:ring-primary/20 outline-none transition-all appearance-none"
-                >
-                  <option value="">{t('select_country')}</option>
-                  {countries.map((c) => (
-                    <option key={c.iso2} value={c.iso2}>
-                      {c.name}
-                    </option>
-                  ))}
-                </select>
-              </div>
+              <CustomSelect
+                value={countryCode}
+                onChange={(val) => {
+                  const c = countries.find((x) => x.iso2 === val);
+                  setCountry(c?.name || "");
+                  setCountryCode(c?.iso2 || "");
+                }}
+                options={countryOptions}
+              />
             </div>
 
             <div className="space-y-2">
               <label className="text-sm font-medium text-foreground">
                 {t('state')}
               </label>
-              <div className="relative">
-                <MapPin className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-foreground/40" />
-                <select
-                  onChange={(e) => {
-                    const s = states.find((x) => x.iso2 === e.target.value);
-                    setState(s?.name || "");
-                    setStateCode(s?.iso2 || "");
-                  }}
-                  className="w-full pl-11 pr-4 py-3 rounded-xl border border-border bg-card/50 focus:bg-card focus:border-primary focus:ring-2 focus:ring-primary/20 outline-none transition-all appearance-none"
-                >
-                  <option value="">{t('select_state')}</option>
-                  {states.map((s) => (
-                    <option key={s.iso2} value={s.iso2}>
-                      {s.name}
-                    </option>
-                  ))}
-                </select>
-              </div>
+              <CustomSelect
+                value={stateCode}
+                onChange={(val) => {
+                  const s = states.find((x) => x.iso2 === val);
+                  setState(s?.name || "");
+                  setStateCode(s?.iso2 || "");
+                }}
+                options={stateOptions}
+              />
             </div>
 
             <div className="space-y-2">
               <label className="text-sm font-medium text-foreground">
                 {t('city')}
               </label>
-              <div className="relative">
-                <MapPin className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-foreground/40" />
-                <select
-                  value={city}
-                  onChange={(e) => setCity(e.target.value)}
-                  className="w-full pl-11 pr-4 py-3 rounded-xl border border-border bg-card/50 focus:bg-card focus:border-primary focus:ring-2 focus:ring-primary/20 outline-none transition-all appearance-none"
-                >
-                  <option value="">{t('select_city')}</option>
-                  {cities.map((c) => (
-                    <option key={c.id} value={c.name}>
-                      {c.name}
-                    </option>
-                  ))}
-                </select>
-              </div>
+              <CustomSelect
+                value={city}
+                onChange={(val) => setCity(val)}
+                options={cityOptions}
+              />
             </div>
 
             <div className="flex gap-3">

@@ -1,12 +1,10 @@
 import React, { useState, useEffect } from 'react';
 import axiosInstance from '../../utils/axios';
-import { Search, X, User as UserIcon, Shield, Activity, AlertCircle, Calendar, Trash2, Play, Image as ImageIcon } from 'lucide-react';
 import { showToast } from '../../utils/toast';
-
-// 🟢 Import your IssueDetail component
+import { Search, X, User as UserIcon, Shield, Activity, AlertCircle, Calendar, Trash2, Play, Image as ImageIcon } from 'lucide-react';
 import IssueDetail from '../IssueDetail';
+import CustomSelect from '../CustomSelect';
 
-// Robust Avatar Component to handle broken image URLs
 const Avatar = ({ src, name, size = "w-10 h-10", iconSize = "w-5 h-5" }) => {
     const [imageError, setImageError] = useState(false);
 
@@ -40,15 +38,28 @@ const AdminUsers = () => {
     const [page, setPage] = useState(1);
     const [totalPages, setTotalPages] = useState(1);
 
-    // Modal States for User Detail
     const [isModalOpen, setIsModalOpen] = useState(false);
     const [modalLoading, setModalLoading] = useState(false);
     const [selectedUserDetails, setSelectedUserDetails] = useState(null);
 
-    // Modal States for Issue Detail
     const [isIssueModalOpen, setIsIssueModalOpen] = useState(false);
     const [selectedIssueForDetail, setSelectedIssueForDetail] = useState(null);
     const [fetchingIssueId, setFetchingIssueId] = useState(null);
+
+    const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
+    const [isDeleting, setIsDeleting] = useState(false);
+
+    const ROLE_OPTIONS = [
+        { value: 'user', label: 'User' },
+        { value: 'moderator', label: 'Moderator' },
+        { value: 'official', label: 'Official' }
+    ];
+
+    const STATUS_OPTIONS = [
+        { value: 'ACTIVE', label: 'Active' },
+        { value: 'SUSPENDED', label: 'Suspended' },
+        { value: 'BANNED', label: 'Banned' }
+    ];
 
     useEffect(() => {
         const delayDebounceFn = setTimeout(() => { fetchUsers(); }, 500);
@@ -73,29 +84,24 @@ const AdminUsers = () => {
             setModalLoading(true);
             setIsModalOpen(true);
 
-            // 1. Fetch initial user details
             const res = await axiosInstance.get(`/admin/user/${id}`);
             const userData = res.data.data;
-            setSelectedUserDetails(userData); // Show modal immediately
-            setModalLoading(false); // Stop loading spinner
+            setSelectedUserDetails(userData); 
+            setModalLoading(false); 
 
-            // 2. Background Fetch: Automatically get media for the recent issues
             if (userData.recentIssues && userData.recentIssues.length > 0) {
                 const issuesWithMediaPromises = userData.recentIssues.map(async (issue) => {
                     try {
                         const issueRes = await axiosInstance.get(`/issue/${issue._id}`);
                         const fullIssue = issueRes.data.data?.issue || issueRes.data.data;
-                        // Return the issue merged with the newly fetched media array
                         return { ...issue, media: fullIssue.media };
                     } catch (err) {
-                        return issue; // If it fails, fallback to the original issue data without media
+                        return issue; 
                     }
                 });
 
-                // Wait for all background fetches to finish
                 const updatedRecentIssues = await Promise.all(issuesWithMediaPromises);
 
-                // Update the state so the thumbnails silently pop into existence
                 setSelectedUserDetails(prev => ({
                     ...prev,
                     recentIssues: updatedRecentIssues
@@ -158,7 +164,6 @@ const AdminUsers = () => {
     const handleIssueClick = async (issue) => {
         try {
             setFetchingIssueId(issue._id);
-            // We still fetch here just to ensure we have 100% complete data for the big modal
             const res = await axiosInstance.get(`/issue/${issue._id}`);
             const fullIssueData = res.data.data?.issue || res.data.data || issue;
 
@@ -180,7 +185,6 @@ const AdminUsers = () => {
 
     return (
         <div className="space-y-4 md:space-y-6 animate-fade-in flex flex-col h-full relative">
-            {/* Header & Search */}
             <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3 md:gap-4">
                 <h2 className="text-xl md:text-2xl font-bold text-foreground">User Management</h2>
                 <div className="relative w-full sm:w-72">
@@ -195,7 +199,6 @@ const AdminUsers = () => {
                 </div>
             </div>
 
-            {/* Content Area */}
             {loading ? (
                 <div className="flex-1 flex justify-center items-center">
                     <div className="w-8 h-8 border-4 border-primary border-t-transparent rounded-full animate-spin"></div>
@@ -206,7 +209,6 @@ const AdminUsers = () => {
                 </div>
             ) : (
                 <>
-                    {/* MOBILE VIEW */}
                     <div className="md:hidden grid grid-cols-1 gap-4 overflow-y-auto thin-scrollbar pb-4">
                         {users.map((user) => (
                             <div key={user._id} className="bg-card glass-card border border-border/50 rounded-xl p-4 flex flex-col gap-4 shadow-sm">
@@ -225,33 +227,22 @@ const AdminUsers = () => {
                                     </div>
                                 </div>
 
-                                <div className="grid grid-cols-2 gap-3 bg-muted/20 p-3 rounded-lg border border-border/30">
+                                <div className="grid grid-cols-2 gap-3 bg-muted/20 p-3 rounded-lg border border-border/30 [&>div>div]:min-w-0">
                                     <div className="flex flex-col gap-1">
                                         <span className="text-[10px] text-muted-foreground uppercase tracking-wider font-semibold">Role</span>
-                                        <select
+                                        <CustomSelect
+                                            options={ROLE_OPTIONS}
                                             value={user.role}
-                                            onChange={(e) => handleRoleChange(user._id, e.target.value)}
-                                            className="w-full bg-background border border-border/50 text-foreground text-xs rounded-md px-2 py-1.5 focus:border-primary outline-none transition-colors"
-                                        >
-                                            <option value="user">User</option>
-                                            <option value="moderator">Moderator</option>
-                                            <option value="official">Official</option>
-                                        </select>
+                                            onChange={(val) => handleRoleChange(user._id, val)}
+                                        />
                                     </div>
                                     <div className="flex flex-col gap-1">
                                         <span className="text-[10px] text-muted-foreground uppercase tracking-wider font-semibold">Status</span>
-                                        <select
+                                        <CustomSelect
+                                            options={STATUS_OPTIONS}
                                             value={user.accountStatus || 'ACTIVE'}
-                                            onChange={(e) => handleStatusChange(user._id, e.target.value)}
-                                            className={`w-full text-xs px-2 py-1.5 rounded-md font-semibold border outline-none transition-colors ${user.accountStatus === 'BANNED' ? 'bg-red-500/10 text-red-500 border-red-500/20' :
-                                                user.accountStatus === 'SUSPENDED' ? 'bg-yellow-500/10 text-yellow-500 border-yellow-500/20' :
-                                                    'bg-green-500/10 text-green-500 border-green-500/20'
-                                                }`}
-                                        >
-                                            <option value="ACTIVE" className="bg-card text-foreground">Active</option>
-                                            <option value="SUSPENDED" className="bg-card text-foreground">Suspend</option>
-                                            <option value="BANNED" className="bg-card text-foreground">Ban</option>
-                                        </select>
+                                            onChange={(val) => handleStatusChange(user._id, val)}
+                                        />
                                     </div>
                                 </div>
 
@@ -265,11 +256,11 @@ const AdminUsers = () => {
                         ))}
                     </div>
 
-                    {/* DESKTOP VIEW */}
                     <div className="hidden md:flex bg-card glass-card border border-border/50 rounded-2xl overflow-hidden shadow-lg flex-1 flex-col min-h-0">
                         <div className="overflow-y-auto thin-scrollbar flex-1">
                             <table className="w-full text-left whitespace-nowrap">
-                                <thead className="bg-muted/30 border-b border-border/50 sticky top-0 z-10">
+                                {/* CSS FIXED HERE: Changed transparent bg-muted/30 to opaque bg-card/95 with backdrop-blur and a higher z-index to block the text from bleeding through */}
+                                <thead className="bg-card/95 backdrop-blur-md border-b border-border/50 sticky top-0 z-20 shadow-sm">
                                     <tr className="text-muted-foreground text-sm">
                                         <th className="py-4 px-6 font-medium">User Profile</th>
                                         <th className="py-4 px-6 font-medium">Role</th>
@@ -294,30 +285,19 @@ const AdminUsers = () => {
                                                     </div>
                                                 </div>
                                             </td>
-                                            <td className="py-4 px-6">
-                                                <select
+                                            <td className="py-4 px-6 [&>div]:min-w-0">
+                                                <CustomSelect
+                                                    options={ROLE_OPTIONS}
                                                     value={user.role}
-                                                    onChange={(e) => handleRoleChange(user._id, e.target.value)}
-                                                    className="bg-background border border-border/50 text-foreground text-xs rounded-lg px-3 py-1.5 focus:border-primary outline-none transition-colors cursor-pointer"
-                                                >
-                                                    <option value="user">User</option>
-                                                    <option value="moderator">Moderator</option>
-                                                    <option value="official">Official</option>
-                                                </select>
+                                                    onChange={(val) => handleRoleChange(user._id, val)}
+                                                />
                                             </td>
-                                            <td className="py-4 px-6">
-                                                <select
+                                            <td className="py-4 px-6 [&>div]:min-w-0">
+                                                <CustomSelect
+                                                    options={STATUS_OPTIONS}
                                                     value={user.accountStatus || 'ACTIVE'}
-                                                    onChange={(e) => handleStatusChange(user._id, e.target.value)}
-                                                    className={`text-xs px-3 py-1.5 rounded-lg font-semibold border outline-none cursor-pointer transition-colors ${user.accountStatus === 'BANNED' ? 'bg-red-500/10 text-red-500 border-red-500/20' :
-                                                        user.accountStatus === 'SUSPENDED' ? 'bg-yellow-500/10 text-yellow-500 border-yellow-500/20' :
-                                                            'bg-green-500/10 text-green-500 border-green-500/20'
-                                                        }`}
-                                                >
-                                                    <option value="ACTIVE" className="bg-card text-foreground">Active</option>
-                                                    <option value="SUSPENDED" className="bg-card text-foreground">Suspend</option>
-                                                    <option value="BANNED" className="bg-card text-foreground">Ban</option>
-                                                </select>
+                                                    onChange={(val) => handleStatusChange(user._id, val)}
+                                                />
                                             </td>
                                             <td className="py-4 px-6 text-right">
                                                 <button
@@ -336,7 +316,6 @@ const AdminUsers = () => {
                 </>
             )}
 
-            {/* Pagination */}
             {!loading && totalPages > 1 && (
                 <div className="flex justify-between items-center text-xs md:text-sm text-muted-foreground pt-2">
                     <span>Page {page} of {totalPages}</span>
@@ -347,7 +326,6 @@ const AdminUsers = () => {
                 </div>
             )}
 
-            {/* 🟢 Full Detail Card Modal (Hides completely if the internal Issue Detail is open!) */}
             {isModalOpen && (
                 <div className={`fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 bg-black/50 backdrop-blur-sm animate-fade-in ${isIssueModalOpen ? 'hidden' : 'flex'}`}>
                     <div className="bg-card w-full max-w-2xl border border-border/50 rounded-2xl shadow-2xl overflow-hidden flex flex-col max-h-[90dvh] relative">
@@ -370,7 +348,6 @@ const AdminUsers = () => {
                                 <div className="flex justify-center items-center py-12 text-muted-foreground">User details not found</div>
                             ) : (
                                 <div className="space-y-6">
-                                    {/* 🟢 Responsive User Header */}
                                     <div className="flex flex-col sm:flex-row gap-4 sm:gap-6 items-center sm:items-start text-center sm:text-left">
                                         <Avatar
                                             src={selectedUserDetails.user.profilePic}
@@ -384,24 +361,16 @@ const AdminUsers = () => {
                                             <p className="text-sm text-muted-foreground break-all">{selectedUserDetails.user.contact?.email}</p>
                                         </div>
 
-                                        <div className="w-full sm:w-auto bg-muted/20 p-3 rounded-xl border border-border/50 shrink-0">
+                                        <div className="w-full sm:w-auto bg-muted/20 p-3 rounded-xl border border-border/50 shrink-0 [&>div]:min-w-0">
                                             <label className="block text-xs text-muted-foreground mb-1 font-medium sm:text-left text-center">Account Status</label>
-                                            <select
+                                            <CustomSelect
+                                                options={STATUS_OPTIONS}
                                                 value={selectedUserDetails.user.accountStatus || 'ACTIVE'}
-                                                onChange={(e) => handleStatusChange(selectedUserDetails.user._id, e.target.value)}
-                                                className={`w-full sm:w-auto text-sm px-3 py-2 rounded-lg font-semibold border outline-none cursor-pointer transition-colors ${selectedUserDetails.user.accountStatus === 'BANNED' ? 'bg-red-500/10 text-red-500 border-red-500/20' :
-                                                    selectedUserDetails.user.accountStatus === 'SUSPENDED' ? 'bg-yellow-500/10 text-yellow-500 border-yellow-500/20' :
-                                                        'bg-green-500/10 text-green-500 border-green-500/20'
-                                                    }`}
-                                            >
-                                                <option value="ACTIVE" className="bg-card text-foreground">Active</option>
-                                                <option value="SUSPENDED" className="bg-card text-foreground">Suspended</option>
-                                                <option value="BANNED" className="bg-card text-foreground">Banned</option>
-                                            </select>
+                                                onChange={(val) => handleStatusChange(selectedUserDetails.user._id, val)}
+                                            />
                                         </div>
                                     </div>
 
-                                    {/* 🟢 Responsive Stats Grid */}
                                     <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 sm:gap-3">
                                         <div className="bg-muted/30 p-3 rounded-xl border border-border/50 text-center">
                                             <Shield className="w-5 h-5 mx-auto text-primary mb-1" />
@@ -427,7 +396,6 @@ const AdminUsers = () => {
                                         </div>
                                     </div>
 
-                                    {/* 🟢 Responsive Recent Issues List */}
                                     <div>
                                         <h4 className="font-semibold text-foreground mb-3 flex items-center gap-2">
                                             Recent Issues <span className="bg-muted text-muted-foreground text-xs px-2 py-0.5 rounded-full">{selectedUserDetails.recentIssues?.length || 0}</span>
@@ -437,7 +405,6 @@ const AdminUsers = () => {
                                                 <p className="text-sm text-muted-foreground bg-muted/20 p-4 rounded-xl border border-border/50 text-center">No issues reported yet.</p>
                                             ) : (
                                                 selectedUserDetails.recentIssues.map(issue => {
-                                                    // Determine thumbnail safely (Now pre-fetched in the background!)
                                                     let thumbnail = null;
                                                     if (issue.media && Array.isArray(issue.media) && issue.media.length > 0) {
                                                         const firstMedia = issue.media[0];
@@ -452,7 +419,6 @@ const AdminUsers = () => {
                                                         <div
                                                             key={issue._id}
                                                             onClick={() => !fetchingIssueId && handleIssueClick(issue)}
-                                                            // Stack on very small screens, side-by-side on sm+
                                                             className={`bg-background border border-border/50 p-3 rounded-xl flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 transition-colors cursor-pointer ${fetchingIssueId === issue._id ? 'opacity-50' : 'hover:border-primary/50'}`}
                                                         >
                                                             <div className="overflow-hidden w-full sm:flex-1 pr-0 sm:pr-2">
@@ -472,7 +438,6 @@ const AdminUsers = () => {
                                                                     {issue.status}
                                                                 </span>
 
-                                                                {/* Thumbnail properly constrained */}
                                                                 <div className="w-10 h-10 sm:w-12 sm:h-12 rounded-lg overflow-hidden border border-border/50 bg-muted shrink-0 relative flex items-center justify-center">
                                                                     {thumbnail ? (
                                                                         <>
@@ -505,7 +470,6 @@ const AdminUsers = () => {
                 </div>
             )}
 
-            {/* 🟢 Issue Detail Modal - Passes isAdminView=true so it gets smaller here! */}
             <IssueDetail
                 issue={selectedIssueForDetail}
                 isOpen={isIssueModalOpen}
