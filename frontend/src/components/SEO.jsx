@@ -3,7 +3,7 @@ import { Helmet } from 'react-helmet-async';
 const SEO = ({ title, description, url, image, keywords }) => {
     const siteName = "LocalAwaaz";
     // If a specific title is provided, use it. Otherwise, use the default brand title.
-    const fullTitle = title ? `${title} | ${siteName}` : `${siteName} | Apni Baat, Apni Awaaz`;
+    const fullTitle = title ? `${siteName} | ${title}` : `${siteName} | Apni Baat, Apni Awaaz`;
 
     const defaultDesc = "LocalAwaaz is an independent civic platform where citizens can report local issues, track their resolutions, and earn recognition badges.";
     const defaultImage = "https://www.localawaaz.in/og-image.jpg";
