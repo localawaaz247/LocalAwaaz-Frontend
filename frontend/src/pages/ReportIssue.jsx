@@ -88,25 +88,31 @@ export default function ReportIssue() {
       setFormData(prev => ({
         ...prev,
         title: prefilledData.title || prev.title,
-        category: prefilledData.category || prev.category,
+        category: prefilledData.category ? prefilledData.category.toUpperCase() : prev.category,
         description: prefilledData.description || prev.description,
+        isAnonymous: prefilledData.isAnonymous !== undefined ? prefilledData.isAnonymous : prev.isAnonymous,
         location: {
           ...prev.location,
           address: prefilledData.location?.address || prev.location.address,
           city: prefilledData.location?.city || prev.location.city,
           state: prefilledData.location?.state || prev.location.state,
+          pinCode: prefilledData.location?.pinCode || prev.location.pinCode,
           geoData: {
             type: 'Point',
             coordinates: prefilledData.location?.coordinates || prev.location.geoData.coordinates
           }
         },
-        media: prefilledData.originalFile ? [prefilledData.originalFile] : prev.media
+        // FIX: Look for the 'originalFiles' array sent by Assistant.jsx
+        media: prefilledData.originalFiles ? prefilledData.originalFiles : prev.media
       }));
 
-      if (prefilledData.originalFile) {
+      // FIX: Generate preview URLs dynamically for the array
+      if (prefilledData.originalFiles && prefilledData.originalFiles.length > 0) {
         try {
-          const url = URL.createObjectURL(prefilledData.originalFile);
-          setPreviewUrls([url]);
+          if (prefilledData.originalFiles[0] instanceof Blob) {
+            const urls = prefilledData.originalFiles.map(file => URL.createObjectURL(file));
+            setPreviewUrls(urls);
+          }
         } catch (error) {
           console.error("Error creating preview URL:", error);
         }

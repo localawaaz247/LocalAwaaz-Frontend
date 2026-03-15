@@ -38,7 +38,6 @@ const Assistant = () => {
   const [userLocation, setUserLocation] = useState({ lat: null, lng: null, city: '', address: '' });
 
   const [draftMedia, setDraftMedia] = useState(null);
-  // NEW: State to lock the flow until images are provided for an audio draft
   const [awaitingImages, setAwaitingImages] = useState(false);
 
   const messagesEndRef = useRef(null);
@@ -87,7 +86,6 @@ const Assistant = () => {
     setMessages(prev => [...prev, { id: Date.now(), type: 'user', content: displayMsg, timestamp: new Date() }]);
     setIsTyping(true);
 
-    // NEW: Intercept flow if we are waiting for an image from an audio upload
     if (awaitingImages) {
       if (files.length === 0 || fileType !== 'image') {
         setMessages(prev => [...prev, {
@@ -100,7 +98,6 @@ const Assistant = () => {
         return;
       }
 
-      // User successfully uploaded images!
       setDraftMedia(prev => ({ ...prev, images: files }));
       setAwaitingImages(false);
 
@@ -156,11 +153,11 @@ const Assistant = () => {
         if (data.success) {
           if (fileType === 'audio') {
             setDraftMedia({ audio: files[0] });
-            setAwaitingImages(true); // LOCK THE FLOW HERE
+            setAwaitingImages(true);
           } else {
             setDraftMedia({
               images: files,
-              previewUrl: URL.createObjectURL(files[0]) // Just preview the first one
+              previewUrl: URL.createObjectURL(files[0])
             });
           }
 
@@ -210,7 +207,7 @@ const Assistant = () => {
             pinCode: data.data.pinCode || '',
             coordinates: [userLocation.lng, userLocation.lat]
           },
-          originalFiles: draftMedia?.images, // Pass all images!
+          originalFiles: draftMedia?.images,
           previewUrl: draftMedia?.previewUrl
         };
         showDraftCard(finalDraft);
@@ -256,12 +253,21 @@ const Assistant = () => {
 
   const handleDirectSubmit = async (draftData) => {
     setIsTyping(true);
+    if (!draftData.originalFiles || draftData.originalFiles.length === 0 || !(draftData.originalFiles[0] instanceof Blob)) {
+      setMessages(prev => [...prev, {
+        id: Date.now(),
+        type: 'assistant',
+        content: "Oops! Your images were cleared from memory. Please click 'Modify Details' below to quickly re-attach them and submit your report.",
+        timestamp: new Date()
+      }]);
+      setIsTyping(false);
+      return;
+    }
     try {
       setMessages(prev => [...prev, { id: Date.now(), type: 'assistant', content: t('lokai_submitting_media'), timestamp: new Date() }]);
 
       let finalMediaUrl = [];
 
-      // NEW: Ensure we handle multiple files seamlessly during submission
       if (draftData.originalFiles && draftData.originalFiles.length > 0) {
         const uploadFormData = new FormData();
         draftData.originalFiles.forEach(file => {
@@ -436,47 +442,72 @@ const Assistant = () => {
             </div>
           )}
 
-          {messages.map((message) => (
-            <div key={message.id} className={`flex ${message.type === 'user' ? 'justify-end' : 'justify-start'} animate-fade-in-up mb-6`}>
-              <div className={`flex items-start gap-2.5 max-w-[95%] md:max-w-[85%] ${message.type === 'user' ? 'flex-row-reverse' : ''}`}>
+          {messages.map((message, index) => {
+            const isLatest = index === messages.length - 1;
+            const optionsMatch = message.type === 'assistant' ? message.content.match(/\[(.*?)\]\s*\/\s*\[(.*?)\]/) : null;
 
-                {message.type === 'assistant' && (
-                  <Avatar className="h-7 w-7 md:h-9 md:w-9 flex-shrink-0 mt-1">
-                    <AvatarFallback className="bg-gradient-to-br from-primary to-secondary text-white">
-                      <Bot className="h-3.5 w-3.5 md:h-4.5 md:w-4.5" />
-                    </AvatarFallback>
-                  </Avatar>
-                )}
+            return (
+              <div key={message.id} className={`flex ${message.type === 'user' ? 'justify-end' : 'justify-start'} animate-fade-in-up mb-6`}>
+                <div className={`flex items-start gap-2.5 max-w-[95%] md:max-w-[85%] ${message.type === 'user' ? 'flex-row-reverse' : ''}`}>
 
-                <div className="flex flex-col gap-1 w-full">
-                  <Card className={`glass-card p-3 md:p-4 border ${message.type === 'user'
-                    ? 'bg-gradient-to-br from-primary to-secondary text-white border-primary/20 rounded-2xl rounded-tr-sm'
-                    : 'bg-card/80 border-border/50 rounded-2xl rounded-tl-sm shadow-sm'
-                    }`}>
-                    <p className={`text-[14px] md:text-[15px] leading-relaxed whitespace-pre-wrap ${message.type === 'user' ? 'text-white' : 'text-foreground'}`}>
-                      {message.content}
-                    </p>
-
-                    {message.type === 'assistant' && message.toolData && renderDataCard(message.toolData)}
-                    {message.type === 'assistant' && message.isDraftReport && renderDraftCard(message.draftData)}
-                  </Card>
-                </div>
-
-                {message.type === 'user' && (
-                  <Avatar className="h-7 w-7 md:h-9 md:w-9 flex-shrink-0 mt-1">
-                    {user?.profilePic ? (
-                      <AvatarImage src={user.profilePic} alt="User" className="object-cover" />
-                    ) : (
-                      <AvatarFallback className="bg-muted text-foreground">
-                        {user?.name ? user.name[0].toUpperCase() : <User className="h-3.5 w-3.5 md:h-4.5 md:w-4.5 text-muted-foreground" />}
+                  {message.type === 'assistant' && (
+                    <Avatar className="h-7 w-7 md:h-9 md:w-9 flex-shrink-0 mt-1">
+                      <AvatarFallback className="bg-gradient-to-br from-primary to-secondary text-white">
+                        <Bot className="h-3.5 w-3.5 md:h-4.5 md:w-4.5" />
                       </AvatarFallback>
-                    )}
-                  </Avatar>
-                )}
+                    </Avatar>
+                  )}
 
+                  <div className="flex flex-col gap-1 w-full">
+                    <Card className={`glass-card p-3 md:p-4 border ${message.type === 'user'
+                      ? 'bg-gradient-to-br from-primary to-secondary text-white border-primary/20 rounded-2xl rounded-tr-sm'
+                      : 'bg-card/80 border-border/50 rounded-2xl rounded-tl-sm shadow-sm'
+                      }`}>
+
+                      <p className={`text-[14px] md:text-[15px] leading-relaxed whitespace-pre-wrap ${message.type === 'user' ? 'text-white' : 'text-foreground'}`}>
+                        {isLatest && optionsMatch && !isTyping
+                          ? message.content.replace(/\[(.*?)\]\s*\/\s*\[(.*?)\]/, '')
+                          : message.content}
+                      </p>
+
+                      {isLatest && optionsMatch && !isTyping && (
+                        <div className="flex gap-3 mt-4 pt-3 border-t border-border/50">
+                          <button
+                            onClick={() => handleSendMessage(optionsMatch[1])}
+                            className="flex-1 py-2 px-4 bg-primary/10 border border-primary/30 text-primary font-semibold rounded-xl hover:bg-primary hover:text-primary-foreground transition-all shadow-sm active:scale-95"
+                          >
+                            {optionsMatch[1]}
+                          </button>
+                          <button
+                            onClick={() => handleSendMessage(optionsMatch[2])}
+                            className="flex-1 py-2 px-4 bg-muted border border-border text-foreground font-semibold rounded-xl hover:bg-muted/80 transition-all shadow-sm active:scale-95"
+                          >
+                            {optionsMatch[2]}
+                          </button>
+                        </div>
+                      )}
+
+                      {message.type === 'assistant' && message.toolData && renderDataCard(message.toolData)}
+                      {message.type === 'assistant' && message.isDraftReport && renderDraftCard(message.draftData)}
+                    </Card>
+                  </div>
+
+                  {message.type === 'user' && (
+                    <Avatar className="h-7 w-7 md:h-9 md:w-9 flex-shrink-0 mt-1">
+                      {user?.profilePic ? (
+                        <AvatarImage src={user.profilePic} alt="User" className="object-cover" />
+                      ) : (
+                        <AvatarFallback className="bg-muted text-foreground">
+                          {user?.name ? user.name[0].toUpperCase() : <User className="h-3.5 w-3.5 md:h-4.5 md:w-4.5 text-muted-foreground" />}
+                        </AvatarFallback>
+                      )}
+                    </Avatar>
+                  )}
+
+                </div>
               </div>
-            </div>
-          ))}
+            )
+          })}
 
           {isTyping && (
             <div className="flex justify-start animate-fade-in-up mb-6">
