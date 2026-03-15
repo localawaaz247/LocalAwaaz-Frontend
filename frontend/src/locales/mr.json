@@ -342,5 +342,9 @@
     "start_reporting_badges": "बॅजेस मिळवण्यासाठी समस्या नोंदवणे सुरू करा!",
     "issues_posted": "पोस्ट केलेल्या समस्या",
     "issues_confirmed_tab": "पुष्टी केलेल्या समस्या",
-    "saved_issues": "जतन केलेल्या समस्या"
+    "saved_issues": "जतन केलेल्या समस्या",
+    "Delete Issue?": "समस्या हटवायची?",
+    "Are you sure you want to delete this issue? This action cannot be undone.": "तुम्हाला खात्री आहे की ही समस्या हटवायची आहे? ही कृती पूर्ववत करता येणार नाही.",
+    "Delete": "हटवा",
+    "deleting": "हटवत आहे..."
 }

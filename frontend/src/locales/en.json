@@ -342,5 +342,9 @@
     "start_reporting_badges": "Start reporting issues to earn badges!",
     "issues_posted": "Issues Posted",
     "issues_confirmed_tab": "Issues Confirmed",
-    "saved_issues": "Saved Issues"
+    "saved_issues": "Saved Issues",
+    "Delete Issue?": "Delete Issue?",
+    "Are you sure you want to delete this issue? This action cannot be undone.": "Are you sure you want to delete this issue? This action cannot be undone.",
+    "Delete": "Delete",
+    "deleting": "Deleting..."
 }

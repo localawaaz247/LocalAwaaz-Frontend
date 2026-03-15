@@ -342,5 +342,9 @@
     "start_reporting_badges": "பேட்ஜ்களைப் பெற பிரச்சனைகளைப் புகாரளிக்கத் தொடங்குங்கள்!",
     "issues_posted": "பதிவு செய்த பிரச்சனைகள்",
     "issues_confirmed_tab": "உறுதிப்படுத்திய பிரச்சனைகள்",
-    "saved_issues": "சேமித்த பிரச்சனைகள்"
+    "saved_issues": "சேமித்த பிரச்சனைகள்",
+    "Delete Issue?": "சிக்கலை நீக்கவா?",
+    "Are you sure you want to delete this issue? This action cannot be undone.": "இந்தச் சிக்கலை உறுதியாக நீக்க விரும்புகிறீர்களா? இந்தச் செயலை செயல்தவிர்க்க முடியாது.",
+    "Delete": "நீக்கு",
+    "deleting": "நீக்கப்படுகிறது..."
 }

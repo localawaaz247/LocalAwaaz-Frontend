@@ -342,5 +342,9 @@
     "start_reporting_badges": "ব্যাজ উপার্জন করতে সমস্যা রিপোর্ট করা শুরু করুন!",
     "issues_posted": "পোস্ট করা সমস্যাগুলি",
     "issues_confirmed_tab": "নিশ্চিত করা সমস্যাগুলি",
-    "saved_issues": "সংরক্ষিত সমস্যাগুলি"
+    "saved_issues": "সংরক্ষিত সমস্যাগুলি",
+    "Delete Issue?": "সমস্যা মুছবেন?",
+    "Are you sure you want to delete this issue? This action cannot be undone.": "আপনি কি নিশ্চিত যে আপনি এই সমস্যাটি মুছে ফেলতে চান? এই কাজটি পূর্বাবস্থায় ফেরানো যাবে না।",
+    "Delete": "মুছুন",
+    "deleting": "মোছা হচ্ছে..."
 }

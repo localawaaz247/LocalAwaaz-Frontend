@@ -342,5 +342,9 @@
     "start_reporting_badges": "ಬ್ಯಾಡ್ಜ್‌ಗಳನ್ನು ಗಳಿಸಲು ಸಮಸ್ಯೆಗಳನ್ನು ವರದಿ ಮಾಡಲು ಪ್ರಾರಂಭಿಸಿ!",
     "issues_posted": "ಪೋಸ್ಟ್ ಮಾಡಿದ ಸಮಸ್ಯೆಗಳು",
     "issues_confirmed_tab": "ಖಚಿತಪಡಿಸಿದ ಸಮಸ್ಯೆಗಳು",
-    "saved_issues": "ಉಳಿಸಿದ ಸಮಸ್ಯೆಗಳು"
+    "saved_issues": "ಉಳಿಸಿದ ಸಮಸ್ಯೆಗಳು",
+    "Delete Issue?": "ಸಮಸ್ಯೆಯನ್ನು ಅಳಿಸಬೇಕೆ?",
+    "Are you sure you want to delete this issue? This action cannot be undone.": "ಈ ಸಮಸ್ಯೆಯನ್ನು ಅಳಿಸಲು ನೀವು ಖಚಿತವೇ? ಈ ಕ್ರಿಯೆಯನ್ನು ರದ್ದುಗೊಳಿಸಲಾಗುವುದಿಲ್ಲ.",
+    "Delete": "ಅಳಿಸಿ",
+    "deleting": "ಅಳಿಸಲಾಗುತ್ತಿದೆ..."
 }

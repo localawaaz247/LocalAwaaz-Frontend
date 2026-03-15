@@ -342,5 +342,9 @@
     "start_reporting_badges": "बैज अर्जित करने के लिए समस्याओं की रिपोर्ट करना शुरू करें!",
     "issues_posted": "पोस्ट की गई समस्याएं",
     "issues_confirmed_tab": "पुष्टि की गई समस्याएं",
-    "saved_issues": "सहेजी गई समस्याएं"
+    "saved_issues": "सहेजी गई समस्याएं",
+    "Delete Issue?": "समस्या हटाएँ?",
+    "Are you sure you want to delete this issue? This action cannot be undone.": "क्या आप वाकई इस समस्या को हटाना चाहते हैं? इस क्रिया को पूर्ववत नहीं किया जा सकता।",
+    "Delete": "हटाएँ",
+    "deleting": "हटाया जा रहा है..."
 }

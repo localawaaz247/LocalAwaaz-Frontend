@@ -1,10 +1,11 @@
 import React, { useState, useEffect } from "react";
 import { useDispatch } from "react-redux";
 import { useNavigate } from "react-router-dom";
-import { Calendar, CheckCircle, Flag, TrendingUp, Image as ImageIcon, Edit2, X, Loader2 } from "lucide-react";
+import { Calendar, CheckCircle, Flag, TrendingUp, Image as ImageIcon, Edit2, Trash2, X, Loader2 } from "lucide-react";
 import axiosInstance from "../utils/axios";
 import { showToast } from "../utils/toast";
 import { useTranslation } from "react-i18next";
+import DeleteConfirmModal from "./modals/DeleteConfirmModal";
 
 const IssuesPosted = () => {
   const { t } = useTranslation();
@@ -18,6 +19,10 @@ const IssuesPosted = () => {
   const [displayedIssues, setDisplayedIssues] = useState([]);
 
   const [editingIssue, setEditingIssue] = useState(null);
+
+  // State for our new custom delete confirmation dialog
+  const [issueToDelete, setIssueToDelete] = useState(null);
+  const [isDeleting, setIsDeleting] = useState(false);
 
   useEffect(() => {
     fetchPostedIssues();
@@ -55,6 +60,33 @@ const IssuesPosted = () => {
     setIssues(prev => prev.map(issue => issue._id === updatedIssue._id ? updatedIssue : issue));
     setDisplayedIssues(prev => prev.map(issue => issue._id === updatedIssue._id ? updatedIssue : issue));
     setEditingIssue(null);
+  };
+
+  // Triggered when clicking the trash icon (opens modal)
+  const handleDeleteClick = (e, issueId) => {
+    e.stopPropagation();
+    setIssueToDelete(issueId);
+  };
+
+  // Triggered when clicking 'Delete' inside the modal
+  const confirmDelete = async () => {
+    if (!issueToDelete) return;
+    setIsDeleting(true);
+
+    try {
+      const response = await axiosInstance.delete(`/issue/${issueToDelete}`);
+      if (response.data.success) {
+        showToast({ icon: "success", title: response.data.message || t('issue_deleted_success') });
+        setIssues(prev => prev.filter(issue => issue._id !== issueToDelete));
+        setDisplayedIssues(prev => prev.filter(issue => issue._id !== issueToDelete));
+      }
+    } catch (error) {
+      console.error("Delete failed:", error);
+      showToast({ icon: "error", title: error?.response?.data?.message || t('delete_failed') });
+    } finally {
+      setIsDeleting(false);
+      setIssueToDelete(null);
+    }
   };
 
   const getStatusStyles = (status) => {
@@ -105,16 +137,26 @@ const IssuesPosted = () => {
                       </div>
 
                       {issue.status === 'OPEN' && (
-                        <button
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            setEditingIssue(issue);
-                          }}
-                          className="p-1.5 md:p-2 text-muted-foreground hover:text-primary hover:bg-primary/10 rounded-lg transition-colors"
-                          title={t('edit_issue')}
-                        >
-                          <Edit2 size={16} />
-                        </button>
+                        <div className="flex items-center gap-1">
+                          <button
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              setEditingIssue(issue);
+                            }}
+                            className="p-1.5 md:p-2 text-muted-foreground hover:text-primary hover:bg-primary/10 rounded-lg transition-colors"
+                            title={t('edit_issue')}
+                          >
+                            <Edit2 size={16} />
+                          </button>
+
+                          <button
+                            onClick={(e) => handleDeleteClick(e, issue._id)}
+                            className="p-1.5 md:p-2 text-muted-foreground hover:text-red-500 hover:bg-red-500/10 rounded-lg transition-colors"
+                            title={t('delete_issue')}
+                          >
+                            <Trash2 size={16} />
+                          </button>
+                        </div>
                       )}
                     </div>
 
@@ -211,10 +253,22 @@ const IssuesPosted = () => {
           onSuccess={handleIssueUpdated}
         />
       )}
+
+      {/* Custom Delete Confirmation Modal */}
+      {issueToDelete && (
+        <DeleteConfirmModal
+          onClose={() => setIssueToDelete(null)}
+          onConfirm={confirmDelete}
+          isDeleting={isDeleting}
+        />
+      )}
     </div>
   );
 };
 
+// ----------------------------------------------------------------------------------
+// EDIT ISSUE MODAL
+// ----------------------------------------------------------------------------------
 const EditIssueModal = ({ issue, onClose, onSuccess }) => {
   const { t } = useTranslation();
   const [formData, setFormData] = useState({

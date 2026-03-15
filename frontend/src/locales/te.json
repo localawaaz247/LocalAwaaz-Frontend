@@ -342,5 +342,9 @@
     "start_reporting_badges": "బ్యాడ్జ్‌లను సంపాదించడానికి సమస్యలను నివేదించడం ప్రారంభించండి!",
     "issues_posted": "పోస్ట్ చేసిన సమస్యలు",
     "issues_confirmed_tab": "నిర్ధారించిన సమస్యలు",
-    "saved_issues": "సేవ్ చేసిన సమస్యలు"
+    "saved_issues": "సేవ్ చేసిన సమస్యలు",
+    "Delete Issue?": "సమస్యను తొలగించాలా?",
+    "Are you sure you want to delete this issue? This action cannot be undone.": "మీరు ఖచ్చితంగా ఈ సమస్యను తొలగించాలనుకుంటున్నారా? ఈ చర్యను వెనక్కి తీసుకోలేము.",
+    "Delete": "తొలగించు",
+    "deleting": "తొలగిస్తోంది..."
 }

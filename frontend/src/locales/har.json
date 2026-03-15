@@ -342,5 +342,9 @@
     "start_reporting_badges": "बैज कमावण खातिर समस्या रिपोर्ट करण लाग्ग ज्यो!",
     "issues_posted": "पोस्ट करी समस्या",
     "issues_confirmed_tab": "कन्फर्म हुई समस्या",
-    "saved_issues": "सेव करी समस्या"
+    "saved_issues": "सेव करी समस्या",
+    "Delete Issue?": "समस्या डिलीट करणी सै?",
+    "Are you sure you want to delete this issue? This action cannot be undone.": "के तनै पक्का बेरा सै अक यो मिटाणा सै? यो फेर पाछा नी आवैगा।",
+    "Delete": "डिलीट",
+    "deleting": "डिलीट होवै सै..."
 }

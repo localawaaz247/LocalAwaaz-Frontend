@@ -342,5 +342,9 @@
     "start_reporting_badges": "બેજ મેળવવા માટે સમસ્યાઓનો રિપોર્ટ કરવાનું શરૂ કરો!",
     "issues_posted": "પોસ્ટ કરાયેલી સમસ્યાઓ",
     "issues_confirmed_tab": "કન્ફર્મ કરેલી સમસ્યાઓ",
-    "saved_issues": "સાચવેલી સમસ્યાઓ"
+    "saved_issues": "સાચવેલી સમસ્યાઓ",
+    "Delete Issue?": "સમસ્યા કાઢી નાખવી છે?",
+    "Are you sure you want to delete this issue? This action cannot be undone.": "શું તમે ખરેખર આ સમસ્યા કાઢી નાખવા માંગો છો? આ ક્રિયા રદ કરી શકાશે નહીં.",
+    "Delete": "કાઢી નાખો",
+    "deleting": "કાઢી રહ્યા છીએ..."
 }
