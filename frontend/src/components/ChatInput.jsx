@@ -6,8 +6,9 @@ const ChatInput = ({ onSendMessage }) => {
   const { t } = useTranslation();
   const [message, setMessage] = useState("");
   const [showPlusMenu, setShowPlusMenu] = useState(false);
-  
-  const [selectedFile, setSelectedFile] = useState(null);
+
+  // NEW: Changed from single file to an array of files
+  const [selectedFiles, setSelectedFiles] = useState([]);
   const [selectedFileType, setSelectedFileType] = useState(null);
   const [previewUrl, setPreviewUrl] = useState(null);
 
@@ -16,7 +17,7 @@ const ChatInput = ({ onSendMessage }) => {
 
   const textareaRef = useRef(null);
   const plusMenuRef = useRef(null);
-  
+
   const cameraInputRef = useRef(null);
   const imageInputRef = useRef(null);
   const audioInputRef = useRef(null);
@@ -45,15 +46,15 @@ const ChatInput = ({ onSendMessage }) => {
   }, []);
 
   const clearFile = () => {
-    setSelectedFile(null);
+    setSelectedFiles([]);
     setSelectedFileType(null);
     if (previewUrl) URL.revokeObjectURL(previewUrl);
     setPreviewUrl(null);
   };
 
   const handleSend = () => {
-    if (message.trim() || selectedFile) {
-      onSendMessage(message.trim(), selectedFile, selectedFileType);
+    if (message.trim() || selectedFiles.length > 0) {
+      onSendMessage(message.trim(), selectedFiles, selectedFileType);
       setMessage("");
       clearFile();
       if (textareaRef.current) {
@@ -74,25 +75,37 @@ const ChatInput = ({ onSendMessage }) => {
   const handleBrowseAudio = () => { audioInputRef.current?.click(); setShowPlusMenu(false); };
 
   const handleFileChange = (e, type) => {
-    const file = e.target.files?.[0];
-    if (!file) return;
+    const files = Array.from(e.target.files || []);
+    if (files.length === 0) return;
 
-    if (type === 'audio' && file.size > 5 * 1024 * 1024) {
-      alert(t('audio_size_limit'));
-      e.target.value = ""; 
-      return;
-    }
-    if (type === 'image' && file.size > 30 * 1024 * 1024) {
-      alert(t('image_size_limit'));
-      e.target.value = ""; 
-      return;
+    if (type === 'audio') {
+      if (files[0].size > 5 * 1024 * 1024) {
+        alert(t('audio_size_limit') || "Audio exceeds 5MB limit.");
+        e.target.value = "";
+        return;
+      }
+      setSelectedFiles([files[0]]);
+      setSelectedFileType('audio');
     }
 
-    setSelectedFile(file);
-    setSelectedFileType(type);
-    
     if (type === 'image') {
-      setPreviewUrl(URL.createObjectURL(file));
+      // NEW: Size and Quantity Validation
+      if (files.length > 3) {
+        alert("You can only upload a maximum of 3 images.");
+        e.target.value = "";
+        return;
+      }
+
+      const totalSize = files.reduce((acc, file) => acc + file.size, 0);
+      if (totalSize > 30 * 1024 * 1024) {
+        alert("The combined size of the images exceeds 30MB. Please select smaller images.");
+        e.target.value = "";
+        return;
+      }
+
+      setSelectedFiles(files);
+      setSelectedFileType('image');
+      setPreviewUrl(URL.createObjectURL(files[0])); // Preview the first image
     }
 
     e.target.value = "";
@@ -110,26 +123,26 @@ const ChatInput = ({ onSendMessage }) => {
       };
 
       mediaRecorderRef.current.onstop = () => {
-        stream.getTracks().forEach(track => track.stop()); 
-        
-        if (isCancelledRef.current) return; 
+        stream.getTracks().forEach(track => track.stop());
+
+        if (isCancelledRef.current) return;
 
         const audioBlob = new Blob(audioChunksRef.current, { type: 'audio/webm' });
         const file = new File([audioBlob], "voice_message.webm", { type: 'audio/webm' });
 
         if (file.size > 5 * 1024 * 1024) {
-          alert(t('audio_limit_exceeded'));
+          alert(t('audio_limit_exceeded') || "Audio exceeds 5MB limit.");
           return;
         }
 
-        setSelectedFile(file);
+        setSelectedFiles([file]);
         setSelectedFileType('audio');
       };
 
       mediaRecorderRef.current.start();
       setIsRecording(true);
       setRecordingTime(0);
-      
+
       timerRef.current = setInterval(() => {
         setRecordingTime(prev => prev + 1);
       }, 1000);
@@ -158,7 +171,7 @@ const ChatInput = ({ onSendMessage }) => {
     return `${m}:${s < 10 ? '0' : ''}${s}`;
   };
 
-  const hasContent = message.trim().length > 0 || selectedFile !== null;
+  const hasContent = message.trim().length > 0 || selectedFiles.length > 0;
 
   return (
     <div className="w-full px-2 pb-2 md:px-6 md:pb-6">
@@ -166,7 +179,7 @@ const ChatInput = ({ onSendMessage }) => {
         <div className="absolute -inset-1 bg-gradient-to-r from-primary/10 via-accent/10 to-primary/10 blur-xl rounded-3xl opacity-70"></div>
 
         <div className="relative bg-card/80 backdrop-blur-xl border border-border/50 rounded-[24px] p-2 shadow-sm transition-all duration-300 focus-within:bg-card/95 focus-within:border-primary/40 focus-within:shadow-md flex flex-col min-h-[60px] justify-center">
-          
+
           {isRecording ? (
             <div className="flex items-center justify-between w-full px-3 py-1 animate-fade-in">
               <div className="flex items-center gap-3">
@@ -174,17 +187,15 @@ const ChatInput = ({ onSendMessage }) => {
                 <span className="text-sm font-medium text-foreground tracking-widest">{formatTime(recordingTime)}</span>
               </div>
               <div className="flex items-center gap-2">
-                <button 
-                  onClick={cancelRecording} 
+                <button
+                  onClick={cancelRecording}
                   className="p-2.5 text-muted-foreground hover:text-red-500 hover:bg-red-500/10 rounded-full transition-colors"
-                  title={t('cancel_recording')}
                 >
                   <Trash2 size={18} />
                 </button>
-                <button 
-                  onClick={stopRecording} 
+                <button
+                  onClick={stopRecording}
                   className="p-2.5 bg-primary text-primary-foreground rounded-full hover:opacity-90 shadow-md transition-all scale-105"
-                  title={t('stop_attach')}
                 >
                   <Square size={16} fill="currentColor" />
                 </button>
@@ -192,7 +203,7 @@ const ChatInput = ({ onSendMessage }) => {
             </div>
           ) : (
             <>
-              {selectedFile && (
+              {selectedFiles.length > 0 && (
                 <div className="flex items-center gap-3 p-2 mb-2 mx-2 mt-1 bg-muted/60 border border-border/50 rounded-xl w-max max-w-full relative group animate-fade-in-up">
                   {selectedFileType === 'image' ? (
                     <img src={previewUrl} alt="preview" className="h-12 w-12 object-cover rounded-lg shadow-sm" />
@@ -203,14 +214,14 @@ const ChatInput = ({ onSendMessage }) => {
                   )}
                   <div className="flex flex-col pr-6">
                     <span className="text-xs font-semibold text-foreground truncate max-w-[150px] md:max-w-[200px]">
-                      {selectedFile.name}
+                      {selectedFiles.length === 1 ? selectedFiles[0].name : `${selectedFiles.length} files selected`}
                     </span>
                     <span className="text-[10px] text-muted-foreground">
-                      {(selectedFile.size / 1024 / 1024).toFixed(2)} MB
+                      {(selectedFiles.reduce((acc, f) => acc + f.size, 0) / 1024 / 1024).toFixed(2)} MB
                     </span>
                   </div>
-                  <button 
-                    onClick={clearFile} 
+                  <button
+                    onClick={clearFile}
                     className="absolute top-1 right-1 p-1 bg-background/80 hover:bg-destructive/10 hover:text-destructive text-muted-foreground rounded-full transition-colors"
                   >
                     <X size={14} />
@@ -221,7 +232,7 @@ const ChatInput = ({ onSendMessage }) => {
               <div className="flex items-end w-full">
                 <textarea
                   ref={textareaRef}
-                  placeholder={selectedFile ? t('add_message_file') : t('message_lokai')}
+                  placeholder={selectedFiles.length > 0 ? t('add_message_file') : t('message_lokai')}
                   value={message}
                   onChange={(e) => setMessage(e.target.value)}
                   onKeyDown={handleKeyPress}
@@ -231,9 +242,9 @@ const ChatInput = ({ onSendMessage }) => {
                 />
 
                 <div className="flex items-center gap-1.5 pb-1.5 pr-1">
-                  
+
                   <div className="relative" ref={plusMenuRef}>
-                    <button 
+                    <button
                       onClick={() => setShowPlusMenu(!showPlusMenu)}
                       className={`p-2 rounded-full transition-all duration-200 flex items-center justify-center ${showPlusMenu ? 'bg-primary/10 text-primary' : 'text-muted-foreground hover:bg-muted hover:text-foreground'}`}
                     >
@@ -259,17 +270,16 @@ const ChatInput = ({ onSendMessage }) => {
                   </div>
 
                   {hasContent ? (
-                    <button 
+                    <button
                       onClick={handleSend}
                       className="p-2 bg-primary text-primary-foreground hover:opacity-90 rounded-full transition-all duration-200 flex items-center justify-center shadow-sm scale-100 animate-in zoom-in"
                     >
-                      <Send size={18} strokeWidth={2.5} className="ml-0.5" /> 
+                      <Send size={18} strokeWidth={2.5} className="ml-0.5" />
                     </button>
                   ) : (
                     <button
                       onClick={startRecording}
                       className="p-2 rounded-full transition-all duration-200 flex items-center justify-center text-muted-foreground hover:bg-muted hover:text-foreground scale-100 animate-in zoom-in"
-                      title={t('record_audio')}
                     >
                       <Mic size={20} strokeWidth={2.5} />
                     </button>
@@ -281,8 +291,9 @@ const ChatInput = ({ onSendMessage }) => {
         </div>
       </div>
 
-      <input type="file" accept="image/*" capture="environment" ref={cameraInputRef} onChange={(e) => handleFileChange(e, 'image')} className="hidden" />
-      <input type="file" accept="image/*" ref={imageInputRef} onChange={(e) => handleFileChange(e, 'image')} className="hidden" />
+      {/* NEW: Added 'multiple' to the image file input */}
+      <input type="file" accept="image/*" multiple capture="environment" ref={cameraInputRef} onChange={(e) => handleFileChange(e, 'image')} className="hidden" />
+      <input type="file" accept="image/*" multiple ref={imageInputRef} onChange={(e) => handleFileChange(e, 'image')} className="hidden" />
       <input type="file" accept="audio/*" ref={audioInputRef} onChange={(e) => handleFileChange(e, 'audio')} className="hidden" />
     </div>
   );

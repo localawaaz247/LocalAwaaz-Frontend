@@ -25,12 +25,7 @@ const Assistant = () => {
 
   const [messages, setMessages] = useState(() => {
     const saved = sessionStorage.getItem(`lokai_messages_${userId}`);
-    if (saved) {
-      return JSON.parse(saved).map(msg => ({
-        ...msg,
-        timestamp: new Date(msg.timestamp)
-      }));
-    }
+    if (saved) return JSON.parse(saved).map(msg => ({ ...msg, timestamp: new Date(msg.timestamp) }));
     return [];
   });
 
@@ -39,49 +34,33 @@ const Assistant = () => {
     return saved ? JSON.parse(saved) : [];
   });
 
-  const [isTyping, setIsTyping] = useState(false)
-  const [userLocation, setUserLocation] = useState({ lat: null, lng: null, city: '', address: '' })
-  const [pendingReport, setPendingReport] = useState(null)
+  const [isTyping, setIsTyping] = useState(false);
+  const [userLocation, setUserLocation] = useState({ lat: null, lng: null, city: '', address: '' });
+
+  const [draftMedia, setDraftMedia] = useState(null);
+  // NEW: State to lock the flow until images are provided for an audio draft
+  const [awaitingImages, setAwaitingImages] = useState(false);
+
   const messagesEndRef = useRef(null);
 
   useEffect(() => {
     const savedMessages = sessionStorage.getItem(`lokai_messages_${userId}`);
-    if (savedMessages) {
-      setMessages(JSON.parse(savedMessages).map(msg => ({
-        ...msg,
-        timestamp: new Date(msg.timestamp)
-      })));
-    } else {
-      setMessages([]);
-    }
+    if (savedMessages) setMessages(JSON.parse(savedMessages).map(msg => ({ ...msg, timestamp: new Date(msg.timestamp) })));
+    else setMessages([]);
 
     const savedHistory = sessionStorage.getItem(`lokai_history_${userId}`);
     setChatHistory(savedHistory ? JSON.parse(savedHistory) : []);
-    setPendingReport(null);
   }, [userId]);
 
-  useEffect(() => {
-    sessionStorage.setItem(`lokai_messages_${userId}`, JSON.stringify(messages));
-  }, [messages, userId]);
-
-  useEffect(() => {
-    sessionStorage.setItem(`lokai_history_${userId}`, JSON.stringify(chatHistory));
-  }, [chatHistory, userId]);
-
-  useEffect(() => {
-    messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' })
-  }, [messages])
+  useEffect(() => { sessionStorage.setItem(`lokai_messages_${userId}`, JSON.stringify(messages)); }, [messages, userId]);
+  useEffect(() => { sessionStorage.setItem(`lokai_history_${userId}`, JSON.stringify(chatHistory)); }, [chatHistory, userId]);
+  useEffect(() => { messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' }) }, [messages]);
 
   useEffect(() => {
     const cachedData = localStorage.getItem('cached_geo_location');
     if (cachedData) {
       const parsed = JSON.parse(cachedData);
-      setUserLocation({
-        lat: parsed.latitude,
-        lng: parsed.longitude,
-        city: parsed.city,
-        address: parsed.state
-      });
+      setUserLocation({ lat: parsed.latitude, lng: parsed.longitude, city: parsed.city, address: parsed.state });
     } else if (navigator.geolocation) {
       navigator.geolocation.getCurrentPosition(
         (pos) => setUserLocation(prev => ({ ...prev, lat: pos.coords.latitude, lng: pos.coords.longitude })),
@@ -93,58 +72,72 @@ const Assistant = () => {
   const handleNewChat = () => {
     setMessages([]);
     setChatHistory([]);
-    setPendingReport(null);
+    setDraftMedia(null);
+    setAwaitingImages(false);
     sessionStorage.removeItem(`lokai_messages_${userId}`);
     sessionStorage.removeItem(`lokai_history_${userId}`);
   };
 
-  const handleSendMessage = async (textMsg, file = null, fileType = null) => {
+  const handleSendMessage = async (textMsg, files = [], fileType = null) => {
     let displayMsg = textMsg;
-    if (file) {
-      displayMsg = textMsg ? `[${t('attached')} ${fileType}]: ${textMsg}` : `[${t('attached')} ${fileType}]`;
+    if (files.length > 0) {
+      displayMsg = textMsg ? `[Attached ${files.length} ${fileType}(s)]: ${textMsg}` : `[Attached ${files.length} ${fileType}(s)]`;
     }
+
     setMessages(prev => [...prev, { id: Date.now(), type: 'user', content: displayMsg, timestamp: new Date() }]);
     setIsTyping(true);
 
-    if (pendingReport) {
-      if (pendingReport.missing === 'image') {
-        if (!file || fileType !== 'image') {
-          setMessages(prev => [...prev, { id: Date.now(), type: 'assistant', content: t('lokai_req_image_upload'), timestamp: new Date() }]);
-          setIsTyping(false);
-          return;
-        }
-        const updatedDraft = { ...pendingReport.draftData, originalFile: file, previewUrl: URL.createObjectURL(file) };
-        checkLocationAndProceed(updatedDraft);
+    // NEW: Intercept flow if we are waiting for an image from an audio upload
+    if (awaitingImages) {
+      if (files.length === 0 || fileType !== 'image') {
+        setMessages(prev => [...prev, {
+          id: Date.now(),
+          type: 'assistant',
+          content: "Please upload at least 1 image (up to 3) using the + icon to proceed.",
+          timestamp: new Date()
+        }]);
+        setIsTyping(false);
         return;
       }
 
-      if (pendingReport.missing === 'location') {
-        const parts = textMsg.split(',').map(s => s.trim());
-        if (parts.length >= 3) {
-          const updatedDraft = {
-            ...pendingReport.draftData,
-            location: {
-              ...pendingReport.draftData.location,
-              state: parts[0],
-              city: parts[1],
-              pinCode: parts[2],
-              coordinates: pendingReport.draftData.location?.coordinates || [userLocation.lng, userLocation.lat]
-            }
-          };
-          showDraftCard(updatedDraft);
-          return;
-        } else {
-          setMessages(prev => [...prev, { id: Date.now(), type: 'assistant', content: t('lokai_req_exact_location'), timestamp: new Date() }]);
-          setIsTyping(false);
-          return;
-        }
+      // User successfully uploaded images!
+      setDraftMedia(prev => ({ ...prev, images: files }));
+      setAwaitingImages(false);
+
+      try {
+        const response = await fetch(`${import.meta.env.VITE_BASE_URL}/ai/chat`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${localStorage.getItem('access_token')}` },
+          body: JSON.stringify({
+            message: "System: Images uploaded successfully. Please ask the user if they want to report anonymously with [Yes] / [No] options.",
+            history: chatHistory,
+            lat: userLocation.lat,
+            lng: userLocation.lng,
+            city: user?.contact?.city || user?.city || userLocation.city || 'Unknown'
+          })
+        });
+
+        const data = await response.json();
+        if (data.latestHistory) setChatHistory(data.latestHistory);
+
+        setMessages(prev => [...prev, {
+          id: Date.now() + 1,
+          type: 'assistant',
+          content: data.reply,
+          timestamp: new Date()
+        }]);
+      } catch (error) {
+        setMessages(prev => [...prev, { id: Date.now(), type: 'assistant', content: t('lokai_server_err'), timestamp: new Date() }]);
+      } finally {
+        setIsTyping(false);
       }
+      return;
     }
 
-    if (file) {
+    if (files.length > 0) {
       try {
         const formData = new FormData();
-        formData.append(fileType === 'image' ? 'images' : 'audio', file);
+        files.forEach(file => formData.append(fileType === 'image' ? 'images' : 'audio', file));
         formData.append('lat', userLocation.lat || '');
         formData.append('lng', userLocation.lng || '');
         formData.append('city', user?.contact?.city || user?.city || userLocation.city || '');
@@ -161,21 +154,22 @@ const Assistant = () => {
         const data = await response.json();
 
         if (data.success) {
-          let draftData = { ...data.analysis };
-
-          if (fileType === 'image') {
-            draftData.originalFile = file;
-            draftData.previewUrl = URL.createObjectURL(file);
-            checkLocationAndProceed(draftData);
-          } else if (fileType === 'audio') {
-            setPendingReport({ draftData, missing: 'image' });
-            setMessages(prev => [...prev, {
-              id: Date.now(),
-              type: 'assistant',
-              content: t('lokai_drafted_audio'),
-              timestamp: new Date()
-            }]);
+          if (fileType === 'audio') {
+            setDraftMedia({ audio: files[0] });
+            setAwaitingImages(true); // LOCK THE FLOW HERE
+          } else {
+            setDraftMedia({
+              images: files,
+              previewUrl: URL.createObjectURL(files[0]) // Just preview the first one
+            });
           }
+
+          setMessages(prev => [...prev, {
+            id: Date.now(),
+            type: 'assistant',
+            content: data.chat_message,
+            timestamp: new Date()
+          }]);
         } else {
           setMessages(prev => [...prev, { id: Date.now(), type: 'assistant', content: data.message || t('lokai_process_media_fail'), timestamp: new Date() }]);
         }
@@ -196,13 +190,34 @@ const Assistant = () => {
           history: chatHistory,
           lat: userLocation.lat,
           lng: userLocation.lng,
-          city: user?.contact?.city || user?.city || userLocation.city || 'Unknown',
-          userName: user?.name || 'Citizen'
+          city: user?.contact?.city || user?.city || userLocation.city || 'Unknown'
         })
       });
 
       const data = await response.json();
       if (data.latestHistory) setChatHistory(data.latestHistory);
+
+      if (data.toolUsed === 'finalizeReportDraft') {
+        const finalDraft = {
+          title: data.data.title,
+          category: data.data.category,
+          description: data.data.description,
+          isAnonymous: data.data.isAnonymous,
+          location: {
+            address: data.data.address || '',
+            city: data.data.city || userLocation.city || '',
+            state: data.data.state || '',
+            pinCode: data.data.pinCode || '',
+            coordinates: [userLocation.lng, userLocation.lat]
+          },
+          originalFiles: draftMedia?.images, // Pass all images!
+          previewUrl: draftMedia?.previewUrl
+        };
+        showDraftCard(finalDraft);
+        setDraftMedia(null);
+        setIsTyping(false);
+        return;
+      }
 
       let displayReply = data.reply;
       if (data.toolUsed && Array.isArray(data.data) && data.data.length > 0) {
@@ -224,42 +239,7 @@ const Assistant = () => {
     }
   };
 
-  const checkLocationAndProceed = (draftData) => {
-    const finalLng = draftData.location?.coordinates?.[0] || userLocation.lng;
-    const finalLat = draftData.location?.coordinates?.[1] || userLocation.lat;
-
-    if (!finalLng || !finalLat) {
-      setMessages(prev => [...prev, {
-        id: Date.now(),
-        type: 'assistant',
-        content: t('lokai_req_gps'),
-        isDraftReport: true,
-        draftData: draftData,
-        timestamp: new Date()
-      }]);
-      setPendingReport(null);
-      setIsTyping(false);
-      return;
-    }
-
-    if (!draftData.location?.state || !draftData.location?.city || !draftData.location?.pinCode) {
-      const draftWithCoords = { ...draftData, location: { ...draftData.location, coordinates: [finalLng, finalLat] } };
-      setPendingReport({ draftData: draftWithCoords, missing: 'location' });
-      setMessages(prev => [...prev, {
-        id: Date.now(),
-        type: 'assistant',
-        content: t('lokai_req_text_location'),
-        timestamp: new Date()
-      }]);
-      setIsTyping(false);
-      return;
-    }
-
-    showDraftCard(draftData);
-  };
-
   const showDraftCard = (draftData) => {
-    setPendingReport(null);
     setMessages(prev => [...prev, {
       id: Date.now(),
       type: 'assistant',
@@ -268,11 +248,9 @@ const Assistant = () => {
       draftData: draftData,
       timestamp: new Date()
     }]);
-    setIsTyping(false);
   };
 
   const handleModifyDraft = (draftData) => {
-    setPendingReport(null);
     navigate('/dashboard/report', { state: { prefilledData: draftData } });
   };
 
@@ -282,9 +260,13 @@ const Assistant = () => {
       setMessages(prev => [...prev, { id: Date.now(), type: 'assistant', content: t('lokai_submitting_media'), timestamp: new Date() }]);
 
       let finalMediaUrl = [];
-      if (draftData.originalFile) {
+
+      // NEW: Ensure we handle multiple files seamlessly during submission
+      if (draftData.originalFiles && draftData.originalFiles.length > 0) {
         const uploadFormData = new FormData();
-        uploadFormData.append('issue_media', draftData.originalFile);
+        draftData.originalFiles.forEach(file => {
+          uploadFormData.append('issue_media', file);
+        });
 
         const uploadRes = await axiosInstance.post('/upload-issues', uploadFormData, {
           headers: { 'Content-Type': 'multipart/form-data' },
@@ -302,7 +284,7 @@ const Assistant = () => {
         title: draftData.title,
         category: draftData.category,
         description: draftData.description,
-        isAnonymous: false,
+        isAnonymous: draftData.isAnonymous,
         media: finalMediaUrl,
         location: {
           address: draftData.location.address || 'Location not provided',
@@ -340,10 +322,7 @@ const Assistant = () => {
           <IssueCard
             key={issue._id}
             issue={issue}
-            onClick={() => navigate('/dashboard', {
-              state: { selectedIssueId: issue._id }
-            })}
-            onFlagClick={() => console.log("Flagging issue:", issue._id)}
+            onClick={() => navigate('/dashboard', { state: { selectedIssueId: issue._id } })}
           />
         ))}
       </div>
@@ -402,7 +381,6 @@ const Assistant = () => {
 
   return (
     <div className="bg-texture flex flex-col fixed inset-0 z-30 pb-16 md:relative md:pb-0 md:h-screen">
-
       <div className="glass-card border-b border-border/50 sticky top-0 z-10 mx-2 my-2 md:mx-4 md:my-2 rounded-lg">
         <div className="flex items-center justify-between p-3 md:p-4">
           <div className="flex items-center space-x-2 md:space-x-3">
