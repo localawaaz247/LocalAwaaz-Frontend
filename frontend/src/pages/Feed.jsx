@@ -89,7 +89,10 @@ const Feed = () => {
         return;
       }
 
-      if (navigator.geolocation) {
+      // 1. Check if user previously blocked the location prompt
+      const locationDenied = localStorage.getItem('location_denied') === 'true';
+
+      if (navigator.geolocation && !locationDenied) {
         showToast({ icon: "info", title: t('locating_neighborhood') });
         navigator.geolocation.getCurrentPosition(
           async (pos) => {
@@ -111,13 +114,15 @@ const Feed = () => {
             }
           },
           (err) => {
-            setShowLocationModal(true);
+            // THE FIX: Save the preference and load default data. 
+            // DO NOT call setShowLocationModal(true) here!
+            localStorage.setItem('location_denied', 'true');
             fetchData(1);
           },
           { enableHighAccuracy: true, timeout: 10000 }
         );
       } else {
-        setShowLocationModal(true);
+        // THE FIX: DO NOT call setShowLocationModal(true) here either!
         fetchData(1);
       }
     };
@@ -304,7 +309,14 @@ const Feed = () => {
               )}
       </div>
 
-      <LocationModal isOpen={showLocationModal} onClose={() => { setShowLocationModal(false); handleLocationUpdate(); }} forceLocation={location.pathname === '/dashboard' && !chosenLocation} />
+      <LocationModal
+        isOpen={showLocationModal}
+        onClose={() => {
+          setShowLocationModal(false);
+          handleLocationUpdate();
+        }}
+        forceLocation={false}
+      />
       <IssueDetail issue={selectedIssue} isOpen={isDetailOpen} onClose={handleCloseDetail} />
       <FlagModal isOpen={showFlagModal} onClose={() => { setShowFlagModal(false); setSelectedIssueForFlag(null); }} onSubmit={handleFlagSubmit} isLoading={flagLoading} />
     </div>
