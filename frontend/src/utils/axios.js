@@ -1,6 +1,6 @@
 import axios from 'axios';
 import { BASE_URL } from './config';
-import { showToast } from './toast'; // 👇 IMPORT YOUR TOAST UTILITY 👇
+import { showToast } from './toast';
 
 const axiosInstance = axios.create({
   baseURL: BASE_URL,
@@ -51,24 +51,29 @@ axiosInstance.interceptors.response.use(
     const status = error.response?.status;
     const errorMessage = error.response?.data?.message?.toLowerCase() || "";
 
+    // Check for a specific error code first, fallback to string matching
+    const errorCode = error.response?.data?.code;
+    const isBanned = errorCode === "ACCOUNT_BANNED" || errorMessage.includes("banned") || errorMessage.includes("suspended");
+
     // ------------------------------------------------------------------
     // 🔥 1. GLOBAL BANNED / SUSPENDED CHECK 🔥
     // ------------------------------------------------------------------
-    // If the backend says the account is banned/suspended, kick them out immediately.
-    if (status === 403 && (errorMessage.includes("banned") || errorMessage.includes("suspended"))) {
+    if (status === 403 && isBanned) {
 
-      // 1. Clear the token
+      // 1. Clear the token immediately so subsequent requests fail
       localStorage.removeItem("access_token");
 
-      // 2. Show the toast with the backend's exact message
+      // 2. Show the toast
       showToast({
         icon: "error",
         title: error.response?.data?.message || "Account Suspended. Contact Admin."
       });
 
-      // 3. Kick them to login (if they aren't already there)
+      // 3. THE FIX: Delay the redirect so the toast can actually be seen!
       if (window.location.pathname !== '/login') {
-        window.location.href = '/login';
+        setTimeout(() => {
+          window.location.href = '/login';
+        }, 3000); // 3-second delay before kicking them out
       }
 
       return Promise.reject(error);
