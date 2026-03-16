@@ -40,14 +40,11 @@ const HeroSection = () => {
           {/* CTA Buttons */}
           <div className="flex flex-col sm:flex-row items-center justify-center gap-4 mb-16 animate-fade-in-up" style={{ animationDelay: '0.3s' }}>
             <button
-              onClick={() => navigate('/login')}
+              onClick={() => navigate('/dashboard/report')}
               className="btn-gradient px-5 py-2 rounded-full font-semibold text-lg flex items-center gap-2 group"
             >
               Report an Issue
               <ArrowRight className="w-5 h-5 group-hover:translate-x-1 transition-transform" />
-            </button>
-            <button className="glass-card px-8 py-2 rounded-full font-semibold text-lg text-foreground hover:bg-muted/50 transition-colors">
-              Learn More
             </button>
           </div>
 

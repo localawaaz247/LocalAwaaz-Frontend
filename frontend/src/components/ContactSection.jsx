@@ -14,8 +14,8 @@ const contactInfo = [
   {
     icon: Phone,
     title: 'Call Us',
-    value: '+91 8318538918',
-    link: 'tel:+918318538918'
+    value: '+91 83185XXXXX',
+    link: 'tel:+918318XXXXXX'
   },
   {
     icon: MapPin,
@@ -144,7 +144,7 @@ const ContactSection = () => {
                     onChange={handleChange}
                     required
                     className="w-full px-4 py-3 rounded-xl border border-border bg-background/50 focus:border-primary focus:ring-2 focus:ring-primary/20 outline-none transition-all text-foreground placeholder:text-muted-foreground"
-                    placeholder="Amit Maurya"
+                    placeholder="LocalAwaaz"
                   />
                 </div>
 
@@ -160,7 +160,7 @@ const ContactSection = () => {
                     onChange={handleChange}
                     required
                     className="w-full px-4 py-3 rounded-xl border border-border bg-background/50 focus:border-primary focus:ring-2 focus:ring-primary/20 outline-none transition-all text-foreground placeholder:text-muted-foreground"
-                    placeholder="amit@domain.com"
+                    placeholder="localawaaz_team@domain.com"
                   />
                 </div>
 

@@ -1,6 +1,6 @@
-import React from 'react';
 import { Camera, Send, Eye, Award } from 'lucide-react';
 import Tilt from 'react-parallax-tilt';
+import { useNavigate } from 'react-router-dom';
 
 const steps = [
   {
@@ -28,13 +28,13 @@ const steps = [
     description: 'When resolved, earn recognition badges for your contribution to the community.',
   },
 ];
-
 const HowItWorksSection = () => {
+  const navigate = useNavigate();
   return (
     <section id="how-it-works" className="py-24 bg-muted/30 relative overflow-hidden">
       {/* Background decoration */}
       <div className="absolute inset-0 bg-texture opacity-50 pointer-events-none" />
-      
+
       <div className="container mx-auto px-4 md:px-6 relative z-10">
         {/* Section Header */}
         <div className="text-center max-w-2xl mx-auto mb-16">
@@ -60,7 +60,7 @@ const HowItWorksSection = () => {
                 {index < steps.length - 1 && (
                   <div className="hidden lg:block absolute top-12 left-[calc(50%+3rem)] w-[calc(100%-3rem)] h-0.5 bg-gradient-to-r from-primary/30 via-secondary/30 to-accent/30 -z-10" />
                 )}
-                
+
                 <Tilt
                   tiltMaxAngleX={3} // Barely there tilt for a grounded feel
                   tiltMaxAngleY={3} // Barely there tilt for a grounded feel
@@ -81,12 +81,12 @@ const HowItWorksSection = () => {
                     <div className="inline-flex items-center justify-center w-8 h-8 rounded-full badge-shimmer text-white text-sm font-bold mb-4">
                       {step.number}
                     </div>
-                    
+
                     {/* Icon */}
                     <div className="w-16 h-16 mx-auto rounded-2xl bg-gradient-to-br from-primary/10 via-secondary/10 to-accent/10 flex items-center justify-center mb-5 group-hover:scale-110 transition-transform">
                       <step.icon className="w-8 h-8 text-primary" />
                     </div>
-                    
+
                     {/* Content */}
                     <h3 className="text-lg font-bold font-display mb-2 text-foreground">
                       {step.title}
@@ -103,7 +103,9 @@ const HowItWorksSection = () => {
 
         {/* CTA */}
         <div className="text-center mt-16 animate-fade-in-up">
-          <button className="btn-gradient px-8 md:py-3 py-2 rounded-full font-semibold text-lg">
+          <button
+            onClick={() => navigate('/dashboard/report')}
+            className="btn-gradient px-8 md:py-3 py-2 rounded-full font-semibold text-lg">
             Start Reporting Today
           </button>
         </div>
