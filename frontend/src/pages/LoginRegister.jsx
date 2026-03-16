@@ -1,13 +1,12 @@
 /* eslint-disable react-hooks/set-state-in-effect */
 /* eslint-disable no-unused-vars */
 import { useEffect, useState, useActionState } from 'react';
-import { Link, useNavigate } from 'react-router-dom';
+import { Link, useNavigate, useLocation } from 'react-router-dom';
 import { Eye, EyeOff, User, Lock, Mail, ArrowLeft, UserCircle, Megaphone, Users, MessageCircle, Shield, ArrowRight, CheckCircle } from 'lucide-react';
 import google from "/google.png";
 import logo from "/logo.png"
 import authAction from '../actions/authAction';
 import { useDispatch, useSelector } from "react-redux"
-import Loader from '../components/Loader';
 import { showToast } from '../utils/toast';
 import { BASE_URL } from '../utils/config';
 import MiniLoader from '../components/MiniLoader';
@@ -19,6 +18,7 @@ const LoginRegister = () => {
 
   const dispatch = useDispatch();
   const navigate = useNavigate();
+  const location = useLocation();
 
   // Form States
   const [name, setName] = useState("");
@@ -88,6 +88,23 @@ const LoginRegister = () => {
     return () => clearInterval(interval);
   }, [isTimerRunning, timer]);
 
+  useEffect(() => {
+    const params = new URLSearchParams(location.search);
+    const errorParam = params.get("error");
+
+    // Check if the URL contains ?error=account_suspended or ?error=account_banned
+    if (errorParam && errorParam.includes("account_")) {
+      const statusText = errorParam.split('_')[1]; // Extracts "suspended" or "banned"
+
+      showToast({
+        icon: "error",
+        title: `Account ${statusText.charAt(0).toUpperCase() + statusText.slice(1)}. Contact Administrator.`
+      });
+
+      // Clean up the URL so the toast doesn't fire again on a manual refresh
+      navigate('/login', { replace: true });
+    }
+  }, [location.search, navigate]);
   const handleGoogleSignup = () => {
     try {
       window.location.href = `${BASE_URL}/auth/google`;

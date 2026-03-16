@@ -60,22 +60,18 @@ axiosInstance.interceptors.response.use(
     // ------------------------------------------------------------------
     if (status === 403 && isBanned) {
 
-      // 1. Clear the token immediately so subsequent requests fail
+      // 1. Wipe the token
       localStorage.removeItem("access_token");
 
-      // 2. Show the toast
-      showToast({
-        icon: "error",
-        title: error.response?.data?.message || "Account Suspended. Contact Admin."
-      });
+      const isLoginRequest = originalRequest.url?.includes('/auth/login');
 
-      // 3. THE FIX: Delay the redirect so the toast can actually be seen!
-      if (window.location.pathname !== '/login') {
-        setTimeout(() => {
-          window.location.href = '/login';
-        }, 3000); // 3-second delay before kicking them out
+      // 2. If they are navigating the app and get banned, kick them with a URL flag
+      if (!isLoginRequest && window.location.pathname !== '/login') {
+        window.location.href = '/login?error=account_suspended';
+        return new Promise(() => { }); // Freeze execution so Redux doesn't throw other errors
       }
 
+      // 3. If they are just clicking "Sign In", reject normally so authAction.js can show the toast
       return Promise.reject(error);
     }
     // ------------------------------------------------------------------

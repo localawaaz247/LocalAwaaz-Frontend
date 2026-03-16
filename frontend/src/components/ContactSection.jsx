@@ -8,8 +8,8 @@ const contactInfo = [
   {
     icon: Mail,
     title: 'Email Us',
-    value: 'hello@localawaaz.in',
-    link: 'mailto:hello@localawaaz.in'
+    value: 'support@localawaaz.in',
+    link: 'mailto:support@localawaaz.in'
   },
   {
     icon: Phone,
