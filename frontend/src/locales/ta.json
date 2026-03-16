@@ -346,5 +346,6 @@
     "Delete Issue?": "சிக்கலை நீக்கவா?",
     "Are you sure you want to delete this issue? This action cannot be undone.": "இந்தச் சிக்கலை உறுதியாக நீக்க விரும்புகிறீர்களா? இந்தச் செயலை செயல்தவிர்க்க முடியாது.",
     "Delete": "நீக்கு",
+    "req_state_city_pin": "மாநிலம், நகரம் மற்றும் பின்கோடை உள்ளிடவும்",
     "deleting": "நீக்கப்படுகிறது..."
 }

@@ -346,5 +346,6 @@
     "Delete Issue?": "সমস্যা মুছবেন?",
     "Are you sure you want to delete this issue? This action cannot be undone.": "আপনি কি নিশ্চিত যে আপনি এই সমস্যাটি মুছে ফেলতে চান? এই কাজটি পূর্বাবস্থায় ফেরানো যাবে না।",
     "Delete": "মুছুন",
-    "deleting": "মোছা হচ্ছে..."
+    "deleting": "মোছা হচ্ছে...",
+    "req_state_city_pin": "অনুগ্রহ করে রাজ্য, শহর এবং পিনকোড লিখুন"
 }

@@ -127,20 +127,15 @@ export default function ReportIssue() {
   }, []);
 
   const handleFillWithAI = async () => {
+    // 1. ONLY CHECK FOR IMAGES
     if (formData.media.length === 0) {
-      setUploadError(t('ai_req_image'));
-      showToast({ icon: "warning", title: t('select_image_first') });
+      setUploadError(t('ai_req_image', 'Please upload an image to proceed.'));
+      showToast({ icon: "warning", title: t('select_image_first', 'Please upload an image to proceed.') });
       return;
     }
 
-    const hasTextLocation = formData.location.city && formData.location.state && formData.location.pinCode;
-    const hasGPS = formData.location.geoData.coordinates !== null;
-
-    if (!hasTextLocation && !hasGPS) {
-      setErrors(prev => ({ ...prev, location: t('ai_req_location') }));
-      showToast({ icon: "warning", title: t('location_details_req') });
-      return;
-    }
+    // REMOVED: The location validation block has been completely removed.
+    // The AI will now generate text regardless of whether they have a location yet.
 
     setIsAILoading(true);
     setUploadError('');
@@ -148,14 +143,21 @@ export default function ReportIssue() {
 
     try {
       const aiFormData = new FormData();
-      aiFormData.append('images', formData.media[0]);
+
+      // 2. SEND ALL IMAGES (Up to 3) so Gemini has the best context
+      formData.media.forEach(file => {
+        aiFormData.append('images', file);
+      });
 
       aiFormData.append('city', formData.location.city || user?.contact?.city || '');
-      if (hasGPS) {
+
+      if (formData.location.geoData?.coordinates) {
         aiFormData.append('lng', formData.location.geoData.coordinates[0]);
         aiFormData.append('lat', formData.location.geoData.coordinates[1]);
       }
-      aiFormData.append('userHint', '');
+
+      // If the user already started typing a description, pass it as a hint!
+      aiFormData.append('userHint', formData.description || '');
 
       const token = localStorage.getItem('access_token') || localStorage.getItem('token');
       const response = await fetch(`${import.meta.env.VITE_BASE_URL}/ai/analyze-image`, {
@@ -169,14 +171,18 @@ export default function ReportIssue() {
       if (data?.success && data?.analysis) {
         const aiResult = data.analysis;
 
+        // 3. AUTO-FILL THE DATA
+        // Your backend translates Title and Description into Hindi (or preferred language)
+        // and keeps Category in English.
         setFormData(prev => ({
           ...prev,
           title: aiResult.title || prev.title,
-          category: aiResult.category || prev.category,
+          // Ensure category is strictly uppercase to match your UI buttons
+          category: aiResult.category ? aiResult.category.toUpperCase() : prev.category,
           description: aiResult.description || prev.description
         }));
 
-        showToast({ icon: "success", title: t('ai_draft_success') });
+        showToast({ icon: "success", title: t('ai_draft_success', 'Auto-filled successfully!') });
       } else {
         throw new Error(data?.message || t('ai_analysis_fail'));
       }
@@ -327,6 +333,13 @@ export default function ReportIssue() {
 
       if (!formData.description || !formData.description.trim()) newErrors.description = t('desc_req');
       else if (formData.description.trim().length < 10) newErrors.description = t('desc_length');
+
+      // ---> NEW: Catch the missing location fields on the frontend and translate it! <---
+      if (!formData.location.state || !formData.location.city || !formData.location.pinCode) {
+        setSubmitError(t('req_state_city_pin', 'Please enter state, city, and pincode'));
+        setIsSubmitting(false);
+        return false;
+      }
 
       if (!formData.location.geoData.coordinates) newErrors.geoData = t('gps_req');
 

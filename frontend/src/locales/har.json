@@ -346,5 +346,6 @@
     "Delete Issue?": "समस्या डिलीट करणी सै?",
     "Are you sure you want to delete this issue? This action cannot be undone.": "के तनै पक्का बेरा सै अक यो मिटाणा सै? यो फेर पाछा नी आवैगा।",
     "Delete": "डिलीट",
+    "req_state_city_pin": "कृपया राज्य, शहर अर पिनकोड भर द्यो",
     "deleting": "डिलीट होवै सै..."
 }

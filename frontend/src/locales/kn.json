@@ -346,5 +346,6 @@
     "Delete Issue?": "ಸಮಸ್ಯೆಯನ್ನು ಅಳಿಸಬೇಕೆ?",
     "Are you sure you want to delete this issue? This action cannot be undone.": "ಈ ಸಮಸ್ಯೆಯನ್ನು ಅಳಿಸಲು ನೀವು ಖಚಿತವೇ? ಈ ಕ್ರಿಯೆಯನ್ನು ರದ್ದುಗೊಳಿಸಲಾಗುವುದಿಲ್ಲ.",
     "Delete": "ಅಳಿಸಿ",
+    "req_state_city_pin": "ದಯವಿಟ್ಟು ರಾಜ್ಯ, ನಗರ ಮತ್ತು ಪಿನ್‌ಕೋಡ್ ನಮೂದಿಸಿ",
     "deleting": "ಅಳಿಸಲಾಗುತ್ತಿದೆ..."
 }

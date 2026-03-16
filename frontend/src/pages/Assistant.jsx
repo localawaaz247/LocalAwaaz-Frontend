@@ -375,6 +375,7 @@ const Assistant = () => {
             </button>
             <button
               onClick={() => handleDirectSubmit(draftData)}
+              disabled={isTyping}
               className="flex-1 py-2 px-3 flex items-center justify-center gap-2 text-xs font-medium bg-primary hover:opacity-90 text-white rounded-lg transition-colors shadow-sm"
             >
               <SendHorizontal size={16} /> {t('submit_now')}

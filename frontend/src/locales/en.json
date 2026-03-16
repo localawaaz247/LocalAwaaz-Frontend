@@ -346,5 +346,6 @@
     "Delete Issue?": "Delete Issue?",
     "Are you sure you want to delete this issue? This action cannot be undone.": "Are you sure you want to delete this issue? This action cannot be undone.",
     "Delete": "Delete",
-    "deleting": "Deleting..."
+    "deleting": "Deleting...",
+    "req_state_city_pin": "Please enter state, city, and pincode"
 }

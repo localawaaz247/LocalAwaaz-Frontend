@@ -346,5 +346,6 @@
     "Delete Issue?": "સમસ્યા કાઢી નાખવી છે?",
     "Are you sure you want to delete this issue? This action cannot be undone.": "શું તમે ખરેખર આ સમસ્યા કાઢી નાખવા માંગો છો? આ ક્રિયા રદ કરી શકાશે નહીં.",
     "Delete": "કાઢી નાખો",
-    "deleting": "કાઢી રહ્યા છીએ..."
+    "deleting": "કાઢી રહ્યા છીએ...",
+    "req_state_city_pin": "કૃપા કરીને રાજ્ય, શહેર અને પિનકોડ દાખલ કરો"
 }

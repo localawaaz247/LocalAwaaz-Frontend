@@ -346,5 +346,6 @@
     "Delete Issue?": "समस्या हटाईं?",
     "Are you sure you want to delete this issue? This action cannot be undone.": "का रउआ सच में ई समस्या हटावे के चाहत बानी? एकरा के वापस ना लिहल जा सकी।",
     "Delete": "हटाईं",
-    "deleting": "हटावल जा रहल बा..."
+    "deleting": "हटावल जा रहल बा...",
+    "req_state_city_pin": "कृपया राज्य, शहर आ पिनकोड दर्ज करीं"
 }

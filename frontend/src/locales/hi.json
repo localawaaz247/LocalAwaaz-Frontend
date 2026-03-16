@@ -346,5 +346,6 @@
     "Delete Issue?": "समस्या हटाएँ?",
     "Are you sure you want to delete this issue? This action cannot be undone.": "क्या आप वाकई इस समस्या को हटाना चाहते हैं? इस क्रिया को पूर्ववत नहीं किया जा सकता।",
     "Delete": "हटाएँ",
+    "req_state_city_pin": "कृपया राज्य, शहर और पिनकोड दर्ज करें",
     "deleting": "हटाया जा रहा है..."
 }
