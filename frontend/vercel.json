@@ -1,8 +1,0 @@
-{
-  "rewrites": [
-    {
-      "source": "/((?!assets/|logo.png|google.png|favicon.ico|robots.txt).*)",
-      "destination": "/"
-    }
-  ]
-}

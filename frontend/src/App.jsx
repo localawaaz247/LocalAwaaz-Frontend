@@ -1,17 +1,22 @@
 import "./utils/i18n";
-import React, { useEffect } from "react"; // <-- Make sure these are here
-import { useSelector } from "react-redux"; // <-- Make sure these are here
-import { useTranslation } from "react-i18next"; // <-- Make sure these are here
+import React, { useEffect } from "react";
+import { useSelector } from "react-redux";
+import { useTranslation } from "react-i18next";
 import { BrowserRouter, Routes, Route } from "react-router-dom";
 import { ThemeProvider } from "./utils/themeProvider";
 import { HelmetProvider } from "react-helmet-async";
+import { Provider } from "react-redux";
+import { appStore } from "./store/store";
+
+// --- PWA IMPORT ---
+import { useRegisterSW } from 'virtual:pwa-register/react';
+
+// Pages
 import LoginRegister from "./pages/LoginRegister";
 import ForgotPassword from "./pages/ForgotPassword";
 import NotFound from "./pages/NotFound";
 import LandingPage from "./pages/LandingPage";
 import Homepage from "./pages/Homepage";
-import { Provider } from "react-redux"
-import { appStore } from "./store/store";
 import CompleteProfile from "./pages/CompleteProfile";
 import ReportIssue from "./pages/ReportIssue";
 import Notifications from "./pages/Notifications";
@@ -31,7 +36,6 @@ import FAQ from "./pages/FAQ";
 import Help from "./pages/Help";
 import AdminDashboard from "./pages/AdminDashboard";
 
-// 1. The Wrapper Definition (You did this perfectly!)
 const AppLanguageInitializer = ({ children }) => {
   const { i18n } = useTranslation();
   const user = useSelector((state) => state.auth?.user);
@@ -46,15 +50,25 @@ const AppLanguageInitializer = ({ children }) => {
 };
 
 const App = () => {
+  // --- PWA REGISTRATION HOOK ---
+  // This handles automatic updates when you push new code to Cloudflare
+  useRegisterSW({
+    onRegistered(r) {
+      console.log('Localawaaz PWA Service Worker Registered');
+    },
+    onRegisterError(error) {
+      console.error('PWA registration error:', error);
+    }
+  });
+
   return (
     <HelmetProvider>
       <ThemeProvider>
         <Provider store={appStore}>
-          {/* 2. THE FIX: Wrap BrowserRouter with your new initializer! */}
           <AppLanguageInitializer>
             <BrowserRouter>
               <Routes>
-                {/* PUBLIC ROUTES (Only for logged-out users) */}
+                {/* PUBLIC ROUTES */}
                 <Route path="/" element={<PublicRoute><LandingPage /></PublicRoute>} />
                 <Route path="/login" element={<PublicRoute><LoginRegister /></PublicRoute>} />
                 <Route path="/forgot-password" element={<PublicRoute><ForgotPassword /></PublicRoute>} />
@@ -69,7 +83,7 @@ const App = () => {
                 <Route path="/google/callback" element={<GoogleCallback />} />
                 <Route path="/issue/:id" element={<IssueDetailPage />} />
 
-                {/* PROTECTED ROUTES (Only for logged-in users) */}
+                {/* PROTECTED ROUTES */}
                 <Route path="/complete-profile" element={<ProtectedRoute><CompleteProfile /></ProtectedRoute>} />
 
                 <Route path="/dashboard" element={<ProtectedRoute><Homepage /></ProtectedRoute>}>
