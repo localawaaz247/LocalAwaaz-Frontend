@@ -4,7 +4,6 @@ import axiosInstance from "../utils/axios";
 export const login = createAsyncThunk("/auth/login", async (credentials, { rejectWithValue }) => {
     try {
         const res = await axiosInstance.post(`/auth/login`, credentials);
-        // Backend returns: { accessToken, user }
         return res.data;
     } catch (error) {
         return rejectWithValue(error?.response?.data);
@@ -14,7 +13,6 @@ export const login = createAsyncThunk("/auth/login", async (credentials, { rejec
 export const register = createAsyncThunk("/auth/register", async (data, { rejectWithValue }) => {
     try {
         const res = await axiosInstance.post(`/auth/register`, data);
-        // Backend returns: { success: true, message: "Signup Successful" }
         return res.data;
     } catch (error) {
         return rejectWithValue(error?.response?.data);
@@ -35,21 +33,18 @@ export const logout = createAsyncThunk("/auth/logout", async (_, { rejectWithVal
 export const validateToken = createAsyncThunk("/me/profile", async (_, { rejectWithValue }) => {
     try {
         const res = await axiosInstance.get(`/me/profile`);
-        // Backend usually returns { success: true, data: userProfileData }
         return res.data;
     } catch (error) {
-        // 👇 THIS IS THE FIX 👇
         const status = error?.response?.status;
-        
-        // Only delete the token if it's genuinely invalid/expired (401)
-        // Do NOT delete it on 403, because that means the profile is just incomplete
         if (status === 401) {
             localStorage.removeItem("access_token");
         }
-        
         return rejectWithValue(error?.response?.data);
     }
 });
+
+// 👇 FIX: Check for token synchronously on load
+const hasToken = !!localStorage.getItem("access_token");
 
 const authSlice = createSlice({
     name: "auth",
@@ -58,7 +53,8 @@ const authSlice = createSlice({
         loading: false,
         error: null,
         isAuthenticated: false,
-        tokenValidationLoading: false
+        // 👇 FIX: Start as TRUE if a token exists in local storage
+        tokenValidationLoading: hasToken 
     },
     reducers: {
         clearError: (state) => {
@@ -87,7 +83,6 @@ const authSlice = createSlice({
             })
             .addCase(login.fulfilled, (state, action) => {
                 state.user = action.payload.user;
-                // Securely save token in localStorage on successful login
                 localStorage.setItem("access_token", action.payload.accessToken);
                 state.loading = false;
                 state.isAuthenticated = true;

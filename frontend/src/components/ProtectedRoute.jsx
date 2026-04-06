@@ -34,12 +34,7 @@ export const ProtectedRoute = ({ children, requireAdmin = false }) => {
         return <Navigate to="/dashboard" replace />;
     }
 
-    // ------------------------------------------------------------------
-    // 5. PROFILE COMPLETION GUARDS (THE FIX)
-    // ------------------------------------------------------------------
-    
-    // Convert to an absolute boolean. 
-    // If the backend drops the field (making it undefined), this safely turns it into 'false'.
+    // 5. PROFILE COMPLETION GUARDS
     const hasCompleteProfile = Boolean(user.isProfileComplete);
 
     // Guard A: If profile is INCOMPLETE, strictly trap them on the complete-profile page.

@@ -703,7 +703,7 @@ export default function ReportIssue() {
                         <span className="text-xs md:text-sm font-medium text-muted-foreground">{t('camera', 'Camera')}</span>
                         <input
                           type="file"
-                          accept="image/*,video/*"
+                          accept="image/*" 
                           capture="environment"
                           className="hidden"
                           onChange={handleFileChange}

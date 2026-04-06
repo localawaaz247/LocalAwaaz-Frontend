@@ -1,12 +1,13 @@
 import "./utils/i18n";
 import React, { useEffect } from "react";
-import { useSelector } from "react-redux";
+import { useSelector, useDispatch } from "react-redux"; // 👇 Added useDispatch
 import { useTranslation } from "react-i18next";
 import { BrowserRouter, Routes, Route } from "react-router-dom";
 import { ThemeProvider } from "./utils/themeProvider";
 import { HelmetProvider } from "react-helmet-async";
 import { Provider } from "react-redux";
 import { appStore } from "./store/store";
+import { validateToken } from "./reducer/authReducer";
 
 // --- PWA IMPORT ---
 import { useRegisterSW } from 'virtual:pwa-register/react';
@@ -49,9 +50,8 @@ const AppLanguageInitializer = ({ children }) => {
   return children;
 };
 
-const App = () => {
-  // --- PWA REGISTRATION HOOK ---
-  // This handles automatic updates when you push new code to Cloudflare
+// 👇 Inner component to handle dispatching because useDispatch must be inside Provider
+const AppContent = () => {
   useRegisterSW({
     onRegistered(r) {
       console.log('Localawaaz PWA Service Worker Registered');
@@ -61,48 +61,64 @@ const App = () => {
     }
   });
 
+  const dispatch = useDispatch();
+
+  // 👇 FIX: Fire off the token validation immediately on app load
+  useEffect(() => {
+    const token = localStorage.getItem("access_token");
+    if (token) {
+      dispatch(validateToken());
+    }
+  }, [dispatch]);
+
+  return (
+    <AppLanguageInitializer>
+      <BrowserRouter>
+        <Routes>
+          {/* PUBLIC ROUTES */}
+          <Route path="/" element={<PublicRoute><LandingPage /></PublicRoute>} />
+          <Route path="/login" element={<PublicRoute><LoginRegister /></PublicRoute>} />
+          <Route path="/forgot-password" element={<PublicRoute><ForgotPassword /></PublicRoute>} />
+
+          {/* UNRESTRICTED ROUTES */}
+          <Route path="/FAQ" element={<FAQ />} />
+          <Route path="/careers" element={<Careers />} />
+          <Route path="/press" element={<Press />} />
+          <Route path="/privacy" element={<Privacy />} />
+          <Route path="/terms" element={<TermsOfService />} />
+          <Route path="/cookies" element={<Cookies />} />
+          <Route path="/google/callback" element={<GoogleCallback />} />
+          <Route path="/issue/:id" element={<IssueDetailPage />} />
+
+          {/* PROTECTED ROUTES */}
+          <Route path="/complete-profile" element={<ProtectedRoute><CompleteProfile /></ProtectedRoute>} />
+
+          <Route path="/dashboard" element={<ProtectedRoute><Homepage /></ProtectedRoute>}>
+            <Route index element={<Feed />} />
+            <Route path="report" element={<ReportIssue />} />
+            <Route path="assistant" element={<Assistant />} />
+            <Route path="notifications" element={<Notifications />} />
+            <Route path="profile" element={<Profile />} />
+            <Route path="help" element={<Help />} />
+          </Route>
+
+          {/* ADMIN ROUTE */}
+          <Route path="/admin" element={<ProtectedRoute requireAdmin={true}><AdminDashboard /></ProtectedRoute>} />
+
+          {/* 404 Route */}
+          <Route path="*" element={<NotFound />} />
+        </Routes>
+      </BrowserRouter>
+    </AppLanguageInitializer>
+  );
+};
+
+const App = () => {
   return (
     <HelmetProvider>
       <ThemeProvider>
         <Provider store={appStore}>
-          <AppLanguageInitializer>
-            <BrowserRouter>
-              <Routes>
-                {/* PUBLIC ROUTES */}
-                <Route path="/" element={<PublicRoute><LandingPage /></PublicRoute>} />
-                <Route path="/login" element={<PublicRoute><LoginRegister /></PublicRoute>} />
-                <Route path="/forgot-password" element={<PublicRoute><ForgotPassword /></PublicRoute>} />
-
-                {/* UNRESTRICTED ROUTES */}
-                <Route path="/FAQ" element={<FAQ />} />
-                <Route path="/careers" element={<Careers />} />
-                <Route path="/press" element={<Press />} />
-                <Route path="/privacy" element={<Privacy />} />
-                <Route path="/terms" element={<TermsOfService />} />
-                <Route path="/cookies" element={<Cookies />} />
-                <Route path="/google/callback" element={<GoogleCallback />} />
-                <Route path="/issue/:id" element={<IssueDetailPage />} />
-
-                {/* PROTECTED ROUTES */}
-                <Route path="/complete-profile" element={<ProtectedRoute><CompleteProfile /></ProtectedRoute>} />
-
-                <Route path="/dashboard" element={<ProtectedRoute><Homepage /></ProtectedRoute>}>
-                  <Route index element={<Feed />} />
-                  <Route path="report" element={<ReportIssue />} />
-                  <Route path="assistant" element={<Assistant />} />
-                  <Route path="notifications" element={<Notifications />} />
-                  <Route path="profile" element={<Profile />} />
-                  <Route path="help" element={<Help />} />
-                </Route>
-
-                {/* ADMIN ROUTE */}
-                <Route path="/admin" element={<ProtectedRoute requireAdmin={true}><AdminDashboard /></ProtectedRoute>} />
-
-                {/* 404 Route */}
-                <Route path="*" element={<NotFound />} />
-              </Routes>
-            </BrowserRouter>
-          </AppLanguageInitializer>
+          <AppContent />
         </Provider>
       </ThemeProvider>
     </HelmetProvider>
