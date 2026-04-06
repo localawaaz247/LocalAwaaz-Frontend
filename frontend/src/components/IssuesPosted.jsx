@@ -196,8 +196,13 @@ const IssuesPosted = () => {
                   <div className="w-full sm:w-28 sm:h-28 h-40 rounded-xl bg-muted flex-shrink-0 sm:ml-2 overflow-hidden border border-border/50 relative">
                     {displayMedia ? (
                       isVideo ? (
-                        <video src={displayMedia} className="w-full h-full object-cover opacity-90 group-hover:opacity-100 group-hover:scale-105 transition-all duration-500" />
-                      ) : (
+                        <video
+                          src={`${displayMedia}#t=0.1`}
+                          preload="metadata"
+                          muted
+                          playsInline
+                          className="w-full h-full object-cover opacity-90 group-hover:opacity-100 group-hover:scale-105 transition-all duration-500"
+                        />) : (
                         <img src={displayMedia} alt={issue.title} className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500" />
                       )
                     ) : (
