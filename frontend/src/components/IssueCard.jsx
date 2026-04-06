@@ -213,7 +213,7 @@ const IssueCard = ({ issue, onClick, onFlagClick }) => {
                   onClick={(e) => handleVideoPlayClick(e, currentImageIndex)}
                 >
                   <video
-                    src={`${displayImage}#t=0.001`}
+                    src={`${displayImage}#t=0.1`} // 👈 CHANGED FROM 0.001 TO 0.1
                     preload="metadata"
                     className="w-full h-full object-cover opacity-80 pointer-events-none"
                     muted

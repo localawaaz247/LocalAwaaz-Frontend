@@ -335,8 +335,13 @@ const Assistant = () => {
     );
   }
 
+  // 🚀 UPDATED DRAFT CARD FUNCTION 
   const renderDraftCard = (draftData) => {
     if (!draftData) return null;
+
+    // Check if the uploaded file is a video
+    const isVideo = draftData.originalFiles && draftData.originalFiles[0]?.type?.startsWith('video/');
+
     return (
       <div className="mt-3 bg-card border border-border/50 rounded-xl overflow-hidden shadow-md max-w-lg">
         <div className="bg-primary/10 px-4 py-2 border-b border-border/50 flex items-center gap-2">
@@ -345,9 +350,20 @@ const Assistant = () => {
         </div>
         <div className="p-4 flex flex-col gap-3 text-foreground">
 
+          {/* 🚀 CONDITIONAL MEDIA RENDERER */}
           {draftData.previewUrl && (
-            <div className="mb-2 h-36 w-full rounded-lg overflow-hidden border border-border/50">
-              <img src={draftData.previewUrl} alt="Report draft" className="w-full h-full object-cover" />
+            <div className="mb-2 h-36 w-full rounded-lg overflow-hidden border border-border/50 bg-black flex items-center justify-center">
+              {isVideo ? (
+                <video
+                  src={`${draftData.previewUrl}#t=0.1`}
+                  preload="metadata"
+                  className="w-full h-full object-contain"
+                  playsInline
+                  muted
+                />
+              ) : (
+                <img src={draftData.previewUrl} alt="Report draft" className="w-full h-full object-cover" />
+              )}
             </div>
           )}
 
