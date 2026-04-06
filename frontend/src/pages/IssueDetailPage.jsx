@@ -1,6 +1,6 @@
 import { useParams, useNavigate, Link } from "react-router-dom";
 import { useState, useEffect } from "react";
-import { ArrowLeft, MapPin, User, AlertTriangle, Calendar, Share2, ShieldCheck, ChevronLeft, ChevronRight, Play } from "lucide-react";
+import { ArrowLeft, MapPin, User, AlertTriangle, Calendar, Share2, ShieldCheck, ChevronLeft, ChevronRight } from "lucide-react";
 import axiosInstance from "../utils/axios";
 import { showToast } from "../utils/toast";
 
@@ -17,7 +17,7 @@ const IssueDetailPage = () => {
         setLoading(true);
         const response = await axiosInstance.get(`/issue/${id}`);
         setIssue(response.data.data);
-        
+
       } catch (error) {
         console.error('Error fetching issue:', error);
         showToast({ icon: 'error', title: 'Failed to load issue details' });
@@ -118,7 +118,6 @@ const IssueDetailPage = () => {
   }
 
   return (
-    // Added pb-20 to clear bottom mobile taskbar
     <div className="min-h-[100dvh] bg-texture pb-20 md:pb-8">
       {/* Header */}
       <div className="sticky top-0 z-40 glass-card border-0 border-b border-border mx-2 md:mx-4 mt-2 md:mt-4 rounded-lg shadow-sm">
@@ -138,25 +137,26 @@ const IssueDetailPage = () => {
       {/* Content */}
       <div className="px-3 md:px-6 py-4 md:py-6 max-w-7xl mx-auto">
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 md:gap-6 mb-6 md:mb-8">
-          
+
           {/* Left Column - Media */}
           <div className="space-y-4">
             {hasMedia ? (
-              <div className="relative group overflow-hidden rounded-xl md:rounded-2xl bg-muted">
+              <div className="relative group overflow-hidden rounded-xl md:rounded-2xl bg-black">
                 {/* Scaled height for mobile vs desktop */}
-                <div className="relative h-64 sm:h-80 md:h-96 w-full overflow-hidden">
+                <div className="relative h-64 sm:h-80 md:h-96 w-full overflow-hidden flex items-center justify-center">
                   {isVideo ? (
                     <video
-                      src={displayImage}
-                      className="w-full h-full object-cover"
+                      src={`${displayImage}#t=0.1`}
+                      preload="metadata"
+                      className="w-full h-full object-contain"
                       controls
-                      poster={displayImage}
+                      playsInline
                     />
                   ) : (
                     <img
                       src={displayImage}
                       alt="issue"
-                      className="w-full h-full object-cover"
+                      className="w-full h-full object-contain"
                     />
                   )}
                 </div>
@@ -183,15 +183,6 @@ const IssueDetailPage = () => {
                 <div className="absolute top-2 right-2 md:top-4 md:right-4 bg-black/60 backdrop-blur-sm text-white px-2 py-1 md:px-3 md:py-1 rounded-full text-xs md:text-sm font-medium">
                   {currentMediaIndex + 1} / {mediaCount}
                 </div>
-
-                {/* Video Play Indicator */}
-                {isVideo && (
-                  <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
-                    <div className="bg-black/40 backdrop-blur-sm rounded-full p-4 md:p-6">
-                      <Play size={32} className="md:w-12 md:h-12 text-white ml-1" fill="white" />
-                    </div>
-                  </div>
-                )}
               </div>
             ) : (
               <div className="h-64 sm:h-80 md:h-96 rounded-xl md:rounded-2xl bg-muted flex items-center justify-center">
@@ -223,7 +214,7 @@ const IssueDetailPage = () => {
 
           {/* Right Column - Title and Info */}
           <div className="space-y-4 md:space-y-6">
-            
+
             {/* Title and Category */}
             <div>
               <h2 className="text-2xl md:text-3xl font-bold text-foreground mb-3 md:mb-4">{title}</h2>
@@ -309,7 +300,7 @@ const IssueDetailPage = () => {
 
         {/* Timeline and Additional Info */}
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4 md:gap-6 mb-4 md:mb-8">
-          
+
           {/* Timeline */}
           <div className="bg-muted rounded-xl md:rounded-2xl p-4 md:p-6">
             <h3 className="text-base md:text-lg font-semibold text-foreground mb-3 md:mb-4 flex items-center gap-2">
