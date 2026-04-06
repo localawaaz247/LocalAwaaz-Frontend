@@ -1,12 +1,52 @@
-import { Megaphone, Construction, Droplet, Zap, Trash2, Waves, Lightbulb, TrafficCone, AlertTriangle, Camera, HeartPulse, GraduationCap, ShieldAlert, Sparkles } from "lucide-react";
-import { useState, useEffect } from "react";
+import { Megaphone, Construction, Droplet, Zap, Trash2, Waves, Lightbulb, TrafficCone, AlertTriangle, Camera, HeartPulse, GraduationCap, ShieldAlert, Sparkles, UploadCloud, CheckCircle2, X, Plus } from "lucide-react";
+import { useState, useEffect, useRef } from "react";
 import { useLocation } from "react-router-dom";
 import { useSelector } from "react-redux";
 import { saveCurrentLocation } from "../utils/locationUtils";
 import CurrentLocationModal from "../components/CurrentLocationModal";
 import axiosInstance from "../utils/axios";
 import { showToast } from "../utils/toast";
+import toast from "react-hot-toast";
 import { useTranslation } from "react-i18next";
+import Uppy from '@uppy/core';
+import AwsS3 from '@uppy/aws-s3';
+
+// --- ZERO-COST HD THUMBNAIL GENERATOR FOR VIDEOS ---
+const generateHDThumbnail = (file) => {
+  return new Promise((resolve) => {
+    const video = document.createElement("video");
+    const url = URL.createObjectURL(file);
+
+    video.src = url;
+    video.muted = true;
+    video.playsInline = true;
+    video.preload = "metadata";
+
+    video.onloadeddata = () => {
+      video.currentTime = Math.min(1, video.duration || 0.1);
+    };
+
+    video.onseeked = () => {
+      const canvas = document.createElement("canvas");
+      canvas.width = 640;
+      canvas.height = 360;
+      const ctx = canvas.getContext("2d");
+      ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+
+      resolve(canvas.toDataURL("image/jpeg", 0.7));
+      video.src = "";
+      video.load();
+      URL.revokeObjectURL(url);
+    };
+
+    video.onerror = () => {
+      video.src = "";
+      video.load();
+      URL.revokeObjectURL(url);
+      resolve(null);
+    };
+  });
+};
 
 export default function ReportIssue() {
   const { t } = useTranslation();
@@ -39,15 +79,29 @@ export default function ReportIssue() {
       city: '',
       pinCode: '',
       state: '',
-      geoData: {
-        type: 'Point',
-        coordinates: null
-      }
+      geoData: { type: 'Point', coordinates: null }
     },
     media: [],
     mediaUrls: [],
     isAnonymous: false
   });
+
+  const [errors, setErrors] = useState({});
+  const [submitError, setSubmitError] = useState('');
+  const [submitSuccess, setSubmitSuccess] = useState(false);
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [showLocationModal, setShowLocationModal] = useState(false);
+
+  // Upload states
+  const [isUploading, setIsUploading] = useState(false);
+  const [uploadProgress, setUploadProgress] = useState(0);
+  const [uploadError, setUploadError] = useState('');
+  const [previewUrls, setPreviewUrls] = useState([]);
+  const [primaryVideoUrl, setPrimaryVideoUrl] = useState(null);
+  const uppyRef = useRef(null);
+
+  const [isAILoading, setIsAILoading] = useState(false);
+  const [totalResolved, setTotalResolved] = useState(0);
 
   useEffect(() => {
     if (user) {
@@ -56,26 +110,12 @@ export default function ReportIssue() {
     }
   }, [user]);
 
-  const [errors, setErrors] = useState({});
-  const [submitError, setSubmitError] = useState('');
-  const [submitSuccess, setSubmitSuccess] = useState(false);
-  const [isSubmitting, setIsSubmitting] = useState(false);
-  const [showLocationModal, setShowLocationModal] = useState(false);
-  const [isUploading, setIsUploading] = useState(false);
-  const [uploadError, setUploadError] = useState('');
-  const [previewUrls, setPreviewUrls] = useState([]);
-
-  const [isAILoading, setIsAILoading] = useState(false);
-  const [totalResolved, setTotalResolved] = useState(0);
-
   useEffect(() => {
     const fetchGlobalResolvedCount = async () => {
       try {
         const res = await axiosInstance.get('/issue/global/resolved-count');
         const count = res.data?.resolvedCount || res.data?.count || res.data?.totalResolved;
-        if (count !== undefined) {
-          setTotalResolved(count);
-        }
+        if (count !== undefined) setTotalResolved(count);
       } catch (error) {
         console.warn("Could not fetch global resolved count.", error.message);
       }
@@ -102,11 +142,9 @@ export default function ReportIssue() {
             coordinates: prefilledData.location?.coordinates || prev.location.geoData.coordinates
           }
         },
-        // FIX: Look for the 'originalFiles' array sent by Assistant.jsx
         media: prefilledData.originalFiles ? prefilledData.originalFiles : prev.media
       }));
 
-      // FIX: Generate preview URLs dynamically for the array
       if (prefilledData.originalFiles && prefilledData.originalFiles.length > 0) {
         try {
           if (prefilledData.originalFiles[0] instanceof Blob) {
@@ -122,20 +160,40 @@ export default function ReportIssue() {
 
   useEffect(() => {
     return () => {
-      previewUrls.forEach(url => URL.revokeObjectURL(url));
+      previewUrls.forEach(url => {
+        if (url && url.startsWith('blob:')) URL.revokeObjectURL(url);
+      });
+      if (uppyRef.current) uppyRef.current.destroy();
     };
-  }, []);
+  }, [previewUrls]);
+
+  useEffect(() => {
+    if (formData.media.length > 0 && formData.media[0].type.startsWith('video/')) {
+      const url = URL.createObjectURL(formData.media[0]);
+      setPrimaryVideoUrl(url);
+      return () => URL.revokeObjectURL(url);
+    } else {
+      setPrimaryVideoUrl(null);
+    }
+  }, [formData.media]);
 
   const handleFillWithAI = async () => {
-    // 1. ONLY CHECK FOR IMAGES
-    if (formData.media.length === 0) {
-      setUploadError(t('ai_req_image', 'Please upload an image to proceed.'));
-      showToast({ icon: "warning", title: t('select_image_first', 'Please upload an image to proceed.') });
+    // 🚀 NEW: Check if any of the selected media is a video
+    const hasVideo = formData.media.some(file => file.type.startsWith('video/'));
+
+    if (hasVideo) {
+      setUploadError(t('ai_only_images', 'Only images can be analyzed!'));
+      showToast({ icon: "warning", title: t('ai_only_images', 'Only images can be analyzed!') });
       return;
     }
 
-    // REMOVED: The location validation block has been completely removed.
-    // The AI will now generate text regardless of whether they have a location yet.
+    const imageFiles = formData.media.filter(file => file.type.startsWith('image/'));
+
+    if (imageFiles.length === 0) {
+      setUploadError(t('ai_req_image', 'Please upload at least one image for the AI to analyze.'));
+      showToast({ icon: "warning", title: t('select_image_first', 'Please upload an image to proceed.') });
+      return;
+    }
 
     setIsAILoading(true);
     setUploadError('');
@@ -143,12 +201,7 @@ export default function ReportIssue() {
 
     try {
       const aiFormData = new FormData();
-
-      // 2. SEND ALL IMAGES (Up to 3) so Gemini has the best context
-      formData.media.forEach(file => {
-        aiFormData.append('images', file);
-      });
-
+      imageFiles.forEach(file => aiFormData.append('images', file));
       aiFormData.append('city', formData.location.city || user?.contact?.city || '');
 
       if (formData.location.geoData?.coordinates) {
@@ -156,7 +209,6 @@ export default function ReportIssue() {
         aiFormData.append('lat', formData.location.geoData.coordinates[1]);
       }
 
-      // If the user already started typing a description, pass it as a hint!
       aiFormData.append('userHint', formData.description || '');
 
       const token = localStorage.getItem('access_token') || localStorage.getItem('token');
@@ -170,18 +222,12 @@ export default function ReportIssue() {
 
       if (data?.success && data?.analysis) {
         const aiResult = data.analysis;
-
-        // 3. AUTO-FILL THE DATA
-        // Your backend translates Title and Description into Hindi (or preferred language)
-        // and keeps Category in English.
         setFormData(prev => ({
           ...prev,
           title: aiResult.title || prev.title,
-          // Ensure category is strictly uppercase to match your UI buttons
           category: aiResult.category ? aiResult.category.toUpperCase() : prev.category,
           description: aiResult.description || prev.description
         }));
-
         showToast({ icon: "success", title: t('ai_draft_success', 'Auto-filled successfully!') });
       } else {
         throw new Error(data?.message || t('ai_analysis_fail'));
@@ -200,10 +246,7 @@ export default function ReportIssue() {
       ...prev,
       location: {
         ...prev.location,
-        geoData: {
-          type: 'Point',
-          coordinates: [locationData.longitude, locationData.latitude]
-        }
+        geoData: { type: 'Point', coordinates: [locationData.longitude, locationData.latitude] }
       }
     }));
   };
@@ -213,67 +256,68 @@ export default function ReportIssue() {
       const locationField = field.split('.')[1];
       setFormData(prev => ({
         ...prev,
-        location: {
-          ...prev.location,
-          [locationField]: value
-        }
+        location: { ...prev.location, [locationField]: value }
       }));
     } else {
-      setFormData(prev => ({
-        ...prev,
-        [field]: value
-      }));
+      setFormData(prev => ({ ...prev, [field]: value }));
     }
   };
 
-  const handleFileChange = (e) => {
+  const handleFileChange = async (e) => {
     const files = Array.from(e.target.files);
     if (!files || files.length === 0) return;
 
-    const currentFileCount = formData.media.length;
-    const totalFilesAfterAdd = currentFileCount + files.length;
-
+    const totalFilesAfterAdd = formData.media.length + files.length;
     if (totalFilesAfterAdd > 3) {
-      setErrors(prev => ({
-        ...prev,
-        media: `${t('cannot_add')} ${files.length} ${t('files_max_3')}`
-      }));
+      setErrors(prev => ({ ...prev, media: `${t('cannot_add')} ${files.length} files. Max is 3.` }));
       return;
     }
 
-    const validTypes = ['image/png', 'image/jpg', 'image/jpeg'];
+    const validTypes = ['image/png', 'image/jpg', 'image/jpeg', 'video/mp4', 'video/webm', 'video/quicktime'];
     const invalidFiles = files.filter(file => !validTypes.includes(file.type));
 
     if (invalidFiles.length > 0) {
-      setErrors(prev => ({ ...prev, media: t('invalid_img_type') }));
+      setErrors(prev => ({ ...prev, media: t('invalid_media_type', 'Only JPG, PNG, and Videos are allowed.') }));
       return;
     }
 
     const currentTotalSize = formData.media.reduce((total, file) => total + file.size, 0);
     const newFilesSize = files.reduce((total, file) => total + file.size, 0);
-    if (currentTotalSize + newFilesSize > 30 * 1024 * 1024) {
-      setErrors(prev => ({ ...prev, media: t('size_limit_exceeded') }));
+    if (currentTotalSize + newFilesSize > 300 * 1024 * 1024) {
+      setErrors(prev => ({ ...prev, media: t('size_limit_exceeded', 'Total size exceeds 300MB limit.') }));
       return;
     }
 
     setErrors(prev => ({ ...prev, media: '' }));
     setUploadError('');
 
-    const updatedMedia = [...formData.media, ...files];
-    const newPreviewUrls = files.map(file => URL.createObjectURL(file));
+    const toastId = toast.loading(t('processing_media', 'Processing media...'));
+    const newPreviewUrls = [];
 
-    setPreviewUrls([...previewUrls, ...newPreviewUrls]);
+    for (const file of files) {
+      if (file.type.startsWith('video/')) {
+        const thumbBase64 = await generateHDThumbnail(file);
+        newPreviewUrls.push(thumbBase64 || 'https://via.placeholder.com/640x360?text=Video+Preview');
+      } else {
+        newPreviewUrls.push(URL.createObjectURL(file));
+      }
+    }
+    toast.dismiss(toastId);
+
+    setPreviewUrls(prev => [...prev, ...newPreviewUrls]);
     setFormData(prev => ({
       ...prev,
-      media: updatedMedia,
-      mediaUrls: []
+      media: [...prev.media, ...files],
+      mediaUrls: [] // Clear Cloudflare URLs because files changed
     }));
 
     e.target.value = '';
   };
 
   const handleRemoveFile = (indexToRemove) => {
-    if (previewUrls[indexToRemove]) URL.revokeObjectURL(previewUrls[indexToRemove]);
+    if (previewUrls[indexToRemove] && previewUrls[indexToRemove].startsWith('blob:')) {
+      URL.revokeObjectURL(previewUrls[indexToRemove]);
+    }
 
     const newMedia = formData.media.filter((_, index) => index !== indexToRemove);
     const newPreviewUrls = previewUrls.filter((_, index) => index !== indexToRemove);
@@ -283,38 +327,113 @@ export default function ReportIssue() {
     setUploadError('');
   };
 
-  const handleUploadMedia = async () => {
-    if (formData.media.length === 0) {
-      setUploadError(t('select_files_first'));
-      return;
+  const handleCancelUpload = () => {
+    if (uppyRef.current) {
+      uppyRef.current.cancelAll();
+      uppyRef.current.destroy();
+      uppyRef.current = null;
     }
+    setIsUploading(false);
+    setUploadProgress(0);
+    setUploadError(t('upload_cancelled', 'Upload was cancelled.'));
+  };
+
+  // --- LOCAL UPPY UPLOAD LOGIC ---
+  const handleUploadMedia = () => {
+    if (formData.media.length === 0) return;
 
     setIsUploading(true);
+    setUploadProgress(0);
     setUploadError('');
 
-    try {
-      const uploadFormData = new FormData();
-      formData.media.forEach((file) => {
-        uploadFormData.append(`issue_media`, file);
-      });
+    const uppy = new Uppy({
+      autoProceed: true,
+      allowMultipleUploadBatches: false,
+      retryDelays: [1000, 3000, 5000, 10000, 15000]
+    });
 
-      const response = await axiosInstance.post('/upload-issues', uploadFormData, {
-        headers: { 'Content-Type': 'multipart/form-data' },
-      });
+    uppy.use(AwsS3, {
+      limit: 2,
+      getChunkSize: (file) => {
+        return 10 * 1024 * 1024; // 10 MB
+      },
+      timeout: 60 * 1000,
+      shouldUseMultipart: true,
+      createMultipartUpload: async (file) => {
+        const rawName = user?.name || user?.firstName || 'Anonymous';
+        const cleanUserName = rawName.replace(/[^a-zA-Z0-9]/g, '_');
+        const cleanTitle = (formData.title || 'Issue').replace(/[^a-zA-Z0-9]/g, '_');
 
-      if (response.data && response.data.success && response.data.media && response.data.media.length > 0) {
-        setFormData(prev => ({
-          ...prev,
-          mediaUrls: response.data.media
-        }));
-      } else {
-        setUploadError(t('upload_fail_retry'));
+        const dateStr = new Date().toISOString().split('T')[0].replace(/-/g, '');
+        const uniqueId = Math.random().toString(36).substring(2, 8);
+        const extension = file.name.substring(file.name.lastIndexOf('.'));
+        const customFileName = `${cleanUserName}_${cleanTitle}_${uniqueId}_${dateStr}${extension}`;
+
+        const res = await axiosInstance.post('/multipart/create', {
+          filename: customFileName,
+          type: file.type,
+          metadata: { category: formData.category || 'Issue', location: formData.location }
+        });
+        return { uploadId: res.data.uploadId, key: res.data.key };
+      },
+      signPart: async (file, partData) => {
+        const res = await axiosInstance.post('/multipart/sign', {
+          uploadId: partData.uploadId,
+          key: partData.key,
+          partNumber: partData.partNumber
+        });
+        return { url: res.data.url };
+      },
+      completeMultipartUpload: async (file, uploadData) => {
+        const res = await axiosInstance.post('/multipart/complete', {
+          uploadId: uploadData.uploadId,
+          key: uploadData.key,
+          parts: uploadData.parts
+        });
+        return { location: res.data.location };
+      },
+      abortMultipartUpload: async (file, uploadData) => {
+        await axiosInstance.post('/multipart/abort', {
+          uploadId: uploadData.uploadId,
+          key: uploadData.key
+        });
       }
-    } catch (error) {
-      setUploadError(t('upload_fail_retry'));
-    } finally {
-      setIsUploading(false);
-    }
+    });
+
+    let successUrls = [];
+
+    uppy.on('progress', (progress) => {
+      setUploadProgress(progress);
+    });
+
+    uppy.on('upload-success', (file, response) => {
+      successUrls.push(response.body?.location || response.uploadURL);
+    });
+
+    uppy.on('complete', (result) => {
+      if (result.failed.length > 0) {
+        setUploadError(t('upload_fail_retry', 'Upload failed. Please check your connection and try again.'));
+        setIsUploading(false);
+        uppy.destroy();
+        uppyRef.current = null;
+      } else {
+        setUploadProgress(100);
+
+        setTimeout(() => {
+          setFormData(prev => ({ ...prev, mediaUrls: successUrls }));
+          setIsUploading(false);
+          toast.success(t('img_up_success', 'Media uploaded to cloud successfully!'));
+          uppy.destroy();
+          uppyRef.current = null;
+        }, 1500);
+      }
+    });
+
+    formData.media.forEach(file => {
+      uppy.addFile({ name: file.name, type: file.type, data: file });
+    });
+
+    uppyRef.current = uppy;
   };
 
   const handleSubmit = async (e) => {
@@ -334,7 +453,6 @@ export default function ReportIssue() {
       if (!formData.description || !formData.description.trim()) newErrors.description = t('desc_req');
       else if (formData.description.trim().length < 10) newErrors.description = t('desc_length');
 
-      // ---> NEW: Catch the missing location fields on the frontend and translate it! <---
       if (!formData.location.state || !formData.location.city || !formData.location.pinCode) {
         setSubmitError(t('req_state_city_pin', 'Please enter state, city, and pincode'));
         setIsSubmitting(false);
@@ -344,7 +462,7 @@ export default function ReportIssue() {
       if (!formData.location.geoData.coordinates) newErrors.geoData = t('gps_req');
 
       if (formData.media.length > 0 && formData.mediaUrls.length === 0) {
-        setUploadError(t('click_upload_before_submit'));
+        setUploadError(t('click_upload_before_submit', 'Please click Upload to save your media before submitting.'));
         setIsSubmitting(false);
         return false;
       }
@@ -360,16 +478,20 @@ export default function ReportIssue() {
     if (!validateForm()) return;
 
     try {
+      const base64Thumbnails = previewUrls.map(url => url && url.startsWith('data:image') ? url : "");
+
       let dataToSend = {
         title: formData.title,
         category: formData.category,
         description: formData.description,
         location: formData.location,
-        isAnonymous: formData.isAnonymous
+        media: formData.mediaUrls,
+        isAnonymous: formData.isAnonymous,
+        thumbnails: base64Thumbnails
       };
 
       if (formData.mediaUrls.length > 0) {
-        dataToSend.media = formData.mediaUrls;
+        dataToSend.mediaUrls = formData.mediaUrls;
       }
 
       const response = await axiosInstance.post(`/issue`, dataToSend);
@@ -382,20 +504,26 @@ export default function ReportIssue() {
           media: [], mediaUrls: [],
           isAnonymous: Boolean(user?.preferences?.globalAnonymous)
         });
-        previewUrls.forEach(url => URL.revokeObjectURL(url));
+
+        previewUrls.forEach(url => { if (url && url.startsWith('blob:')) URL.revokeObjectURL(url); });
         setPreviewUrls([]);
         setErrors({});
+        setUploadProgress(0);
         localStorage.removeItem('currentLocation');
 
         setTotalResolved(prev => prev + 1);
       }
-
     } catch (error) {
-      setSubmitError(error.response?.data?.message || t('something_went_wrong'));
+      console.error("Submission error:", error);
+      setSubmitError(t('something_went_wrong'));
     } finally {
       setIsSubmitting(false);
     }
   };
+
+  const ghostFilterStyle = isUploading ? {
+    filter: `blur(${Math.max(0, 8 - (uploadProgress * 0.08))}px) grayscale(${Math.max(0, 100 - uploadProgress)}%) brightness(${0.5 + (uploadProgress * 0.005)})`
+  } : {};
 
   return (
     <div className="min-h-[100dvh] bg-texture pb-20 md:pb-8">
@@ -421,17 +549,6 @@ export default function ReportIssue() {
           <p className="mx-auto max-w-2xl text-sm md:text-lg text-muted-foreground">
             {t('report_desc')}
           </p>
-          <div className="mt-4 md:mt-6 flex flex-wrap justify-center gap-2 md:gap-4">
-            <div className="flex items-center gap-1.5 md:gap-2 rounded-full bg-cyan-950 px-3 md:px-4 py-1.5 md:py-2 text-xs md:text-sm font-medium text-accent-foreground border border-cyan-800">
-              <div className="h-1.5 w-1.5 md:h-2 md:w-2 rounded-full bg-white animate-pulse"></div>
-              {t('active_community')}
-            </div>
-            {totalResolved > 0 && (
-              <div className="flex items-center gap-1.5 md:gap-2 rounded-full bg-cyan-950 px-3 md:px-4 py-1.5 md:py-2 text-xs md:text-sm font-medium text-accent-foreground border border-cyan-800">
-                {totalResolved.toLocaleString()} {t('total_issues_resolved')}
-              </div>
-            )}
-          </div>
         </div>
       </section>
 
@@ -487,7 +604,6 @@ export default function ReportIssue() {
                   onChange={(e) => handleInputChange('title', e.target.value)}
                   className="w-full rounded-xl border-2 border-border bg-background px-3 md:px-4 py-2.5 md:py-3 text-sm md:text-base outline-none transition-all focus:border-cyan-600 focus:ring-2 focus:ring-cyan-600/20"
                 />
-                <p className="mt-1 text-[10px] md:text-xs text-muted-foreground">{formData.title.length}/100 {t('characters')}</p>
                 {errors.title && <p className="mt-1 text-xs text-red-600">{errors.title}</p>}
               </div>
 
@@ -500,7 +616,6 @@ export default function ReportIssue() {
                   className="w-full rounded-xl border-2 border-border bg-background px-3 md:px-4 py-2.5 md:py-3 text-sm md:text-base outline-none transition-all focus:border-cyan-600 focus:ring-2 focus:ring-cyan-600/20 resize-none"
                   rows={4}
                 />
-                <p className="mt-1 text-[10px] md:text-xs text-muted-foreground">{formData.description.length}/500 {t('characters')}</p>
                 {errors.description && <p className="mt-1 text-xs text-red-600">{errors.description}</p>}
               </div>
 
@@ -568,123 +683,159 @@ export default function ReportIssue() {
                     </button>
                   )}
                 </div>
-                <p className="mt-2 text-[11px] md:text-xs text-muted-foreground leading-relaxed">
-                  {t('gps_desc')}
-                </p>
                 {errors.geoData && <p className="mt-2 text-xs text-red-600 font-medium">{errors.geoData}</p>}
               </div>
             </div>
 
-            <div className="space-y-6">
+            <div className="space-y-4">
               <div>
                 <label className="mb-1.5 md:mb-2 block text-sm font-semibold text-foreground">
-                  {t('add_photos')}<span className="font-normal text-red-600"> *</span>
+                  {t('add_media', 'Add Photos / Videos')}<span className="font-normal text-red-600"> *</span>
                 </label>
-                <div className="group relative">
-                  <div className="h-36 md:h-44 rounded-xl border-2 border-dashed border-border bg-muted/50 transition-all hover:border-cyan-600 hover:bg-muted flex flex-col">
-                    {formData.media.length > 0 ? (
-                      <div className="flex h-full flex-col items-center justify-center gap-1 md:gap-2 text-center p-4 relative">
-                        <Camera className="h-6 w-6 md:h-8 md:w-8 text-green-600" />
-                        <span className="text-xs md:text-sm font-medium text-foreground">{formData.media.length} {t('files_selected')}</span>
-                        <div className="text-[10px] md:text-xs text-muted-foreground max-w-[200px] md:max-w-xs">
-                          {formData.media.map((file, index) => (
-                            <div key={index} className="truncate">
-                              {file.name.length > 20 ? `${file.name.substring(0, 20)}...` : file.name} ({(file.size / (1024 * 1024)).toFixed(2)} MB)
-                            </div>
-                          ))}
-                        </div>
-                        {!formData.mediaUrls.length && (
-                          <div className="flex gap-4 mt-1">
-                            <label className="cursor-pointer text-[10px] md:text-xs text-cyan-600 font-medium hover:underline z-10">
-                              {t('camera', 'Camera')}
-                              <input type="file" accept="image/png, image/jpg, image/jpeg" capture="environment" className="hidden" onChange={handleFileChange} />
-                            </label>
-                            <label className="cursor-pointer text-[10px] md:text-xs text-cyan-600 font-medium hover:underline z-10">
-                              {t('browse', 'Browse Files')}
-                              <input type="file" accept="image/png, image/jpg, image/jpeg" multiple className="hidden" onChange={handleFileChange} />
-                            </label>
+
+                {/* Removed dashed borders when files exist for a cleaner look */}
+                <div className={`relative group w-full h-48 md:h-64 rounded-xl overflow-hidden flex items-center justify-center transition-all ${formData.media.length === 0 ? 'border-2 border-dashed border-border bg-black hover:border-cyan-600' : 'bg-black'}`}>
+
+                  {formData.media.length === 0 ? (
+                    <div className="flex w-full h-full bg-muted/50">
+                      <label className="flex-1 flex flex-col items-center justify-center gap-1 md:gap-2 cursor-pointer hover:bg-muted/80 transition-colors z-10">
+                        <Camera className="h-6 w-6 md:h-8 md:w-8 text-muted-foreground group-hover:text-cyan-600 transition-colors" />
+                        <span className="text-xs md:text-sm font-medium text-muted-foreground">{t('camera', 'Camera')}</span>
+                        <input type="file" accept="image/png, image/jpg, image/jpeg, video/mp4, video/webm, video/quicktime" capture="environment" className="hidden" onChange={handleFileChange} />
+                      </label>
+                      <div className="w-px bg-border my-6"></div>
+                      <label className="flex-1 flex flex-col items-center justify-center gap-1 md:gap-2 cursor-pointer hover:bg-muted/80 transition-colors z-10">
+                        <UploadCloud className="h-6 w-6 md:h-8 md:w-8 text-muted-foreground group-hover:text-cyan-600 transition-colors" />
+                        <span className="text-xs md:text-sm font-medium text-muted-foreground">{t('browse', 'Browse Files')}</span>
+                        <input type="file" accept="image/*,video/*" multiple className="hidden" onChange={handleFileChange} />
+                      </label>
+                      <div className="absolute bottom-2 left-0 right-0 text-center pointer-events-none">
+                        <span className="text-[10px] md:text-xs text-muted-foreground px-2">Max 3 files, 300MB total</span>
+                      </div>
+                    </div>
+                  ) : (
+                    <div className="w-full h-full relative group cursor-pointer overflow-hidden rounded-xl">
+
+                      {formData.media[0].type.startsWith('video/') ? (
+                        <video
+                          src={primaryVideoUrl} // 🚀 NEW: Uses the cached URL so it doesn't reset!
+                          poster={previewUrls[0]}
+                          className="w-full h-full object-cover transition-all duration-300"
+                          style={{ ...ghostFilterStyle, backgroundColor: 'black' }}
+                          autoPlay
+                          loop
+                          muted
+                          playsInline
+                        />
+                      ) : (
+                        <img
+                          src={previewUrls[0]}
+                          alt="Primary Preview"
+                          className="w-full h-full object-cover transition-all duration-300"
+                          style={ghostFilterStyle}
+                        />
+                      )}
+
+                      {isUploading && (
+                        <>
+                          <div className="absolute bottom-0 left-0 w-full h-1.5 bg-black/50 z-20">
+                            <div className="h-full bg-cyan-500 shadow-[0_0_10px_rgba(6,182,212,0.8)] transition-all duration-300 ease-out" style={{ width: `${uploadProgress}%` }} />
                           </div>
-                        )}
-                      </div>
-                    ) : (
-                      <div className="flex h-full w-full relative">
-                        <label className="flex-1 flex flex-col items-center justify-center gap-1 md:gap-2 cursor-pointer hover:bg-muted/80 rounded-l-xl transition-colors z-10">
-                          <Camera className="h-6 w-6 md:h-8 md:w-8 text-muted-foreground transition-colors group-hover:text-primary" />
-                          <span className="text-xs md:text-sm font-medium text-muted-foreground">{t('camera', 'Camera')}</span>
-                          <input type="file" accept="image/png, image/jpg, image/jpeg" capture="environment" className="hidden" onChange={handleFileChange} disabled={formData.mediaUrls.length > 0} />
-                        </label>
-                        <div className="w-px bg-border my-6"></div>
-                        <label className="flex-1 flex flex-col items-center justify-center gap-1 md:gap-2 cursor-pointer hover:bg-muted/80 rounded-r-xl transition-colors z-10">
-                          <svg className="h-6 w-6 md:h-8 md:w-8 text-muted-foreground transition-colors group-hover:text-primary" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12" />
-                          </svg>
-                          <span className="text-xs md:text-sm font-medium text-muted-foreground">{t('browse', 'Browse Files')}</span>
-                          <input type="file" accept="image/png, image/jpg, image/jpeg" multiple className="hidden" onChange={handleFileChange} disabled={formData.mediaUrls.length > 0} />
-                        </label>
-                        <div className="absolute bottom-2 left-0 right-0 text-center pointer-events-none">
-                          <span className="text-[10px] md:text-xs text-muted-foreground px-2">{t('img_formats_limit')}</span>
+                          <div className="absolute inset-0 flex flex-col items-center justify-center pointer-events-auto z-20 gap-3">
+                            <span className="text-4xl font-black text-white drop-shadow-[0_4px_4px_rgba(0,0,0,0.8)] tracking-tighter">{uploadProgress}%</span>
+
+                            {/* Stop Upload Button */}
+                            <button
+                              type="button"
+                              onClick={(e) => { e.stopPropagation(); handleCancelUpload(); }}
+                              className="flex items-center gap-1.5 bg-red-600/90 hover:bg-red-700 text-white px-4 py-2 rounded-full text-xs font-bold backdrop-blur-md shadow-[0_4px_10px_rgba(0,0,0,0.5)] transition-all transform hover:scale-105 active:scale-95 cursor-pointer z-30"
+                            >
+                              <X className="w-4 h-4" /> Stop Upload
+                            </button>
+                          </div>
+                        </>
+                      )}
+
+                      {!isUploading && formData.mediaUrls.length === 0 && formData.media[0].type.startsWith('video/') && (
+                        <div className="absolute inset-0 flex items-center justify-center pointer-events-none z-10">
+                          <div className="w-12 h-12 rounded-full bg-black/50 backdrop-blur-sm border border-white/20 flex items-center justify-center">
+                            <div className="w-0 h-0 border-t-8 border-t-transparent border-l-12 border-l-white border-b-8 border-b-transparent ml-1"></div>
+                          </div>
                         </div>
-                      </div>
-                    )}
-                  </div>
+                      )}
+
+                      {!isUploading && formData.mediaUrls.length > 0 && (
+                        <div className="absolute inset-0 bg-green-500/20 backdrop-blur-[2px] flex flex-col items-center justify-center z-20">
+                          <CheckCircle2 className="w-12 h-12 text-green-500 drop-shadow-md mb-2" />
+                          <span className="text-white font-bold drop-shadow-md text-sm">Upload Complete</span>
+                        </div>
+                      )}
+                    </div>
+                  )}
                 </div>
                 {errors.media && <p className="mt-2 text-xs text-red-600">{errors.media}</p>}
               </div>
 
-              {formData.media.length > 0 && formData.mediaUrls.length === 0 && (
-                <div className="mt-4">
-                  <button
-                    type="button" onClick={handleUploadMedia} disabled={isUploading}
-                    className="w-full rounded-xl py-2.5 md:py-3 text-sm md:text-base font-semibold text-white shadow-lg transition-all hover:scale-[1.02] active:scale-[0.98] disabled:opacity-50 disabled:cursor-not-allowed bg-gradient-to-r from-cyan-600 to-teal-600"
-                  >
-                    {isUploading ? t('uploading') : t('upload_files_btn')}
-                  </button>
+              {formData.media.length > 0 && (
+                <div className="flex flex-col gap-3">
+
+                  {/* Primary Upload Button */}
+                  {!isUploading && formData.mediaUrls.length === 0 && (
+                    <button
+                      type="button"
+                      onClick={handleUploadMedia}
+                      className="w-full btn-gradient py-3 rounded-xl text-white font-bold text-sm shadow-md hover:scale-[1.02] active:scale-[0.98] transition-all flex justify-center items-center gap-2"
+                    >
+                      <UploadCloud className="w-5 h-5" />
+                      Upload {formData.media.length} File{formData.media.length > 1 ? 's' : ''} to Cloud
+                    </button>
+                  )}
+
                   {uploadError && (
-                    <div className="mt-2 rounded-lg bg-red-500/10 border border-red-500/20 p-3">
+                    <div className="rounded-lg bg-red-500/10 border border-red-500/20 p-3 text-center">
                       <p className="text-xs text-red-500 font-medium">{uploadError}</p>
                     </div>
                   )}
-                </div>
-              )}
 
-              {formData.mediaUrls.length > 0 && (
-                <div className="mt-4">
-                  <div className="w-full rounded-xl py-4 md:py-6 px-4 bg-green-500/10 border border-green-500/20 text-center">
-                    <div className="flex flex-col items-center gap-1 md:gap-2">
-                      <svg className="w-6 h-6 md:w-8 md:h-8 text-green-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
-                      </svg>
-                      <span className="text-green-600 text-xs md:text-sm font-semibold">{t('img_up_success')}</span>
-                      <span className="text-green-600/80 text-[10px] md:text-xs">{formData.mediaUrls.length} {t('img_ready')}</span>
-                    </div>
-                  </div>
-                </div>
-              )}
-
-              {formData.media.length > 0 && formData.mediaUrls.length === 0 && (
-                <div className="mt-4 md:mt-6">
-                  <h3 className="mb-2 md:mb-3 text-xs md:text-sm font-semibold text-foreground">{t('selected_files')} ({formData.media.length}/3)</h3>
-                  <div className="grid grid-cols-3 gap-2 md:gap-3">
+                  {/* Grid of Thumbnails including "Add More" option */}
+                  <div className="grid grid-cols-5 gap-2 mt-2">
                     {formData.media.map((file, index) => (
-                      <div key={index} className="relative group">
-                        <div className="aspect-square rounded-lg overflow-hidden bg-muted border border-border transition-all hover:border-cyan-600">
-                          <img src={previewUrls[index]} alt={`Preview ${index + 1}`} className="w-full h-full object-cover" />
-                        </div>
-                        <button
-                          type="button" onClick={() => handleRemoveFile(index)}
-                          className="absolute -top-2 -right-2 bg-red-600 text-white rounded-full p-1 opacity-100 md:opacity-0 md:group-hover:opacity-100 transition-opacity hover:bg-red-700 shadow-md z-20"
-                        >
-                          <svg className="w-3 h-3 md:w-4 md:h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-                          </svg>
-                        </button>
+                      <div key={index} className="relative group aspect-square rounded-lg overflow-hidden bg-black transition-all">
+                        <img
+                          src={previewUrls[index]}
+                          alt={`Preview ${index + 1}`}
+                          className="w-full h-full object-cover opacity-80 group-hover:opacity-100 transition-opacity"
+                        />
+                        {/* Always visible Trash Icon on all devices */}
+                        {!isUploading && formData.mediaUrls.length === 0 && (
+                          <button
+                            type="button" onClick={() => handleRemoveFile(index)}
+                            className="absolute -top-1 -right-1 bg-red-600 text-white rounded-full p-1 opacity-100 transition-opacity hover:bg-red-700 shadow-lg z-20 m-1.5"
+                          >
+                            <X className="w-3.5 h-3.5" />
+                          </button>
+                        )}
+                        {file.type.startsWith('video/') && (
+                          <div className="absolute bottom-1 left-1 bg-black/60 rounded px-1">
+                            <span className="text-[8px] font-bold text-white tracking-widest">VIDEO</span>
+                          </div>
+                        )}
                       </div>
                     ))}
+
+                    {/* Integrated Browse/Add More Option */}
+                    {!isUploading && formData.mediaUrls.length === 0 && formData.media.length > 0 && formData.media.length < 3 && (
+                      <label className="relative flex flex-col items-center justify-center aspect-square rounded-lg border-2 border-dashed border-border bg-muted/30 cursor-pointer hover:bg-muted hover:border-cyan-600 transition-all">
+                        <Plus className="w-5 h-5 text-muted-foreground mb-0.5" />
+                        <span className="text-[9px] font-semibold text-muted-foreground uppercase">{t('add_more', 'Add')}</span>
+                        <input type="file" accept="image/*,video/*" multiple className="hidden" onChange={handleFileChange} />
+                      </label>
+                    )}
                   </div>
                 </div>
               )}
 
-              <div className="bg-muted/30 p-4 rounded-xl border border-border">
+              <div className="bg-muted/30 p-4 rounded-xl border border-border mt-4">
                 <label className="flex items-center gap-3 text-sm font-semibold text-foreground cursor-pointer">
                   <input
                     type="checkbox"
@@ -694,15 +845,12 @@ export default function ReportIssue() {
                   />
                   {t('post_anonymously')}
                 </label>
-                <p className="text-[11px] md:text-xs text-muted-foreground ml-7 mt-1">
-                  {t('anon_desc')}
-                </p>
               </div>
 
-              <div className="pt-2 md:pt-4 border-t border-border/50">
+              <div className="pt-4 border-t border-border/50">
                 <button
                   onClick={handleSubmit}
-                  disabled={isSubmitting}
+                  disabled={isSubmitting || formData.media.length === 0 || formData.mediaUrls.length === 0 || isUploading}
                   className="btn-gradient w-full rounded-xl py-3 text-sm md:text-base font-semibold text-white shadow-lg transition-all hover:scale-[1.02] active:scale-[0.98] disabled:opacity-50 disabled:cursor-not-allowed"
                 >
                   {isSubmitting ? t('submitting') : t('submit_issue')}
@@ -717,9 +865,7 @@ export default function ReportIssue() {
                 {submitSuccess && (
                   <div className="mt-3 rounded-lg bg-green-500/10 border border-green-500/20 p-4">
                     <div className="flex items-center gap-2">
-                      <svg className="w-5 h-5 text-green-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
-                      </svg>
+                      <CheckCircle2 className="w-5 h-5 text-green-500" />
                       <p className="text-sm text-green-500 font-semibold">{t('issue_submit_success')}</p>
                     </div>
                     <p className="text-xs text-green-600/80 mt-1.5 ml-7">{t('issue_review_shortly')}</p>

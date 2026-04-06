@@ -1,4 +1,4 @@
-import { MapPin, ShieldCheck, User, AlertTriangle, ChevronLeft, ChevronRight, Flag, Copy, Check, Bookmark, CheckCircle2 } from "lucide-react";
+import { MapPin, ShieldCheck, User, AlertTriangle, ChevronLeft, ChevronRight, Flag, Copy, Check, Bookmark, CheckCircle2, PlayCircle } from "lucide-react";
 import { useState, useEffect } from "react";
 import { useSelector } from "react-redux";
 import axiosInstance from "../utils/axios";
@@ -13,9 +13,32 @@ const WhatsappIcon = ({ size = 20, className = "" }) => (
 
 const IssueCard = ({ issue, onClick, onFlagClick }) => {
   const { t } = useTranslation();
-  const [currentImageIndex, setCurrentImageIndex] = useState(0);
+
+  // 1. EXTRACT DATA FIRST
+  const {
+    _id, status, category, title, description, location,
+    confirmationCount, impactScore, impact, isVerified, priority,
+    reportedBy, isAnonymous, media, thumbnails, dateOfFormation, createdAt, shareCount,
+    confirmations, hasConfirmed
+  } = issue || {};
+
+  // 2. PROCESS MEDIA TO FIND THE VIDEO
+  const validMedia = Array.isArray(media) ? media.map(m => typeof m === 'string' ? { url: m } : m).filter(m => m && m.url) : [];
+  const hasMedia = validMedia.length > 0;
+  const mediaCount = validMedia.length;
+  const hasMultipleMedia = mediaCount > 1;
+
+  // Find the index of the first video in the array (returns -1 if no video exists)
+  const firstVideoIndex = validMedia.findIndex(m => m.url?.match(/\.(mp4|webm|ogg)$/i) || m.type?.startsWith('video/'));
+  const hasVideoAnywhere = firstVideoIndex !== -1;
+
+  // 3. INITIALIZE STATE WITH VIDEO INDEX (Defaults to 0 if no video)
+  const [currentImageIndex, setCurrentImageIndex] = useState(hasVideoAnywhere ? firstVideoIndex : 0);
+
   const [confirmLoading, setConfirmLoading] = useState(false);
   const [isPaused, setIsPaused] = useState(false);
+  const [isVideoPlaying, setIsVideoPlaying] = useState(false);
+  const [loadedVideos, setLoadedVideos] = useState({});
 
   const currentUser = useSelector((state) => state.auth?.user);
 
@@ -25,25 +48,16 @@ const IssueCard = ({ issue, onClick, onFlagClick }) => {
   const [isSaved, setIsSaved] = useState(false);
   const [isConfirmedByUser, setIsConfirmedByUser] = useState(false);
 
-  const {
-    _id, status, category, title, description, location,
-    confirmationCount, impactScore, impact, isVerified, priority,
-    reportedBy, isAnonymous, media, dateOfFormation, createdAt, shareCount,
-    confirmations, hasConfirmed
-  } = issue || {};
-
   useEffect(() => {
     setLocalConfirmationCount(confirmationCount || 0);
     setLocalShareCount(shareCount || 0);
 
     if (currentUser && currentUser._id) {
       const currentUserId = String(currentUser._id);
-
       if (hasConfirmed === true || issue.isConfirmed === true) {
         setIsConfirmedByUser(true);
         return;
       }
-
       if (Array.isArray(confirmations)) {
         const confirmed = confirmations.some((conf) => {
           const confId = conf?.user?._id || conf?.user || conf?._id || conf;
@@ -54,18 +68,14 @@ const IssueCard = ({ issue, onClick, onFlagClick }) => {
     }
   }, [confirmationCount, shareCount, currentUser, confirmations, hasConfirmed, issue]);
 
-  const validMedia = Array.isArray(media) ? media.map(m => typeof m === 'string' ? { url: m } : m).filter(m => m && m.url) : [];
-  const hasMedia = validMedia.length > 0;
-  const mediaCount = validMedia.length;
-  const hasMultipleMedia = mediaCount > 1;
-
+  // Disable Auto-Slider if a video exists anywhere in the post
   useEffect(() => {
     let interval;
-    if (hasMultipleMedia && !isPaused) {
+    if (hasMultipleMedia && !hasVideoAnywhere && !isPaused) {
       interval = setInterval(() => setCurrentImageIndex((prev) => (prev + 1) % mediaCount), 3000);
     }
     return () => { if (interval) clearInterval(interval); };
-  }, [hasMultipleMedia, mediaCount, isPaused]);
+  }, [hasMultipleMedia, mediaCount, isPaused, hasVideoAnywhere]);
 
   const getColorFromStatus = (status) => {
     switch (status?.toUpperCase()) {
@@ -87,6 +97,12 @@ const IssueCard = ({ issue, onClick, onFlagClick }) => {
 
   const handlePrevious = (e) => { e.stopPropagation(); if (hasMultipleMedia) setCurrentImageIndex((prev) => (prev - 1 + mediaCount) % mediaCount); };
   const handleNext = (e) => { e.stopPropagation(); if (hasMultipleMedia) setCurrentImageIndex((prev) => (prev + 1) % mediaCount); };
+
+  const handleVideoPlayClick = (e, index) => {
+    e.stopPropagation();
+    setLoadedVideos(prev => ({ ...prev, [index]: true }));
+    setIsVideoPlaying(true);
+  };
 
   const incrementShare = async () => { try { await axiosInstance.put(`/issue/${_id}/share`); } catch (err) { console.log("Share updated", err.message); } };
 
@@ -118,19 +134,14 @@ const IssueCard = ({ issue, onClick, onFlagClick }) => {
       const coords = JSON.parse(localStorage.getItem('cached_geo_location')) || JSON.parse(localStorage.getItem('currentLocation'));
       let url = `/issue/${_id}/confirm`;
       if (coords?.longitude && coords?.latitude) url += `?lng=${coords.longitude}&lat=${coords.latitude}`;
-
       const response = await axiosInstance.post(url);
-
       if (!isConfirmedByUser && response.data?.success) {
         setLocalConfirmationCount(prev => prev + 1);
         setIsConfirmedByUser(true);
       }
-
       showToast({ icon: 'success', title: response.data?.message || t('issue_confirmed_success') });
-
     } catch (error) {
       const errorMsg = error.response?.data?.message?.toLowerCase() || "";
-
       if (errorMsg.includes("already") || errorMsg.includes("confirmed")) {
         setIsConfirmedByUser(true);
         showToast({ icon: 'info', title: error.response?.data?.message || t('already_confirmed') });
@@ -160,6 +171,7 @@ const IssueCard = ({ issue, onClick, onFlagClick }) => {
 
   return (
     <div className="glass-card p-4 md:p-5 rounded-xl hover:shadow-lg transition-all cursor-pointer flex flex-col h-full border border-border/50 overflow-hidden" onClick={onClick}>
+
       <div className="flex justify-between items-start mb-3 gap-2">
         <div className="flex gap-1.5 md:gap-2 flex-wrap">
           <span className={`text-[10px] md:text-xs px-2.5 py-1 rounded-full font-bold ${colors[color]}`}>{t(status?.toLowerCase() || 'open')}</span>
@@ -177,16 +189,57 @@ const IssueCard = ({ issue, onClick, onFlagClick }) => {
         </div>
       </div>
 
-      <h4 className="font-semibold text-base md:text-lg text-foreground mb-1.5 md:mb-2 line-clamp-2">{title}</h4>
-      <p className="text-xs md:text-sm text-muted-foreground mb-3 leading-relaxed flex-grow">{truncateDescription(description)}</p>
-
       {hasMedia && (
-        <div className="relative group mb-3 md:mb-4 overflow-hidden rounded-lg bg-muted flex-shrink-0" onMouseEnter={() => setIsPaused(true)} onMouseLeave={() => setIsPaused(false)}>
+        <div className="relative group mb-3 overflow-hidden rounded-lg bg-black flex-shrink-0" onMouseEnter={() => setIsPaused(true)} onMouseLeave={() => setIsPaused(false)}>
           <div className="relative h-40 sm:h-56 w-full overflow-hidden">
-            {isVideo ? <video key={displayImage} src={displayImage} className="w-full h-full object-cover" controls poster={displayImage} /> : <img key={displayImage} src={displayImage} alt="issue" className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-105" />}
-            <div className="absolute inset-0 bg-gradient-to-t from-black/30 via-transparent to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300 pointer-events-none" />
+            {isVideo ? (
+              loadedVideos[currentImageIndex] ? (
+                // ACTUAL VIDEO LOADED
+                <video
+                  src={displayImage}
+                  className="w-full h-full object-contain bg-black animate-in fade-in duration-300"
+                  controls
+                  autoPlay
+                  playsInline
+                  onPlay={(e) => { e.stopPropagation(); setIsVideoPlaying(true); }}
+                  onPause={(e) => { e.stopPropagation(); setIsVideoPlaying(false); }}
+                  onEnded={(e) => { e.stopPropagation(); setIsVideoPlaying(false); }}
+                  onClick={(e) => e.stopPropagation()}
+                />
+              ) : (
+                // 🚀 FROZEN VIDEO FACADE (Solves the empty poster issue!)
+                <div
+                  className="w-full h-full relative cursor-pointer flex items-center justify-center bg-black group-hover:opacity-90 transition-opacity"
+                  onClick={(e) => handleVideoPlayClick(e, currentImageIndex)}
+                >
+                  <video
+                    src={`${displayImage}#t=0.001`}
+                    preload="metadata"
+                    className="w-full h-full object-cover opacity-80 pointer-events-none"
+                    muted
+                    playsInline
+                  />
+                  <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
+                    <div className="w-12 h-12 rounded-full bg-black/50 backdrop-blur-sm border border-white/30 flex items-center justify-center shadow-xl transition-transform group-hover:scale-110 group-hover:bg-primary">
+                      <PlayCircle className="w-8 h-8 text-white group-hover:text-primary-foreground transition-colors" />
+                    </div>
+                  </div>
+                </div>
+              )
+            ) : (
+              <img
+                src={displayImage}
+                alt="issue"
+                className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-105"
+              />
+            )}
+
+            {!loadedVideos[currentImageIndex] && (
+              <div className="absolute inset-0 bg-gradient-to-t from-black/50 via-transparent to-transparent pointer-events-none" />
+            )}
           </div>
-          {hasMultipleMedia && (
+
+          {hasMultipleMedia && !loadedVideos[currentImageIndex] && (
             <>
               <button onClick={handlePrevious} className="absolute left-2 md:left-3 top-1/2 -translate-y-1/2 text-white p-1.5 md:p-2 opacity-100 md:opacity-0 md:group-hover:opacity-100 transition-all duration-300 hover:scale-110 active:scale-95 z-10 drop-shadow-lg bg-black/20 md:bg-transparent rounded-full"><ChevronLeft size={24} strokeWidth={2.5} /></button>
               <button onClick={handleNext} className="absolute right-2 md:right-3 top-1/2 -translate-y-1/2 text-white p-1.5 md:p-2 opacity-100 md:opacity-0 md:group-hover:opacity-100 transition-all duration-300 hover:scale-110 active:scale-95 z-10 drop-shadow-lg bg-black/20 md:bg-transparent rounded-full"><ChevronRight size={24} strokeWidth={2.5} /></button>
@@ -198,6 +251,9 @@ const IssueCard = ({ issue, onClick, onFlagClick }) => {
           )}
         </div>
       )}
+
+      <h4 className="font-semibold text-base md:text-lg text-foreground mb-1.5 md:mb-2 line-clamp-2">{title}</h4>
+      <p className="text-xs md:text-sm text-muted-foreground mb-3 leading-relaxed flex-grow">{truncateDescription(description)}</p>
 
       <div className="flex flex-col gap-2 text-[11px] md:text-sm text-muted-foreground mb-3 md:mb-4">
         <div className="flex items-center gap-1.5 md:gap-2 line-clamp-1"><MapPin size={14} className="flex-shrink-0 text-primary" /><span className="truncate">{typeof location === 'string' ? location : location?.address || location?.city || t('location_not_specified')}</span></div>

@@ -1,5 +1,5 @@
-import { X, MapPin, User, AlertTriangle, Calendar, ShieldCheck, ChevronLeft, ChevronRight, Play, Flag, CheckCircle2, FileText, Copy, Check } from "lucide-react";
-import { useState, useEffect } from "react";
+import { X, MapPin, User, AlertTriangle, Calendar, ShieldCheck, ChevronLeft, ChevronRight, Flag, CheckCircle2, FileText, Copy, Check } from "lucide-react";
+import { useState, useEffect, useRef } from "react";
 import { useSelector } from "react-redux";
 import axiosInstance from "../utils/axios";
 import { showToast } from "../utils/toast";
@@ -27,6 +27,8 @@ const IssueDetail = ({ issue, isOpen, onClose, hideConfirm = false, isAdminView 
   const [currentMediaIndex, setCurrentMediaIndex] = useState(0);
   const [confirmLoading, setConfirmLoading] = useState(false);
 
+  const videoRef = useRef(null); // 🚀 Add reference for the video player
+
   const currentUser = useSelector((state) => state.auth?.user);
 
   const [localShareCount, setLocalShareCount] = useState(0);
@@ -47,7 +49,12 @@ const IssueDetail = ({ issue, isOpen, onClose, hideConfirm = false, isAdminView 
 
   useEffect(() => {
     if (isOpen && issue) {
-      setCurrentMediaIndex(0);
+      // 🚀 Find if a video exists to set it as the first slide
+      const vMedia = Array.isArray(issue.media) ? issue.media.map(m => typeof m === 'string' ? { url: m } : m).filter(m => m && m.url) : [];
+      const firstVideoIndex = vMedia.findIndex(m => m.url?.match(/\.(mp4|webm|ogg)$/i) || m.type?.startsWith('video/'));
+
+      setCurrentMediaIndex(firstVideoIndex !== -1 ? firstVideoIndex : 0);
+
       setLocalShareCount(issue.shareCount || 0);
       setLocalFlagCount(issue.flagCount || 0);
       setLocalConfirmationCount(issue.confirmationCount || 0);
@@ -108,6 +115,14 @@ const IssueDetail = ({ issue, isOpen, onClose, hideConfirm = false, isAdminView 
   const currentMedia = hasMedia ? validMedia[currentMediaIndex] : null;
   const displayImage = currentMedia ? currentMedia.url : null;
   const isVideo = displayImage && (displayImage.match(/\.(mp4|webm|ogg)$/i) || currentMedia?.type?.startsWith('video/'));
+
+  // 🚀 Explicitly trigger autoplay when modal opens or media changes
+  useEffect(() => {
+    if (isOpen && isVideo && videoRef.current) {
+      videoRef.current.currentTime = 0;
+      videoRef.current.play().catch(err => console.warn("Browser blocked autoplay in modal:", err));
+    }
+  }, [isOpen, currentMediaIndex, isVideo]);
 
   const handlePrevious = (e) => { e.stopPropagation(); if (hasMultipleMedia) setCurrentMediaIndex((prev) => (prev - 1 + mediaCount) % mediaCount); };
   const handleNext = (e) => { e.stopPropagation(); if (hasMultipleMedia) setCurrentMediaIndex((prev) => (prev + 1) % mediaCount); };
@@ -253,7 +268,17 @@ const IssueDetail = ({ issue, isOpen, onClose, hideConfirm = false, isAdminView 
                     {hasMedia ? (
                       <div className="relative group overflow-hidden rounded-2xl bg-muted border border-border/50 h-[220px] sm:h-[300px] lg:h-[360px] w-full shadow-sm">
                         {isVideo ? (
-                          <video key={displayImage} src={displayImage} className="w-full h-full object-cover" controls poster={displayImage} />
+                          <video
+                            ref={videoRef} // 🚀 Added Ref for explicit play control
+                            key={displayImage}
+                            src={displayImage}
+                            className="w-full h-full object-cover bg-black"
+                            controls
+                            autoPlay
+                            muted
+                            playsInline
+                            preload="metadata"
+                          />
                         ) : (
                           <img key={displayImage} src={displayImage} alt="issue" className="w-full h-full object-cover transition-transform duration-700 group-hover:scale-105" />
                         )}
@@ -271,14 +296,6 @@ const IssueDetail = ({ issue, isOpen, onClose, hideConfirm = false, isAdminView 
                               {currentMediaIndex + 1} / {mediaCount}
                             </div>
                           </>
-                        )}
-
-                        {isVideo && (
-                          <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
-                            <div className="bg-black/50 backdrop-blur-md rounded-full p-5 shadow-lg border border-white/10">
-                              <Play size={36} className="text-white fill-white ml-1" />
-                            </div>
-                          </div>
                         )}
                       </div>
                     ) : (

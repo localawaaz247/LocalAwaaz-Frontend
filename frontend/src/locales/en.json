@@ -374,5 +374,14 @@
     "faq_q5": "How is my Civil Score calculated?",
     "faq_a5": "Your Civil Score increases when you actively participate in the community. You earn points for reporting genuine issues, having your issues confirmed by others, and verifying other people's reports.",
     "faq_q6": "Who can see my location?",
-    "faq_a6": "Your exact live location is never shared. Only the location of the issue you report is made public so that others can verify it and authorities can resolve it."
+    "faq_a6": "Your exact live location is never shared. Only the location of the issue you report is made public so that others can verify it and authorities can resolve it.",
+    "captured": "Captured",
+    "add_media": "Add Photos / Videos",
+    "camera": "Camera",
+    "browse": "Browse Files",
+    "add_more": "Add",
+    "ai_only_images": "Only images can be analyzed as of now.",
+    "invalid_media_type": "Only JPG, PNG, and Videos are allowed.",
+    "processing_media": "Processing media...",
+    "upload_cancelled": "Upload was cancelled."
 }

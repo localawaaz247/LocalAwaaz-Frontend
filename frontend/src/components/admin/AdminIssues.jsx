@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import axiosInstance from '../../utils/axios';
 import { showToast } from '../../utils/toast';
 import { MapPin, X, User, FileText, ChevronLeft, ChevronRight, CheckCircle, AlertTriangle, Trash2 } from 'lucide-react';
@@ -21,6 +21,13 @@ const AdminIssues = () => {
     const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
     const [isDeleting, setIsDeleting] = useState(false);
 
+    const videoRef = useRef(null);
+
+    // 🚀 Swipe-to-Dismiss State & Refs
+    const [dragY, setDragY] = useState(0);
+    const [isDragging, setIsDragging] = useState(false);
+    const touchStartY = useRef(0);
+
     const FILTER_STATUS_OPTIONS = [
         { value: '', label: 'All Statuses' },
         { value: 'OPEN', label: 'Open' },
@@ -30,10 +37,10 @@ const AdminIssues = () => {
     ];
 
     const UPDATE_STATUS_OPTIONS = [
-        { value: 'OPEN', label: 'OPEN (Requires Attention)' },
-        { value: 'IN_REVIEW', label: 'IN REVIEW (Action Initiated)' },
-        { value: 'RESOLVED', label: 'RESOLVED (Issue Fixed)' },
-        { value: 'REJECTED', label: 'REJECTED (Invalid/Spam)' }
+        { value: 'OPEN', label: 'OPEN (Attention)' },
+        { value: 'IN_REVIEW', label: 'IN REVIEW (Initiated)' },
+        { value: 'RESOLVED', label: 'RESOLVED (Fixed)' },
+        { value: 'REJECTED', label: 'REJECTED (Spam)' }
     ];
 
     useEffect(() => {
@@ -46,6 +53,16 @@ const AdminIssues = () => {
         else document.body.style.overflow = 'unset';
         return () => { document.body.style.overflow = 'unset'; };
     }, [selectedIssue, showDeleteConfirm]);
+
+    const currentMedia = selectedIssue?.media?.[currentMediaIndex];
+    const isVideo = currentMedia?.url?.match(/\.(mp4|webm|ogg)$/i);
+
+    useEffect(() => {
+        if (isModalVisible && isVideo && videoRef.current) {
+            videoRef.current.currentTime = 0;
+            videoRef.current.play().catch(err => console.warn("Autoplay blocked:", err));
+        }
+    }, [isModalVisible, currentMediaIndex, isVideo]);
 
     const fetchIssues = async () => {
         try {
@@ -86,14 +103,51 @@ const AdminIssues = () => {
     const openModal = (issue) => {
         setSelectedIssue(issue);
         setUpdateData({ status: issue.status, adminRemark: issue.adminRemark || '' });
-        setCurrentMediaIndex(0);
+        setDragY(0);
+
+        const vMedia = Array.isArray(issue.media) ? issue.media : [];
+        const firstVideoIndex = vMedia.findIndex(m => m.url?.match(/\.(mp4|webm|ogg)$/i));
+        setCurrentMediaIndex(firstVideoIndex !== -1 ? firstVideoIndex : 0);
+
         setTimeout(() => setIsModalVisible(true), 10);
     };
 
     const closeModal = () => {
         setIsModalVisible(false);
         setShowDeleteConfirm(false);
-        setTimeout(() => setSelectedIssue(null), 300);
+        setDragY(0);
+        setTimeout(() => {
+            setSelectedIssue(null);
+            setIsDragging(false);
+        }, 300);
+    };
+
+    // 🚀 Swipe-to-Dismiss Handlers
+    const handleTouchStart = (e) => {
+        if (e.target.closest('button')) return;
+        touchStartY.current = e.touches[0].clientY;
+        setIsDragging(true);
+    };
+
+    const handleTouchMove = (e) => {
+        if (!isDragging) return;
+        const currentY = e.touches[0].clientY;
+        const deltaY = currentY - touchStartY.current;
+
+        if (deltaY > 0) {
+            setDragY(deltaY);
+        }
+    };
+
+    const handleTouchEnd = () => {
+        if (!isDragging) return;
+        setIsDragging(false);
+
+        if (dragY > 150) {
+            closeModal();
+        } else {
+            setDragY(0);
+        }
     };
 
     const statusColors = {
@@ -105,9 +159,10 @@ const AdminIssues = () => {
 
     return (
         <div className="space-y-4 md:space-y-6 animate-fade-in relative flex flex-col h-full">
-            <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3 md:gap-4">
-                <h2 className="text-xl md:text-2xl font-bold text-foreground">Issue Management</h2>
-                <div className="flex flex-col sm:flex-row gap-2 md:gap-3 w-full sm:w-auto">
+            {/* Header & Filters */}
+            <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-3">
+                <h2 className="text-lg md:text-2xl font-bold text-foreground">Issue Management</h2>
+                <div className="flex flex-col sm:flex-row gap-2.5 w-full md:w-auto">
                     <div className="relative w-full sm:w-48">
                         <MapPin className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
                         <input
@@ -115,10 +170,10 @@ const AdminIssues = () => {
                             placeholder="Filter by City"
                             value={filters.city}
                             onChange={(e) => setFilters({ ...filters, city: e.target.value })}
-                            className="w-full pl-9 pr-4 py-2 md:py-2.5 bg-card border border-border/50 rounded-lg md:rounded-xl text-sm focus:border-primary outline-none transition-colors text-foreground"
+                            className="w-full pl-9 pr-4 py-2 md:py-2.5 bg-card border border-border/50 rounded-lg md:rounded-xl text-[11px] md:text-sm focus:border-primary outline-none transition-colors text-foreground"
                         />
                     </div>
-                    <div className="w-full sm:w-auto">
+                    <div className="w-full sm:w-40 md:w-48">
                         <CustomSelect
                             options={FILTER_STATUS_OPTIONS}
                             value={filters.status}
@@ -128,36 +183,38 @@ const AdminIssues = () => {
                 </div>
             </div>
 
+            {/* Main Table Content */}
             <div className="bg-card glass-card border border-border/50 rounded-xl md:rounded-2xl overflow-hidden shadow-lg flex-1 flex flex-col min-h-0">
-                <div className="overflow-x-auto thin-scrollbar flex-1">
+                <div className="overflow-x-auto thin-scrollbar overscroll-x-contain flex-1">
                     <table className="w-full text-left whitespace-nowrap">
-                        <thead className="bg-muted/30 border-b border-border/50 sticky top-0 z-10">
-                            <tr className="text-muted-foreground text-xs md:text-sm">
-                                <th className="py-3 px-4 md:py-4 md:px-6 font-medium">Title</th>
-                                <th className="py-3 px-4 md:py-4 md:px-6 font-medium hidden sm:table-cell">Category</th>
-                                <th className="py-3 px-4 md:py-4 md:px-6 font-medium">Status</th>
-                                <th className="py-3 px-4 md:py-4 md:px-6 font-medium hidden md:table-cell">Location</th>
-                                <th className="py-3 px-4 md:py-4 md:px-6 font-medium text-right">Actions</th>
+                        {/* 🚀 FIXED: Changed transparent bg-muted/30 to bg-card/95 backdrop-blur-md and increased z-index */}
+                        <thead className="bg-card/95 backdrop-blur-md border-b border-border/50 sticky top-0 z-20">
+                            <tr className="text-muted-foreground text-[10px] md:text-sm">
+                                <th className="py-2.5 px-3 md:py-4 md:px-6 font-medium">Title</th>
+                                <th className="py-2.5 px-3 md:py-4 md:px-6 font-medium hidden sm:table-cell">Category</th>
+                                <th className="py-2.5 px-3 md:py-4 md:px-6 font-medium">Status</th>
+                                <th className="py-2.5 px-3 md:py-4 md:px-6 font-medium hidden md:table-cell">Location</th>
+                                <th className="py-2.5 px-3 md:py-4 md:px-6 font-medium text-right">Actions</th>
                             </tr>
                         </thead>
                         <tbody className="divide-y divide-border/50">
                             {loading ? (
-                                <tr><td colSpan="5" className="p-6 md:p-8 text-center text-sm text-muted-foreground">Loading issues...</td></tr>
+                                <tr><td colSpan="5" className="p-6 md:p-8 text-center text-xs md:text-sm text-muted-foreground">Loading issues...</td></tr>
                             ) : issues.length === 0 ? (
-                                <tr><td colSpan="5" className="p-6 md:p-8 text-center text-sm text-muted-foreground">No issues found.</td></tr>
+                                <tr><td colSpan="5" className="p-6 md:p-8 text-center text-xs md:text-sm text-muted-foreground">No issues found.</td></tr>
                             ) : (
                                 issues.map((issue) => (
                                     <tr key={issue._id} className="hover:bg-primary/5 transition-colors">
-                                        <td className="py-3 px-4 md:py-4 md:px-6 text-xs md:text-sm font-medium text-foreground max-w-[150px] md:max-w-[250px] truncate">{issue.title}</td>
-                                        <td className="py-3 px-4 md:py-4 md:px-6 text-xs md:text-sm text-muted-foreground hidden sm:table-cell">{issue.category}</td>
-                                        <td className="py-3 px-4 md:py-4 md:px-6">
-                                            <span className={`px-2 py-1 md:px-3 md:py-1 rounded-full text-[10px] md:text-xs font-semibold border ${statusColors[issue.status] || statusColors.OPEN}`}>
+                                        <td className="py-3 px-3 md:py-4 md:px-6 text-[11px] md:text-sm font-medium text-foreground max-w-[120px] sm:max-w-[200px] md:max-w-[250px] truncate">{issue.title}</td>
+                                        <td className="py-3 px-3 md:py-4 md:px-6 text-[11px] md:text-sm text-muted-foreground hidden sm:table-cell">{issue.category}</td>
+                                        <td className="py-3 px-3 md:py-4 md:px-6">
+                                            <span className={`px-2 py-0.5 md:px-3 md:py-1 rounded-full text-[9px] md:text-xs font-semibold border ${statusColors[issue.status] || statusColors.OPEN}`}>
                                                 {issue.status}
                                             </span>
                                         </td>
-                                        <td className="py-3 px-4 md:py-4 md:px-6 text-xs md:text-sm text-muted-foreground hidden md:table-cell">{issue.location?.city}</td>
-                                        <td className="py-3 px-4 md:py-4 md:px-6 text-right">
-                                            <button onClick={() => openModal(issue)} className="text-[10px] md:text-xs px-3 py-1.5 md:px-4 md:py-2 bg-primary/10 border border-primary/20 text-primary rounded-md md:rounded-lg hover:bg-primary/20 transition-colors font-medium">
+                                        <td className="py-3 px-3 md:py-4 md:px-6 text-[11px] md:text-sm text-muted-foreground hidden md:table-cell">{issue.location?.city}</td>
+                                        <td className="py-3 px-3 md:py-4 md:px-6 text-right">
+                                            <button onClick={() => openModal(issue)} className="text-[10px] md:text-xs px-2.5 py-1.5 md:px-4 md:py-2 bg-primary/10 border border-primary/20 text-primary rounded-md md:rounded-lg hover:bg-primary/20 transition-colors font-medium">
                                                 Manage
                                             </button>
                                         </td>
@@ -169,117 +226,150 @@ const AdminIssues = () => {
                 </div>
             </div>
 
+            {/* Pagination Controls */}
             {totalPages > 1 && (
-                <div className="flex justify-between items-center text-xs md:text-sm text-muted-foreground pt-2">
+                <div className="flex justify-between items-center text-[10px] md:text-sm text-muted-foreground pt-1 md:pt-2">
                     <span>Page {page} of {totalPages}</span>
                     <div className="space-x-1.5 md:space-x-2">
-                        <button disabled={page === 1} onClick={() => setPage(p => p - 1)} className="px-3 py-1.5 md:px-4 md:py-2 bg-card glass-card border border-border/50 rounded-lg md:rounded-xl disabled:opacity-50 hover:bg-muted transition-colors">Prev</button>
-                        <button disabled={page === totalPages} onClick={() => setPage(p => p + 1)} className="px-3 py-1.5 md:px-4 md:py-2 bg-card glass-card border border-border/50 rounded-lg md:rounded-xl disabled:opacity-50 hover:bg-muted transition-colors">Next</button>
+                        <button disabled={page === 1} onClick={() => setPage(p => p - 1)} className="px-2.5 py-1.5 md:px-4 md:py-2 bg-card glass-card border border-border/50 rounded-md md:rounded-xl disabled:opacity-50 hover:bg-muted transition-colors">Prev</button>
+                        <button disabled={page === totalPages} onClick={() => setPage(p => p + 1)} className="px-2.5 py-1.5 md:px-4 md:py-2 bg-card glass-card border border-border/50 rounded-md md:rounded-xl disabled:opacity-50 hover:bg-muted transition-colors">Next</button>
                     </div>
                 </div>
             )}
 
+            {/* Modal Overlay */}
             {selectedIssue && (
-                <div className="fixed inset-0 z-[100] flex items-end sm:items-center justify-center sm:p-6">
+                <div className="fixed inset-0 z-[100] flex items-end sm:items-center justify-center sm:p-4 md:p-6">
                     <div
                         className={`absolute inset-0 bg-black/80 backdrop-blur-sm transition-opacity duration-300 ease-in-out ${isModalVisible ? 'opacity-100' : 'opacity-0'}`}
                         onClick={closeModal}
                     />
 
+                    {/* Modal Container */}
                     <div
-                        className={`relative bg-card border-t sm:border border-border/50 rounded-t-3xl sm:rounded-2xl w-full max-w-5xl shadow-2xl flex flex-col max-h-[82vh] sm:max-h-[90vh] overflow-hidden transform transition-all duration-300 ease-out ${isModalVisible
-                            ? 'translate-y-0 sm:scale-100 opacity-100'
-                            : 'translate-y-full sm:translate-y-8 sm:scale-95 opacity-0'
+                        className={`relative bg-background sm:border border-border/50 rounded-t-3xl sm:rounded-2xl w-full max-w-6xl shadow-2xl flex flex-col max-h-[85dvh] h-full sm:h-[85vh] overflow-hidden ${isDragging ? '' : 'transform transition-all duration-300 ease-out'
+                            } ${isModalVisible
+                                ? (dragY > 0 ? 'opacity-100' : 'translate-y-0 sm:scale-100 opacity-100')
+                                : 'translate-y-full sm:translate-y-8 sm:scale-95 opacity-0'
                             }`}
+                        style={dragY > 0 ? { transform: `translateY(${dragY}px)` } : {}}
                         onClick={e => e.stopPropagation()}
                     >
 
-                        <div className="flex justify-between items-center p-4 md:p-5 border-b border-border/50 bg-muted/20 shrink-0">
-                            <div className="flex items-center gap-2">
-                                <span className={`px-2.5 py-1 rounded-full text-[10px] font-bold uppercase tracking-wider ${statusColors[selectedIssue.status] || statusColors.OPEN}`}>
-                                    {selectedIssue.status}
-                                </span>
-                                <span className="px-2.5 py-1 rounded-full border border-border/50 text-muted-foreground text-[10px] font-bold uppercase tracking-wider hidden sm:inline-block">
-                                    {selectedIssue.category}
-                                </span>
-                            </div>
-                            <div className="flex items-center gap-2">
-                                <button
-                                    onClick={() => setShowDeleteConfirm(true)}
-                                    title="Delete Issue"
-                                    className="p-2 md:p-1.5 rounded-full bg-red-500/10 text-red-500 hover:bg-red-500 hover:text-white transition-colors"
-                                >
-                                    <Trash2 size={18} />
-                                </button>
-                                <button onClick={closeModal} className="p-2 md:p-1.5 rounded-full bg-muted/50 text-muted-foreground hover:text-foreground hover:bg-muted transition-colors">
-                                    <X size={20} />
-                                </button>
+                        {/* Interactive Drag Header Wrapper */}
+                        <div
+                            className="shrink-0 touch-none select-none sm:cursor-default"
+                            onTouchStart={handleTouchStart}
+                            onTouchMove={handleTouchMove}
+                            onTouchEnd={handleTouchEnd}
+                        >
+                            <div className="w-10 h-1.5 bg-border/80 rounded-full mx-auto mt-3 sm:hidden cursor-grab active:cursor-grabbing"></div>
+
+                            {/* Modal Header */}
+                            <div className="flex justify-between items-center p-3 px-4 md:p-5 border-b border-border/50 sm:bg-muted/20">
+                                <div className="flex items-center gap-2 mt-1 sm:mt-0">
+                                    <span className={`px-2.5 py-1 md:px-2.5 md:py-1 rounded-full text-[10px] font-bold uppercase tracking-wider border ${statusColors[selectedIssue.status] || statusColors.OPEN}`}>
+                                        {selectedIssue.status}
+                                    </span>
+                                    <span className="px-2.5 py-1 md:px-2.5 md:py-1 rounded-full border border-border/50 text-muted-foreground text-[10px] font-bold uppercase tracking-wider hidden sm:inline-block">
+                                        {selectedIssue.category}
+                                    </span>
+                                </div>
+                                <div className="flex items-center gap-2 mt-1 sm:mt-0">
+                                    <button
+                                        onClick={() => setShowDeleteConfirm(true)}
+                                        title="Delete Issue"
+                                        className="p-2 rounded-full bg-red-500/10 text-red-500 hover:bg-red-500 hover:text-white transition-colors"
+                                    >
+                                        <Trash2 size={18} className="md:w-[18px] md:h-[18px]" />
+                                    </button>
+                                    <button onClick={closeModal} className="p-2 rounded-full bg-muted/50 text-muted-foreground hover:text-foreground hover:bg-muted transition-colors z-10">
+                                        <X size={20} className="md:w-[20px] md:h-[20px]" />
+                                    </button>
+                                </div>
                             </div>
                         </div>
 
-                        <div className="flex flex-col lg:flex-row flex-1 overflow-y-auto thin-scrollbar">
-                            <div className="flex-1 p-4 md:p-6 space-y-4 md:space-y-6">
-                                <h3 className="text-xl md:text-2xl font-bold text-foreground">{selectedIssue.title}</h3>
+                        {/* Modal Body */}
+                        <div className="flex flex-col lg:flex-row flex-1 min-h-0 overflow-y-auto lg:overflow-hidden thin-scrollbar pb-6 sm:pb-0">
 
-                                <div className="w-full bg-black/20 rounded-xl border border-border/50 overflow-hidden relative flex items-center justify-center">
+                            {/* LEFT SIDE (Details) */}
+                            <div className="flex-1 p-4 md:p-6 space-y-4 lg:overflow-y-auto thin-scrollbar">
+                                <h3 className="text-lg md:text-2xl font-bold text-foreground leading-tight">{selectedIssue.title}</h3>
+
+                                <div className="w-full bg-black/10 dark:bg-black/30 rounded-xl border border-border/50 overflow-hidden relative flex items-center justify-center h-[220px] sm:h-[350px] lg:h-[400px]">
                                     {selectedIssue.media && selectedIssue.media.length > 0 ? (
                                         <>
                                             {selectedIssue.media[currentMediaIndex].url?.match(/\.(mp4|webm|ogg)$/i) ? (
-                                                <video src={selectedIssue.media[currentMediaIndex].url} className="w-full max-h-[300px] md:max-h-[400px] object-contain" controls />
+                                                <video
+                                                    ref={videoRef}
+                                                    src={selectedIssue.media[currentMediaIndex].url}
+                                                    className="w-full h-full object-contain bg-black"
+                                                    controls autoPlay muted playsInline
+                                                />
                                             ) : (
-                                                <img src={selectedIssue.media[currentMediaIndex].url} alt="issue" className="w-full max-h-[300px] md:max-h-[400px] object-contain" />
+                                                <img
+                                                    src={selectedIssue.media[currentMediaIndex].url}
+                                                    alt="issue"
+                                                    className="w-full h-full object-contain"
+                                                />
                                             )}
+
                                             {selectedIssue.media.length > 1 && (
                                                 <>
-                                                    <button onClick={() => setCurrentMediaIndex((prev) => (prev - 1 + selectedIssue.media.length) % selectedIssue.media.length)} className="absolute left-2 top-1/2 -translate-y-1/2 p-2 bg-black/60 rounded-full text-white hover:bg-black/80 transition-colors"><ChevronLeft size={18} /></button>
-                                                    <button onClick={() => setCurrentMediaIndex((prev) => (prev + 1) % selectedIssue.media.length)} className="absolute right-2 top-1/2 -translate-y-1/2 p-2 bg-black/60 rounded-full text-white hover:bg-black/80 transition-colors"><ChevronRight size={18} /></button>
+                                                    <button onClick={() => setCurrentMediaIndex((prev) => (prev - 1 + selectedIssue.media.length) % selectedIssue.media.length)} className="absolute left-2 top-1/2 -translate-y-1/2 p-1.5 md:p-2 bg-black/60 rounded-full text-white hover:bg-black/80 transition-colors shadow-lg"><ChevronLeft size={16} /></button>
+                                                    <button onClick={() => setCurrentMediaIndex((prev) => (prev + 1) % selectedIssue.media.length)} className="absolute right-2 top-1/2 -translate-y-1/2 p-1.5 md:p-2 bg-black/60 rounded-full text-white hover:bg-black/80 transition-colors shadow-lg"><ChevronRight size={16} /></button>
+                                                    <div className="absolute top-2 right-2 md:top-3 md:right-3 bg-black/60 backdrop-blur-md text-white px-2.5 py-0.5 md:px-3 md:py-1 rounded-full text-[10px] md:text-xs font-bold shadow-sm">
+                                                        {currentMediaIndex + 1} / {selectedIssue.media.length}
+                                                    </div>
                                                 </>
                                             )}
                                         </>
                                     ) : (
-                                        <div className="py-12 flex flex-col items-center justify-center opacity-50 text-muted-foreground">
-                                            <AlertTriangle size={32} className="mb-2" />
-                                            <p className="text-sm font-medium">No Media Attached</p>
+                                        <div className="flex flex-col items-center justify-center opacity-50 text-muted-foreground">
+                                            <AlertTriangle size={28} className="mb-2" />
+                                            <p className="text-[11px] md:text-sm font-medium">No Media Attached</p>
                                         </div>
                                     )}
                                 </div>
 
                                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 md:gap-4">
-                                    <div className="bg-background/40 border border-border/50 rounded-xl p-4">
-                                        <h4 className="text-[11px] font-bold text-blue-400 mb-1.5 uppercase flex items-center gap-1.5"><MapPin size={14} /> Location</h4>
-                                        <p className="text-sm font-semibold text-foreground">{selectedIssue.location?.city || 'Unknown'}</p>
-                                        <p className="text-xs text-muted-foreground mt-1">{selectedIssue.location?.address || 'Address not provided'}</p>
+                                    <div className="bg-card border border-border/50 rounded-xl p-3.5 md:p-4">
+                                        <h4 className="text-[10px] md:text-[11px] font-bold text-blue-400 mb-1 md:mb-1.5 uppercase flex items-center gap-1.5"><MapPin size={12} className="md:w-3.5 md:h-3.5" /> Location</h4>
+                                        <p className="text-xs md:text-sm font-semibold text-foreground">{selectedIssue.location?.city || 'Unknown'}</p>
+                                        <p className="text-[11px] md:text-xs text-muted-foreground mt-0.5 md:mt-1">{selectedIssue.location?.address || 'Address not provided'}</p>
                                     </div>
-                                    <div className="bg-background/40 border border-border/50 rounded-xl p-4">
-                                        <h4 className="text-[11px] font-bold text-blue-400 mb-1.5 uppercase flex items-center gap-1.5"><User size={14} /> Reported By</h4>
-                                        <p className="text-sm font-semibold text-foreground">{selectedIssue.isAnonymous ? 'Anonymous' : selectedIssue.reportedBy?.name || 'Unknown'}</p>
+                                    <div className="bg-card border border-border/50 rounded-xl p-3.5 md:p-4">
+                                        <h4 className="text-[10px] md:text-[11px] font-bold text-blue-400 mb-1 md:mb-1.5 uppercase flex items-center gap-1.5"><User size={12} className="md:w-3.5 md:h-3.5" /> Reported By</h4>
+                                        <p className="text-xs md:text-sm font-semibold text-foreground">{selectedIssue.isAnonymous ? 'Anonymous' : selectedIssue.reportedBy?.name || 'Unknown'}</p>
                                         {!selectedIssue.isAnonymous && selectedIssue.reportedBy && (
-                                            <p className="text-xs text-muted-foreground mt-1">@{selectedIssue.reportedBy.userName} • Score: {selectedIssue.reportedBy.civilScore}</p>
+                                            <p className="text-[11px] md:text-xs text-muted-foreground mt-0.5 md:mt-1">@{selectedIssue.reportedBy.userName} • Score: {selectedIssue.reportedBy.civilScore}</p>
                                         )}
                                     </div>
                                 </div>
 
-                                <div className="bg-background/40 border border-border/50 rounded-xl p-4">
-                                    <h4 className="text-[11px] font-bold text-blue-400 mb-1.5 uppercase flex items-center gap-1.5"><FileText size={14} /> Description</h4>
-                                    <p className="text-sm text-muted-foreground whitespace-pre-wrap leading-relaxed">{selectedIssue.description}</p>
+                                <div className="bg-card border border-border/50 rounded-xl p-3.5 md:p-4 mb-4 lg:mb-0">
+                                    <h4 className="text-[10px] md:text-[11px] font-bold text-blue-400 mb-1 md:mb-1.5 uppercase flex items-center gap-1.5"><FileText size={12} className="md:w-3.5 md:h-3.5" /> Description</h4>
+                                    <p className="text-[11px] md:text-sm text-muted-foreground whitespace-pre-wrap leading-relaxed">{selectedIssue.description}</p>
                                 </div>
                             </div>
 
-                            <div className="w-full lg:w-[350px] shrink-0 p-4 md:p-6 bg-muted/10 border-t lg:border-t-0 lg:border-l border-border/50 flex flex-col">
-                                <div className="grid grid-cols-2 gap-3 md:gap-4 mb-6">
-                                    <div className="bg-card border border-border/50 rounded-xl p-3 md:p-4 flex flex-col items-center justify-center shadow-sm">
-                                        <span className="text-xl md:text-2xl font-bold text-red-500">{selectedIssue.flagCount || 0}</span>
-                                        <span className="text-[10px] text-muted-foreground font-bold uppercase mt-1">Flags</span>
+                            {/* RIGHT SIDE (Admin Controls) */}
+                            <div className="w-full lg:w-[360px] xl:w-[380px] shrink-0 p-4 md:p-6 pb-6 md:pb-8 bg-muted/5 lg:bg-muted/10 border-t lg:border-t-0 lg:border-l border-border/50 flex flex-col lg:overflow-y-auto thin-scrollbar">
+                                <div className="grid grid-cols-2 gap-3 mb-5 shrink-0">
+                                    <div className="bg-card border border-border/50 rounded-xl p-3 flex flex-col items-center justify-center shadow-sm">
+                                        <span className="text-lg md:text-2xl font-bold text-red-500">{selectedIssue.flagCount || 0}</span>
+                                        <span className="text-[9px] md:text-[10px] text-muted-foreground font-bold uppercase mt-0.5 md:mt-1">Flags</span>
                                     </div>
-                                    <div className="bg-card border border-border/50 rounded-xl p-3 md:p-4 flex flex-col items-center justify-center shadow-sm">
-                                        <span className="text-xl md:text-2xl font-bold text-blue-400">{selectedIssue.shareCount || 0}</span>
-                                        <span className="text-[10px] text-muted-foreground font-bold uppercase mt-1">Shares</span>
+                                    <div className="bg-card border border-border/50 rounded-xl p-3 flex flex-col items-center justify-center shadow-sm">
+                                        <span className="text-lg md:text-2xl font-bold text-blue-400">{selectedIssue.shareCount || 0}</span>
+                                        <span className="text-[9px] md:text-[10px] text-muted-foreground font-bold uppercase mt-0.5 md:mt-1">Shares</span>
                                     </div>
                                 </div>
 
-                                <form onSubmit={handleUpdateIssue} className="flex flex-col space-y-4 md:space-y-5 flex-1">
-                                    <div>
-                                        <label className="text-sm font-bold text-foreground mb-1.5 block">Update Status</label>
+                                <form onSubmit={handleUpdateIssue} className="flex flex-col flex-1 min-h-0">
+                                    <div className="shrink-0 mb-4">
+                                        <label className="text-xs md:text-sm font-bold text-foreground mb-1 block">Update Status</label>
                                         <CustomSelect
                                             options={UPDATE_STATUS_OPTIONS}
                                             value={updateData.status}
@@ -287,12 +377,12 @@ const AdminIssues = () => {
                                         />
                                     </div>
 
-                                    <div className="flex-1 flex flex-col">
-                                        <label className="text-sm font-bold text-foreground mb-1.5 block">Official Remark</label>
+                                    <div className="flex-1 flex flex-col min-h-[120px] mb-4">
+                                        <label className="text-xs md:text-sm font-bold text-foreground mb-1 block">Official Remark</label>
                                         <textarea
                                             value={updateData.adminRemark}
                                             onChange={(e) => setUpdateData({ ...updateData, adminRemark: e.target.value })}
-                                            className="w-full flex-1 min-h-[120px] p-4 bg-card border border-border/50 rounded-xl text-sm focus:border-primary outline-none transition-colors text-foreground placeholder:text-muted-foreground/40 resize-none thin-scrollbar shadow-sm"
+                                            className="w-full flex-1 p-3 bg-card border border-border/50 rounded-xl text-[11px] md:text-sm focus:border-primary outline-none transition-colors text-foreground placeholder:text-muted-foreground/40 resize-none thin-scrollbar shadow-sm"
                                             placeholder="Write a public remark detailing the action taken. This will notify the user."
                                         />
                                     </div>
@@ -300,36 +390,37 @@ const AdminIssues = () => {
                                     <button
                                         type="submit"
                                         disabled={isUpdating}
-                                        className="w-full btn-gradient py-3.5 rounded-xl font-bold text-white text-sm md:text-base flex justify-center items-center gap-2 shadow-md hover:shadow-lg transition-all mt-2 mb-4 md:mb-0"
+                                        className="w-full shrink-0 btn-gradient py-2.5 md:py-3 rounded-xl font-bold text-white text-xs md:text-sm flex justify-center items-center gap-1.5 md:gap-2 shadow-md hover:shadow-lg transition-all mt-auto"
                                     >
-                                        {isUpdating ? <MiniLoader className="w-5 h-5" /> : <>Update & Notify <CheckCircle size={16} /></>}
+                                        {isUpdating ? <MiniLoader className="w-4 h-4" /> : <>Update & Notify <CheckCircle size={14} /></>}
                                     </button>
                                 </form>
                             </div>
                         </div>
                     </div>
 
+                    {/* Delete Confirmation Overlay */}
                     {showDeleteConfirm && (
                         <div className="fixed inset-0 z-[200] flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm animate-fade-in">
-                            <div className="bg-card border border-border/50 rounded-2xl p-6 max-w-sm w-full shadow-2xl" onClick={e => e.stopPropagation()}>
-                                <h3 className="text-xl font-bold text-foreground mb-2">Delete Issue?</h3>
-                                <p className="text-sm text-muted-foreground mb-6">
+                            <div className="bg-card border border-border/50 rounded-2xl p-5 md:p-6 max-w-[320px] md:max-w-sm w-full shadow-2xl" onClick={e => e.stopPropagation()}>
+                                <h3 className="text-lg md:text-xl font-bold text-foreground mb-1.5 md:mb-2">Delete Issue?</h3>
+                                <p className="text-[11px] md:text-sm text-muted-foreground mb-5 md:mb-6 leading-relaxed">
                                     Are you sure you want to permanently delete this issue? This action cannot be undone.
                                 </p>
-                                <div className="flex justify-end gap-3">
+                                <div className="flex justify-end gap-2.5 md:gap-3">
                                     <button
                                         onClick={() => setShowDeleteConfirm(false)}
                                         disabled={isDeleting}
-                                        className="px-4 py-2 rounded-xl text-sm font-medium bg-muted/50 text-foreground hover:bg-muted transition-colors"
+                                        className="px-3 py-1.5 md:px-4 md:py-2 rounded-lg md:rounded-xl text-[11px] md:text-sm font-medium bg-muted/50 text-foreground hover:bg-muted transition-colors"
                                     >
                                         Cancel
                                     </button>
                                     <button
                                         onClick={handleDeleteIssue}
                                         disabled={isDeleting}
-                                        className="px-4 py-2 rounded-xl text-sm font-medium bg-red-500 text-white hover:bg-red-600 transition-colors flex items-center justify-center min-w-[80px]"
+                                        className="px-3 py-1.5 md:px-4 md:py-2 rounded-lg md:rounded-xl text-[11px] md:text-sm font-medium bg-red-500 text-white hover:bg-red-600 transition-colors flex items-center justify-center min-w-[70px] md:min-w-[80px]"
                                     >
-                                        {isDeleting ? <MiniLoader className="w-4 h-4 text-white" /> : 'Delete'}
+                                        {isDeleting ? <MiniLoader className="w-3.5 h-3.5 md:w-4 md:h-4 text-white" /> : 'Delete'}
                                     </button>
                                 </div>
                             </div>
