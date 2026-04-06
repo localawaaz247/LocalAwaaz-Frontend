@@ -701,8 +701,13 @@ export default function ReportIssue() {
                       <label className="flex-1 flex flex-col items-center justify-center gap-1 md:gap-2 cursor-pointer hover:bg-muted/80 transition-colors z-10">
                         <Camera className="h-6 w-6 md:h-8 md:w-8 text-muted-foreground group-hover:text-cyan-600 transition-colors" />
                         <span className="text-xs md:text-sm font-medium text-muted-foreground">{t('camera', 'Camera')}</span>
-                        <input type="file" accept="image/png, image/jpg, image/jpeg, video/mp4, video/webm, video/quicktime" capture="environment" className="hidden" onChange={handleFileChange} />
-                      </label>
+                        <input
+                          type="file"
+                          accept="image/*,video/*"
+                          capture="environment"
+                          className="hidden"
+                          onChange={handleFileChange}
+                        /> </label>
                       <div className="w-px bg-border my-6"></div>
                       <label className="flex-1 flex flex-col items-center justify-center gap-1 md:gap-2 cursor-pointer hover:bg-muted/80 transition-colors z-10">
                         <UploadCloud className="h-6 w-6 md:h-8 md:w-8 text-muted-foreground group-hover:text-cyan-600 transition-colors" />
