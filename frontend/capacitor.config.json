@@ -1,0 +1,15 @@
+{
+  "appId": "com.localawaaz.app",
+  "appName": "LocalAwaaz",
+  "webDir": "dist",
+  "plugins": {
+    "GoogleAuth": {
+      "scopes": [
+        "profile",
+        "email"
+      ],
+      "serverClientId": "487546741938-lqtsfiq0rd48f1ga5gfd5nddl6f1fu86.apps.googleusercontent.com",
+      "forceCodeForRefreshToken": true
+    }
+  }
+}

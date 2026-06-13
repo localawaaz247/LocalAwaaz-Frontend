@@ -12,6 +12,10 @@ import { validateToken } from "./reducer/authReducer";
 // --- PWA IMPORT ---
 import { useRegisterSW } from 'virtual:pwa-register/react';
 
+// --- CAPACITOR PUSH NOTIFICATIONS IMPORTS ---
+import { PushNotifications } from '@capacitor/push-notifications';
+import { Capacitor } from '@capacitor/core';
+
 // Pages
 import LoginRegister from "./pages/LoginRegister";
 import ForgotPassword from "./pages/ForgotPassword";
@@ -36,6 +40,7 @@ import Cookies from "./pages/Cookies";
 import FAQ from "./pages/FAQ";
 import Help from "./pages/Help";
 import AdminDashboard from "./pages/AdminDashboard";
+import axiosInstance from "./utils/axios";
 
 const AppLanguageInitializer = ({ children }) => {
   const { i18n } = useTranslation();
@@ -70,6 +75,60 @@ const AppContent = () => {
       dispatch(validateToken());
     }
   }, [dispatch]);
+
+  // 👇 ADDED: Capacitor Push Notifications Logic
+  useEffect(() => {
+    const setupPushNotifications = async () => {
+      if (!Capacitor.isNativePlatform()) {
+        console.log("Push notifications are not available on the web browser.");
+        return;
+      }
+
+      try {
+        // 1. Check existing permission status
+        let permStatus = await PushNotifications.checkPermissions();
+
+        // 2. If it hasn't been requested yet, prompt the user
+        if (permStatus.receive === 'prompt') {
+          permStatus = await PushNotifications.requestPermissions();
+        }
+
+        // 3. Stop if the user denied the request
+        if (permStatus.receive !== 'granted') {
+          console.log('User denied push notification permission');
+          return;
+        }
+
+        // 4. If granted, register the device with Google/FCM
+        await PushNotifications.register();
+
+      } catch (error) {
+        console.error('Error setting up push notifications:', error);
+      }
+    };
+
+    if (Capacitor.isNativePlatform()) {
+      // Listen for successful registration to get the FCM token
+      PushNotifications.addListener('registration', (token) => {
+        console.log('Push registration success! FCM Token:', token.value);
+        // TODO: Send this token.value to your backend API to save it to the user's profile
+        const savedToken = localStorage.getItem("access_token");
+        if (savedToken) {
+          axiosInstance.post('/user/update-fcm-token', {
+            token: token.value
+          }).catch(err => console.error("Failed to save token to DB", err));
+        }
+      });
+
+      // Listen for registration errors
+      PushNotifications.addListener('registrationError', (error) => {
+        console.error('Error on registration: ', error);
+      });
+
+      // Trigger the permission request
+      setupPushNotifications();
+    }
+  }, []);
 
   return (
     <AppLanguageInitializer>

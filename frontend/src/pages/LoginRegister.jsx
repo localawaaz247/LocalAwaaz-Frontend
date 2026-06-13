@@ -11,7 +11,11 @@ import { showToast } from '../utils/toast';
 import { BASE_URL } from '../utils/config';
 import MiniLoader from '../components/MiniLoader';
 import axiosInstance from '../utils/axios';
-import SEO from '../components/SEO'; // <-- Added SEO Import
+import SEO from '../components/SEO';
+
+// --- NEW CAPACITOR IMPORTS ---
+import { Capacitor } from '@capacitor/core';
+import { GoogleAuth } from '@codetrix-studio/capacitor-google-auth';
 
 const LoginRegister = () => {
   const [showPassword, setShowPassword] = useState(false);
@@ -45,6 +49,18 @@ const LoginRegister = () => {
 
   const [result, formAction, isPending] = useActionState((prev, formData) => authAction(prev, formData, dispatch, navigate), null);
 
+  // --- NEW: INITIALIZE NATIVE GOOGLE AUTH ---
+  useEffect(() => {
+    if (Capacitor.isNativePlatform()) {
+      GoogleAuth.initialize({
+        // Replace this with your actual Web Client ID, or use an environment variable
+        clientId: import.meta.env.VITE_GOOGLE_CLIENT_ID || 'YOUR_WEB_CLIENT_ID_HERE.apps.googleusercontent.com',
+        scopes: ['profile', 'email'],
+        grantOfflineAccess: true,
+      });
+    }
+  }, []);
+
   // Auto-Redirect if already logged in
   useEffect(() => {
     if (isAuthenticated && profileDetail) {
@@ -71,7 +87,7 @@ const LoginRegister = () => {
       setUserName("");
       setPassword("");
       setGender("");
-      setIsLogin(true); // Switch to login view after successful signup
+      setIsLogin(true);
     }
   }, [result, isLogin]);
 
@@ -92,24 +108,45 @@ const LoginRegister = () => {
     const params = new URLSearchParams(location.search);
     const errorParam = params.get("error");
 
-    // Check if the URL contains ?error=account_suspended or ?error=account_banned
     if (errorParam && errorParam.includes("account_")) {
-      const statusText = errorParam.split('_')[1]; // Extracts "suspended" or "banned"
+      const statusText = errorParam.split('_')[1];
 
       showToast({
         icon: "error",
         title: `Account ${statusText.charAt(0).toUpperCase() + statusText.slice(1)}. Contact Administrator.`
       });
 
-      // Clean up the URL so the toast doesn't fire again on a manual refresh
       navigate('/login', { replace: true });
     }
   }, [location.search, navigate]);
-  const handleGoogleSignup = () => {
+
+  // --- UPDATED GOOGLE SIGNUP LOGIC ---
+  const handleGoogleSignup = async () => {
     try {
-      window.location.href = `${BASE_URL}/auth/google`;
+      if (Capacitor.isNativePlatform()) {
+        // 1. Trigger Native Android Bottom Sheet
+        const googleUser = await GoogleAuth.signIn();
+        const idToken = googleUser.authentication.idToken;
+
+        // 2. Send the token to the new backend endpoint
+        const response = await axiosInstance.post('/auth/google/native', { idToken });
+
+        if (response.data.success) {
+          const { accessToken, user, isProfileComplete } = response.data;
+
+          // 3. Reuse your existing React callback route so Redux populates correctly!
+          navigate(`/google/callback?token=${accessToken}&isProfileComplete=${isProfileComplete}&role=${user.role}`);
+        }
+      } else {
+        // Original Web Flow
+        window.location.href = `${BASE_URL}/auth/google`;
+      }
     } catch (error) {
-      console.log(error);
+      console.log("Google Sign-In Error:", error);
+      showToast({
+        icon: "error",
+        title: "Google authentication failed or was cancelled."
+      });
     }
   };
 
@@ -186,7 +223,7 @@ const LoginRegister = () => {
   };
 
   const handleResendOtp = () => {
-    handleVerifyEmail(); // Reuse the API call logic
+    handleVerifyEmail();
     setTimer(30);
     setIsTimerRunning(true);
   };
@@ -200,7 +237,6 @@ const LoginRegister = () => {
 
   return (
     <div className="h-screen bg-background flex relative overflow-hidden">
-      {/* 🟢 SEO Metadata for Auth Page */}
       <SEO
         title={isLogin ? "Sign In" : "Create Your Account"}
         description={isLogin ? "Sign in to your LocalAwaaz account to report issues and track resolutions." : "Join LocalAwaaz today to make your voice heard and contribute to a better community."}
@@ -300,6 +336,7 @@ const LoginRegister = () => {
               )}
 
               <button
+                type="button"
                 onClick={handleGoogleSignup}
                 className="w-full flex items-center justify-center gap-3 px-4 py-3 rounded-xl border border-border bg-card hover:bg-muted transition-all duration-200 mb-6"
               >

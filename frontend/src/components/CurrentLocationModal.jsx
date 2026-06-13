@@ -5,6 +5,10 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle } from './ui/dialog'
 import { reverseGeocode } from '../utils/locationUtils'
 import { useTranslation } from "react-i18next";
 
+// --- NEW IMPORTS FOR CAPACITOR ---
+import { Geolocation } from '@capacitor/geolocation';
+import { Capacitor } from '@capacitor/core';
+
 const CurrentLocationModal = ({ isOpen, onClose, onLocationCaptured }) => {
   const { t } = useTranslation();
   const [isLoading, setIsLoading] = useState(false)
@@ -18,69 +22,93 @@ const CurrentLocationModal = ({ isOpen, onClose, onLocationCaptured }) => {
     }
   }, [isOpen])
 
-  const getCurrentLocation = () => {
+  const getCurrentLocation = async () => {
     setIsLoading(true)
     setError('')
 
-    if (!navigator.geolocation) {
-      setError(t('geo_not_supported'))
-      setIsLoading(false)
-      return
-    }
+    try {
+      let lat, lng;
 
-    navigator.geolocation.getCurrentPosition(
-      (position) => {
-        reverseGeocode(position.coords.latitude, position.coords.longitude)
-          .then(locationData => {
-            const fullLocationData = {
-              ...locationData,
-              latitude: position.coords.latitude,
-              longitude: position.coords.longitude
-            }
-            
-            if (fullLocationData.latitude !== null && fullLocationData.longitude !== null) {
-              setLocation(fullLocationData)
-              
-              setTimeout(() => {
-                onLocationCaptured(fullLocationData)
-                onClose()
-              }, 1500)
-            } else {
-              setError(t('invalid_coords'))
-            }
-          })
-          .catch(err => {
-            setError(t('failed_get_address'))
-          })
-          .finally(() => {
-            setIsLoading(false)
-          })
-      },
-      (error) => {
-        console.log("Error:", error.message)
-        setIsLoading(false)
-        let errorMessage
-        switch(error.code) {
-          case error.PERMISSION_DENIED:
-            errorMessage = t('location_denied')
-            break
-          case error.POSITION_UNAVAILABLE:
-            errorMessage = t('location_unavailable')
-            break
-          case error.TIMEOUT:
-            errorMessage = t('location_timeout')
-            break
-          default:
-            errorMessage = t('location_unknown_error')
+      // 1. Check if running as Native Mobile App
+      if (Capacitor.isNativePlatform()) {
+
+        // Request specific native permissions
+        let permStatus = await Geolocation.checkPermissions();
+        if (permStatus.location !== 'granted') {
+          permStatus = await Geolocation.requestPermissions();
         }
-        setError(errorMessage)
-      },
-      {
-        enableHighAccuracy: true,
-        timeout: 10000,
-        maximumAge: 300000
+
+        if (permStatus.location !== 'granted') {
+          throw new Error('location_denied');
+        }
+
+        // Get native GPS position
+        const position = await Geolocation.getCurrentPosition({
+          enableHighAccuracy: true,
+          timeout: 10000,
+          maximumAge: 300000
+        });
+
+        lat = position.coords.latitude;
+        lng = position.coords.longitude;
+
+      } else {
+        // 2. Fallback to Standard Web Geolocation for Browsers
+        if (!navigator.geolocation) {
+          throw new Error('geo_not_supported');
+        }
+
+        const position = await new Promise((resolve, reject) => {
+          navigator.geolocation.getCurrentPosition(resolve, reject, {
+            enableHighAccuracy: true,
+            timeout: 10000,
+            maximumAge: 300000
+          });
+        });
+
+        lat = position.coords.latitude;
+        lng = position.coords.longitude;
       }
-    )
+
+      // 3. Continue with your existing reverse geocoding logic
+      const locationData = await reverseGeocode(lat, lng);
+
+      const fullLocationData = {
+        ...locationData,
+        latitude: lat,
+        longitude: lng
+      }
+
+      if (fullLocationData.latitude !== null && fullLocationData.longitude !== null) {
+        setLocation(fullLocationData)
+
+        setTimeout(() => {
+          onLocationCaptured(fullLocationData)
+          onClose()
+        }, 1500)
+      } else {
+        setError(t('invalid_coords'))
+      }
+
+    } catch (err) {
+      console.log("Error:", err);
+      let errorMessage = t('failed_get_address');
+
+      // Map errors securely
+      if (err.message === 'location_denied' || err.code === 1) {
+        errorMessage = t('location_denied');
+      } else if (err.code === 2) {
+        errorMessage = t('location_unavailable');
+      } else if (err.code === 3) {
+        errorMessage = t('location_timeout');
+      } else if (err.message === 'geo_not_supported') {
+        errorMessage = t('geo_not_supported');
+      }
+
+      setError(errorMessage);
+    } finally {
+      setIsLoading(false)
+    }
   }
 
   return (
@@ -92,26 +120,26 @@ const CurrentLocationModal = ({ isOpen, onClose, onLocationCaptured }) => {
             {t('get_current_location')}
           </DialogTitle>
         </DialogHeader>
-        
+
         <div className="space-y-4">
           <div className="text-center space-y-2">
             <p className="text-sm text-muted-foreground">
               {t('location_modal_desc')}
             </p>
-            
+
             {location && (
               <div className="p-3 bg-accent/10 rounded-lg border border-accent/20">
                 <p className="text-sm font-medium text-accent">
                   ✓ {t('location_captured_success')}
                 </p>
                 <p className="text-xs text-muted-foreground mt-1">
-                  {location.city && location.state 
+                  {location.city && location.state
                     ? `${location.city}, ${location.state}`
                     : `Lat: ${location.latitude?.toFixed(4)}, Lng: ${location.longitude?.toFixed(4)}`}
                 </p>
               </div>
             )}
-            
+
             {error && (
               <div className="p-3 bg-destructive/10 rounded-lg border border-destructive/20">
                 <p className="text-sm text-destructive">
@@ -120,9 +148,9 @@ const CurrentLocationModal = ({ isOpen, onClose, onLocationCaptured }) => {
               </div>
             )}
           </div>
-          
+
           <div className="flex flex-col gap-2">
-            <Button 
+            <Button
               onClick={getCurrentLocation}
               disabled={isLoading || !!location}
               className="w-full"
@@ -144,9 +172,9 @@ const CurrentLocationModal = ({ isOpen, onClose, onLocationCaptured }) => {
                 </>
               )}
             </Button>
-            
-            <Button 
-              variant="outline" 
+
+            <Button
+              variant="outline"
               onClick={onClose}
               disabled={isLoading}
               className="w-full"
@@ -154,7 +182,7 @@ const CurrentLocationModal = ({ isOpen, onClose, onLocationCaptured }) => {
               {t('cancel')}
             </Button>
           </div>
-          
+
           <p className="text-xs text-muted-foreground text-center">
             {t('location_access_required')}
           </p>

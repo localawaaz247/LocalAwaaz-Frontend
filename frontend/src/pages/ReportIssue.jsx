@@ -1,4 +1,4 @@
-import { Megaphone, Construction, Droplet, Zap, Trash2, Waves, Lightbulb, TrafficCone, AlertTriangle, Camera, HeartPulse, GraduationCap, ShieldAlert, Sparkles, UploadCloud, CheckCircle2, X, Plus } from "lucide-react";
+import { Megaphone, Construction, Droplet, Zap, Trash2, Waves, Lightbulb, TrafficCone, AlertTriangle, Camera as CameraIcon, HeartPulse, GraduationCap, ShieldAlert, Sparkles, UploadCloud, CheckCircle2, X, Plus } from "lucide-react";
 import { useState, useEffect, useRef } from "react";
 import { useLocation } from "react-router-dom";
 import { useSelector } from "react-redux";
@@ -10,6 +10,10 @@ import toast from "react-hot-toast";
 import { useTranslation } from "react-i18next";
 import Uppy from '@uppy/core';
 import AwsS3 from '@uppy/aws-s3';
+
+// 2. Leave the Capacitor import exactly as Camera:
+import { Camera, CameraResultType, CameraSource } from '@capacitor/camera';
+import { Capacitor } from '@capacitor/core';
 
 // --- ZERO-COST HD THUMBNAIL GENERATOR FOR VIDEOS ---
 const generateHDThumbnail = (file) => {
@@ -312,6 +316,30 @@ export default function ReportIssue() {
     }));
 
     e.target.value = '';
+  };
+  const handleNativeCamera = async () => {
+    try {
+      // Trigger native camera UI
+      const image = await Camera.getPhoto({
+        quality: 90,
+        allowEditing: false,
+        resultType: CameraResultType.Uri,
+        source: CameraSource.Camera // Forces camera instead of gallery
+      });
+
+      // Convert the native file path back to a Blob so your Uppy/FormData logic still works perfectly
+      const response = await fetch(image.webPath);
+      const blob = await response.blob();
+
+      // Create a dummy File object from the Blob
+      const file = new File([blob], `camera_capture_${Date.now()}.${image.format}`, { type: `image/${image.format}` });
+
+      // Pass it to your existing change handler using a mock event object
+      handleFileChange({ target: { files: [file] } });
+
+    } catch (error) {
+      console.log('User cancelled or camera error:', error);
+    }
   };
 
   const handleRemoveFile = (indexToRemove) => {
@@ -698,16 +726,31 @@ export default function ReportIssue() {
 
                   {formData.media.length === 0 ? (
                     <div className="flex w-full h-full bg-muted/50">
-                      <label className="flex-1 flex flex-col items-center justify-center gap-1 md:gap-2 cursor-pointer hover:bg-muted/80 transition-colors z-10">
-                        <Camera className="h-6 w-6 md:h-8 md:w-8 text-muted-foreground group-hover:text-cyan-600 transition-colors" />
-                        <span className="text-xs md:text-sm font-medium text-muted-foreground">{t('camera', 'Camera')}</span>
-                        <input
-                          type="file"
-                          accept="image/*" 
-                          capture="environment"
-                          className="hidden"
-                          onChange={handleFileChange}
-                        /> </label>
+                      {/* --- CAMERA BUTTON (Branched for Native vs Web) --- */}
+                      {Capacitor.isNativePlatform() ? (
+                        // NATIVE APP BUTTON
+                        <button
+                          type="button"
+                          onClick={handleNativeCamera}
+                          className="flex-1 flex flex-col items-center justify-center gap-1 md:gap-2 cursor-pointer hover:bg-muted/80 transition-colors z-10"
+                        >
+                          <CameraIcon className="h-6 w-6 md:h-8 md:w-8 text-muted-foreground group-hover:text-cyan-600 transition-colors" />
+                          <span className="text-xs md:text-sm font-medium text-muted-foreground">{t('camera', 'Camera')}</span>
+                        </button>
+                      ) : (
+                        // WEB FALLBACK
+                        <label className="flex-1 flex flex-col items-center justify-center gap-1 md:gap-2 cursor-pointer hover:bg-muted/80 transition-colors z-10">
+                          <CameraIcon className="h-6 w-6 md:h-8 md:w-8 text-muted-foreground group-hover:text-cyan-600 transition-colors" />
+                          <span className="text-xs md:text-sm font-medium text-muted-foreground">{t('camera', 'Camera')}</span>
+                          <input
+                            type="file"
+                            accept="image/*"
+                            capture="environment"
+                            className="hidden"
+                            onChange={handleFileChange}
+                          />
+                        </label>
+                      )}
                       <div className="w-px bg-border my-6"></div>
                       <label className="flex-1 flex flex-col items-center justify-center gap-1 md:gap-2 cursor-pointer hover:bg-muted/80 transition-colors z-10">
                         <UploadCloud className="h-6 w-6 md:h-8 md:w-8 text-muted-foreground group-hover:text-cyan-600 transition-colors" />
