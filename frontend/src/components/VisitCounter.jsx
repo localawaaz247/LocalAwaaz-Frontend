@@ -12,8 +12,10 @@ const VisitCounter = () => {
 
     useEffect(() => {
         // 1. Setup Real-Time Socket Connection
-        const socket = io(import.meta.env.VITE_API_BASE_URL || 'http://localhost:1111');
-
+        const socket = io(import.meta.env.VITE_API_BASE_URL || 'http://localhost:1111', {
+            transports: ['websocket'], // <-- THIS IS REQUIRED FOR PRODUCTION
+            withCredentials: true
+        });
         // Listen for the broadcast from your backend and update state instantly
         socket.on('live_visitor_update', (data) => {
             setVisits(data.count);

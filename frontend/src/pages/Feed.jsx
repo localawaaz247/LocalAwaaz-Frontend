@@ -18,6 +18,8 @@ import { io } from 'socket.io-client';
 import Odometer from 'react-odometerjs';
 import 'odometer/themes/odometer-theme-minimal.css';
 
+import axios from "axios";
+
 const Feed = () => {
   const { t } = useTranslation();
   const [chosenLocation, setChosenLocation] = useState(() => getChosenLocation());
@@ -49,7 +51,11 @@ const Feed = () => {
 
   // --- NEW REAL-TIME SOCKET EFFECT ---
   useEffect(() => {
-    const socket = io(import.meta.env.VITE_API_BASE_URL || 'http://localhost:1111');
+    // 1. Add websocket transports for production
+    const socket = io(import.meta.env.VITE_API_BASE_URL || 'http://localhost:1111', {
+      transports: ['websocket'],
+      withCredentials: true
+    });
 
     socket.on('live_visitor_update', (data) => {
       setVisitors(data.count);
@@ -57,7 +63,11 @@ const Feed = () => {
 
     const fetchVisits = async () => {
       try {
-        const response = await axiosInstance.get('/api/visits');
+        // 2. DO NOT use axiosInstance here. Use raw axios exactly like VisitCounter does.
+        const response = await axios.get(
+          `${import.meta.env.VITE_API_BASE_URL || 'http://localhost:1111'}/api/visits`,
+          { withCredentials: true }
+        );
         setTimeout(() => setVisitors(response.data.count), 150);
       } catch (error) {
         console.error("Failed to fetch visit count:", error);
