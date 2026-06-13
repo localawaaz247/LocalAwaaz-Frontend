@@ -57,7 +57,7 @@ const Feed = () => {
 
     const fetchVisits = async () => {
       try {
-        const response = await axiosInstance.get('/api/visits');
+        const response = await axiosInstance.get('/');
         setTimeout(() => setVisitors(response.data.count), 150);
       } catch (error) {
         console.error("Failed to fetch visit count:", error);
