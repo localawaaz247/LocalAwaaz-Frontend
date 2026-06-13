@@ -65,7 +65,7 @@ const Feed = () => {
       try {
         // 2. DO NOT use axiosInstance here. Use raw axios exactly like VisitCounter does.
         const response = await axios.get(
-          `${import.meta.env.VITE_API_BASE_URL || 'http://localhost:1111'}/api/visits`,
+          `${import.meta.env.VITE_API_BASE_URL || 'http://localhost:1111'}/api/community-stats`,
           { withCredentials: true }
         );
         setTimeout(() => setVisitors(response.data.count), 150);
