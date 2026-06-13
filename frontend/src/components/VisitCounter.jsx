@@ -12,7 +12,7 @@ const VisitCounter = () => {
 
     useEffect(() => {
         // 1. Setup Real-Time Socket Connection
-        const socket = io(import.meta.env.VITE_API_BASE_URL || 'http://localhost:1111', {
+        const socket = io(import.meta.env.VITE_BASE_URL || 'http://localhost:1111', {
             transports: ['websocket'], // <-- THIS IS REQUIRED FOR PRODUCTION
             withCredentials: true
         });
@@ -29,7 +29,7 @@ const VisitCounter = () => {
                 if (!hasVisited) {
                     // New visitor: Increment the count
                     const response = await axios.post(
-                        `${import.meta.env.VITE_API_BASE_URL || 'http://localhost:1111'}/api/community-stats/increment`,
+                        `${import.meta.env.VITE_BASE_URL || 'http://localhost:1111'}/api/community-stats/increment`,
                         {},
                         { withCredentials: true }
                     );
@@ -38,7 +38,7 @@ const VisitCounter = () => {
                 } else {
                     // Returning visitor: Fetch the current count
                     const response = await axios.get(
-                        `${import.meta.env.VITE_API_BASE_URL || 'http://localhost:1111'}/api/community-stats`,
+                        `${import.meta.env.VITE_BASE_URL || 'http://localhost:1111'}/api/community-stats`,
                         { withCredentials: true }
                     );
                     // Adding a slight delay makes the odometer roll up on page load
