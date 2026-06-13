@@ -70,7 +70,7 @@ const Feed = () => {
         );
         setTimeout(() => setVisitors(response.data.count), 150);
       } catch (error) {
-        console.error("Failed to fetch visit count:", error);
+        console.error("Failed to fetch visit count:", error); 
       }
     };
 
