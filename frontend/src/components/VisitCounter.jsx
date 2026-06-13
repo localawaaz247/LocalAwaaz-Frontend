@@ -27,7 +27,7 @@ const VisitCounter = () => {
                 if (!hasVisited) {
                     // New visitor: Increment the count
                     const response = await axios.post(
-                        `${import.meta.env.VITE_API_BASE_URL || 'http://localhost:1111'}/increment`,
+                        `${import.meta.env.VITE_API_BASE_URL || 'http://localhost:1111'}/api/visits/increment`, // <-- Updated path
                         {},
                         { withCredentials: true }
                     );
@@ -36,7 +36,7 @@ const VisitCounter = () => {
                 } else {
                     // Returning visitor: Fetch the current count
                     const response = await axios.get(
-                        `${import.meta.env.VITE_API_BASE_URL || 'http://localhost:1111'}/`,
+                        `${import.meta.env.VITE_API_BASE_URL || 'http://localhost:1111'}/api/visits`, // <-- Updated path
                         { withCredentials: true }
                     );
                     // Adding a slight delay makes the odometer roll up on page load
