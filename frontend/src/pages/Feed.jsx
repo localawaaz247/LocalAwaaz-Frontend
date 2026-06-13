@@ -13,6 +13,11 @@ import { fetchIssues, clearIssues } from "../reducer/issueFeedReducer";
 import { showToast } from "../utils/toast";
 import { useTranslation } from "react-i18next";
 
+// --- NEW IMPORTS FOR VISITOR ODOMETER ---
+import { io } from 'socket.io-client';
+import Odometer from 'react-odometerjs';
+import 'odometer/themes/odometer-theme-minimal.css';
+
 const Feed = () => {
   const { t } = useTranslation();
   const [chosenLocation, setChosenLocation] = useState(() => getChosenLocation());
@@ -26,6 +31,9 @@ const Feed = () => {
   const [sortBy, setSortBy] = useState("newest");
   const [page, setPage] = useState(1);
 
+  // --- NEW STATE FOR VISITORS ---
+  const [visitors, setVisitors] = useState(0);
+
   const location = useLocation();
   const navigate = useNavigate();
   const dispatch = useDispatch();
@@ -38,6 +46,28 @@ const Feed = () => {
 
   const displayLocation = chosenLocation ? formatLocationDisplay(chosenLocation) : t('locating');
   const activeIssuesCount = pagination?.totalIssues || issues?.length || 0;
+
+  // --- NEW REAL-TIME SOCKET EFFECT ---
+  useEffect(() => {
+    const socket = io(import.meta.env.VITE_API_BASE_URL || 'http://localhost:1111');
+
+    socket.on('live_visitor_update', (data) => {
+      setVisitors(data.count);
+    });
+
+    const fetchVisits = async () => {
+      try {
+        const response = await axiosInstance.get('/');
+        setTimeout(() => setVisitors(response.data.count), 150);
+      } catch (error) {
+        console.error("Failed to fetch visit count:", error);
+      }
+    };
+
+    fetchVisits();
+
+    return () => socket.disconnect();
+  }, []);
 
   useEffect(() => {
     const fetchAndOpenIssue = async () => {
@@ -89,7 +119,6 @@ const Feed = () => {
         return;
       }
 
-      // 1. Check if user previously blocked the location prompt
       const locationDenied = localStorage.getItem('location_denied') === 'true';
 
       if (navigator.geolocation && !locationDenied) {
@@ -114,15 +143,12 @@ const Feed = () => {
             }
           },
           (err) => {
-            // THE FIX: Save the preference and load default data. 
-            // DO NOT call setShowLocationModal(true) here!
             localStorage.setItem('location_denied', 'true');
             fetchData(1);
           },
           { enableHighAccuracy: true, timeout: 10000 }
         );
       } else {
-        // THE FIX: DO NOT call setShowLocationModal(true) here either!
         fetchData(1);
       }
     };
@@ -235,17 +261,33 @@ const Feed = () => {
           </div>
 
           <div className="flex items-center gap-2 md:gap-3 flex-shrink-0">
+
+            {/* --- NEW: RESPONSIVE VISITOR ODOMETER PILL --- */}
+            <div className="flex items-center gap-1.5 bg-background/50 backdrop-blur-sm border border-border/60 px-2.5 py-1.5 md:px-3 md:py-2 rounded-full shadow-sm text-muted-foreground transition-all">
+              <Users size={14} className="text-primary flex-shrink-0" />
+              <span className="hidden md:inline text-xs md:text-sm font-medium tracking-wide">
+                {t('citizens_reached', 'Reached')}:
+              </span>
+              <div className="text-xs md:text-sm font-bold text-foreground font-mono">
+                <Odometer value={visitors} format="(,ddd)" duration={800} />
+              </div>
+            </div>
+
+            {/* --- EXISTING: ACTIVE ISSUES PILL --- */}
             <span className="hidden lg:block text-xs md:text-sm bg-cyan-800 text-accent-foreground px-3 py-1.5 md:py-2 rounded-full border border-accent/30">
               ● {activeIssuesCount} {t('active')} {activeIssuesCount === 1 ? t('issue_singular') : t('issues_label')}
             </span>
+
+            {/* --- EXISTING: NEW ISSUE BUTTON --- */}
             <button
-              className="btn-gradient flex items-center gap-1.5 md:gap-2 px-3 md:px-4 py-1.5 md:py-2 rounded-xl whitespace-nowrap"
+              className="btn-gradient flex items-center gap-1.5 md:gap-2 px-3 md:px-4 py-1.5 md:py-2 rounded-xl whitespace-nowrap shadow-sm hover:shadow-md transition-all hover:scale-[1.02]"
               onClick={() => navigate("/dashboard/report")}
             >
               <Plus size={16} />
               <span className="hidden sm:inline text-sm">{t('new_issue')}</span>
               <span className="sm:hidden text-xs">{t('report')}</span>
             </button>
+
           </div>
         </div>
       </div>

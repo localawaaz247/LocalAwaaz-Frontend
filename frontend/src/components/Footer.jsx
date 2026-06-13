@@ -1,6 +1,7 @@
 import { Heart } from 'lucide-react';
 import logo from "/logo.png"
 import { useLocation, useNavigate } from 'react-router-dom';
+import VisitCounter from './VisitCounter';
 
 const Footer = () => {
   const currentYear = new Date().getFullYear();
@@ -107,6 +108,8 @@ const Footer = () => {
               <Heart className="w-4 h-4 text-red-400 fill-red-400" />
               <span>in India</span>
             </div>
+            {/* ODOMETER ADDED HERE */}
+            <VisitCounter />
           </div>
 
           {/* Mobile Links */}
