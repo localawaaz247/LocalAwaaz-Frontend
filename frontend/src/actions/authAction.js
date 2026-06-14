@@ -1,12 +1,14 @@
 import { login, register } from "../reducer/authReducer";
 import { showToast } from "../utils/toast";
+import axiosInstance from "../utils/axios"; // Import your axios instance
 
 export default async function authAction(prevState, formData, dispatch, navigate) {
   const mode = formData.get("mode");
+  const data = Object.fromEntries(formData.entries());
 
   if (mode === "login") {
-    const identifier = formData.get("userName");
-    const password = formData.get("password");
+    const identifier = data.userName;
+    const password = data.password;
 
     if (!identifier || !password) {
       showToast({ icon: "error", title: "Both fields are required" });
@@ -20,15 +22,12 @@ export default async function authAction(prevState, formData, dispatch, navigate
       return { error: result.payload };
     }
 
-    // Extract token and user data from the fulfilled action payload
     const { accessToken, user } = result.payload;
 
-    // Store the access token exactly as expected by your frontend
     if (accessToken) {
       localStorage.setItem('access_token', accessToken);
     }
 
-    // Route the user based on their specific role
     if (user?.role === 'admin') {
       navigate("/admin");
     } else {
@@ -38,18 +37,28 @@ export default async function authAction(prevState, formData, dispatch, navigate
     showToast({ icon: "success", title: "Login Successful!" });
     return { success: true };
 
-  } else {
-    const data = Object.fromEntries(formData.entries());
-    const { name, userName, email, password, country, city, state, gender, pinCode } = data;
+  } else if (mode === "registerAuthority") {
+    // ==========================================
+    // AUTHORITY REGISTRATION
+    // ==========================================
+    try {
+      if (data.expertiseTags) {
+        data.expertiseTags = data.expertiseTags.split(',').map(tag => tag.trim());
+      }
 
-    const result = await dispatch(register({ name, userName, email, password, country, city, state, pinCode, gender }));
+      // Add a dummy password to satisfy the backend bcrypt hash requirement.
+      // They will reset this later via the email they receive.
+      data.password = "PendingAuthPass123!";
 
-    if (register.rejected.match(result)) {
-      showToast({ icon: "error", title: result.payload?.message || "Signup failed" });
-      return { error: result.payload };
+      const response = await axiosInstance.post('/auth/register-authority', data);
+
+      showToast({ icon: "success", title: "Application Submitted! Awaiting Admin Approval." });
+      return { success: true, message: response.data.message };
+
+    } catch (error) {
+      const errorMsg = error.response?.data?.message || "Registration failed";
+      showToast({ icon: "error", title: errorMsg });
+      return { error: errorMsg, success: false };
     }
-
-    showToast({ icon: "success", title: "SignUp Successful!" });
-    return { success: true };
   }
 }
