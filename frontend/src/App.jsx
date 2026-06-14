@@ -68,6 +68,8 @@ const AppContent = () => {
 
   const dispatch = useDispatch();
 
+  const { isAuthenticated } = useSelector((state) => state.auth);
+
   // 👇 FIX: Fire off the token validation immediately on app load
   useEffect(() => {
     const token = localStorage.getItem("access_token");
@@ -129,6 +131,16 @@ const AppContent = () => {
       setupPushNotifications();
     }
   }, []);
+
+  useEffect(() => {
+    // If the user just successfully logged in, force Capacitor to grab the token again
+    // This will trigger your 'registration' listener above, which will now have the access_token!
+    if (isAuthenticated && Capacitor.isNativePlatform()) {
+      PushNotifications.register().catch(err =>
+        console.error('Failed to re-register for push after login:', err)
+      );
+    }
+  }, [isAuthenticated]);
 
   return (
     <AppLanguageInitializer>

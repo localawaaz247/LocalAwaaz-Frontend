@@ -2,6 +2,10 @@
   "appId": "com.localawaaz.app",
   "appName": "LocalAwaaz",
   "webDir": "dist",
+  "server": {
+    "androidScheme": "http",
+    "cleartext": true
+  },
   "plugins": {
     "GoogleAuth": {
       "scopes": [
@@ -10,6 +14,12 @@
       ],
       "serverClientId": "487546741938-lqtsfiq0rd48f1ga5gfd5nddl6f1fu86.apps.googleusercontent.com",
       "forceCodeForRefreshToken": true
+    },
+    "CapacitorHttp": {
+      "enabled": false
+    },
+    "CapacitorCookies": {
+      "enabled": true
     }
   }
 }
