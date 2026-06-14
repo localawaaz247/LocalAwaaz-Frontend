@@ -1,6 +1,6 @@
 import "./utils/i18n";
 import React, { useEffect } from "react";
-import { useSelector, useDispatch } from "react-redux"; // 👇 Added useDispatch
+import { useSelector, useDispatch } from "react-redux";
 import { useTranslation } from "react-i18next";
 import { BrowserRouter, Routes, Route } from "react-router-dom";
 import { ThemeProvider } from "./utils/themeProvider";
@@ -55,7 +55,7 @@ const AppLanguageInitializer = ({ children }) => {
   return children;
 };
 
-// 👇 Inner component to handle dispatching because useDispatch must be inside Provider
+// Inner component to handle dispatching because useDispatch must be inside Provider
 const AppContent = () => {
   useRegisterSW({
     onRegistered(r) {
@@ -67,10 +67,9 @@ const AppContent = () => {
   });
 
   const dispatch = useDispatch();
-
   const { isAuthenticated } = useSelector((state) => state.auth);
 
-  // 👇 FIX: Fire off the token validation immediately on app load
+  // Fire off the token validation immediately on app load
   useEffect(() => {
     const token = localStorage.getItem("access_token");
     if (token) {
@@ -78,7 +77,7 @@ const AppContent = () => {
     }
   }, [dispatch]);
 
-  // 👇 ADDED: Capacitor Push Notifications Logic
+  // Capacitor Push Notifications Logic (With Custom Sound Channel)
   useEffect(() => {
     const setupPushNotifications = async () => {
       if (!Capacitor.isNativePlatform()) {
@@ -101,7 +100,18 @@ const AppContent = () => {
           return;
         }
 
-        // 4. If granted, register the device with Google/FCM
+        // 4. Create the Custom Sound Channel BEFORE registering
+        await PushNotifications.createChannel({
+          id: 'localawaaz_custom_alerts',
+          name: 'LocalAwaaz Alerts',
+          description: 'Notifications with custom ting sound',
+          importance: 5, // High importance (heads-up notification)
+          visibility: 1,
+          sound: 'ting', // IMPORTANT: No .mp3 extension here!
+        });
+        console.log('Push channel created successfully');
+
+        // 5. If granted, register the device with Google/FCM
         await PushNotifications.register();
 
       } catch (error) {
@@ -113,7 +123,8 @@ const AppContent = () => {
       // Listen for successful registration to get the FCM token
       PushNotifications.addListener('registration', (token) => {
         console.log('Push registration success! FCM Token:', token.value);
-        // TODO: Send this token.value to your backend API to save it to the user's profile
+
+        // Send this token.value to your backend API to save it to the user's profile
         const savedToken = localStorage.getItem("access_token");
         if (savedToken) {
           axiosInstance.post('/user/update-fcm-token', {
@@ -127,14 +138,14 @@ const AppContent = () => {
         console.error('Error on registration: ', error);
       });
 
-      // Trigger the permission request
+      // Trigger the permission request and channel setup
       setupPushNotifications();
     }
   }, []);
 
   useEffect(() => {
     // If the user just successfully logged in, force Capacitor to grab the token again
-    // This will trigger your 'registration' listener above, which will now have the access_token!
+    // This triggers the 'registration' listener above, ensuring it has the access_token
     if (isAuthenticated && Capacitor.isNativePlatform()) {
       PushNotifications.register().catch(err =>
         console.error('Failed to re-register for push after login:', err)
