@@ -22,17 +22,32 @@ const Notifications = () => {
 
   const navigate = useNavigate();
   const prevNotifCount = useRef(notifications?.length || 0);
+  const isFirstLoad = useRef(true);
 
-  // Play sound when a new notification drops
+  // Play sound ONLY when a new notification drops while on the page
   useEffect(() => {
+    // If it's the very first time the component loads, skip the sound!
+    if (isFirstLoad.current) {
+      // Only flip the switch to false once the initial fetch is done loading
+      if (!loading && notifications) {
+        prevNotifCount.current = notifications.length;
+        isFirstLoad.current = false;
+      }
+      return;
+    }
+
+    // Now, ONLY play the sound if the count actually goes up while sitting on the page
     if (notifications && notifications.length > prevNotifCount.current) {
       const audio = new Audio('/ting.mp3');
       audio.play().catch((err) => {
-        console.log("Audio autoplay prevented by browser until user interacts.", err);
+        console.log("Audio autoplay prevented by browser.", err);
       });
     }
+
+    // Always update the count for the next render
     prevNotifCount.current = notifications?.length || 0;
-  }, [notifications]);
+
+  }, [notifications, loading]);
 
   // Click handler: Navigates to dashboard and passes the issue ID to open the modal
   const handleNotificationClick = (notification) => {
