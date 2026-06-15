@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import axiosInstance from '../../utils/axios';
 import { showToast } from '../../utils/toast';
-import { Search, X, User as UserIcon, Shield, Activity, AlertCircle, Calendar, Trash2, Play, Image as ImageIcon, Briefcase, Flag, CheckSquare, FileSignature, Target, AlertTriangle, Clock, Download, Edit2, Plus, Minus, UserCog } from 'lucide-react';
+import { Search, X, User as UserIcon, Shield, Activity, AlertCircle, Calendar, Trash2, Play, Image as ImageIcon, Briefcase, Flag, CheckSquare, FileSignature, Target, AlertTriangle, Clock, Download, Edit2, Plus, Minus, UserCog, ArrowRight } from 'lucide-react';
 import IssueDetail from '../IssueDetail';
 import CustomSelect from '../CustomSelect';
 import { cscApi } from '../../utils/cscAPI';
@@ -17,18 +17,6 @@ const Avatar = ({ src, name, size = "w-10 h-10", iconSize = "w-5 h-5" }) => {
         );
     }
     return <img src={src} alt={name || "User"} onError={() => setImageError(true)} referrerPolicy="no-referrer" className={`${size} shrink-0 rounded-full object-cover border border-border/50`} />;
-};
-
-const getDuration = (startDate, endDate) => {
-    if (!startDate || !endDate) return null;
-    const start = new Date(startDate);
-    const end = new Date(endDate);
-    const diffMs = end - start;
-    if (diffMs < 0) return null;
-    const hours = Math.floor(diffMs / (1000 * 60 * 60));
-    const minutes = Math.floor((diffMs % (1000 * 60 * 60)) / (1000 * 60));
-    if (hours > 24) return `${Math.floor(hours / 24)}d ${hours % 24}h`;
-    return hours > 0 ? `${hours}h ${minutes}m` : `${minutes}m`;
 };
 
 const AdminUsers = () => {
@@ -59,7 +47,8 @@ const AdminUsers = () => {
     // 🟢 God-Mode State Management
     const [pointsModal, setPointsModal] = useState({ isOpen: false, points: '', reason: '' });
     const [editProfileModal, setEditProfileModal] = useState({ isOpen: false, formData: {} });
-    const [forceAssignModal, setForceAssignModal] = useState({ isOpen: false, issues: [], selectedIssue: '', reason: '' });
+    // Force Assign State uses commitmentTimeHours
+    const [forceAssignModal, setForceAssignModal] = useState({ isOpen: false, issues: [], selectedIssue: '', commitmentTimeHours: '' });
     const [forceUnassignModal, setForceUnassignModal] = useState({ isOpen: false, issueId: '', reason: '', penalty: 0 });
 
     const ROLE_OPTIONS = [{ value: 'user', label: 'User' }, { value: 'admin', label: 'Admin' }, { value: 'official', label: 'Official' }, { value: 'ngo', label: 'NGO' }];
@@ -103,7 +92,6 @@ const AdminUsers = () => {
         } finally { setModalLoading(false); }
     };
 
-    // 🟢 1. Global Excel Export
     const handleGlobalExport = async () => {
         try {
             showToast({ icon: 'loading', title: 'Generating Global Excel...' });
@@ -119,39 +107,35 @@ const AdminUsers = () => {
         } catch (error) { showToast({ icon: 'error', title: 'Export failed' }); }
     };
 
-    // 🟢 2. Manual Point Adjustment
     const handlePointAdjustment = async (e) => {
         e.preventDefault();
         try {
             await axiosInstance.patch(`/admin/user/${selectedUserDetails.user._id}/points`, { points: Number(pointsModal.points), reason: pointsModal.reason });
             showToast({ icon: 'success', title: 'Points adjusted' });
             setPointsModal({ isOpen: false, points: '', reason: '' });
-            fetchUserFullDetails(selectedUserDetails.user._id); // Refresh
+            fetchUserFullDetails(selectedUserDetails.user._id);
         } catch (error) { showToast({ icon: 'error', title: 'Failed to adjust points' }); }
     };
 
-    // 🟢 3. Edit Profile Save
     const handleEditProfileSubmit = async (e) => {
         e.preventDefault();
         try {
             await axiosInstance.patch(`/admin/user/${selectedUserDetails.user._id}/edit`, editProfileModal.formData);
             showToast({ icon: 'success', title: 'Profile Updated' });
             setEditProfileModal({ isOpen: false, formData: {} });
-            fetchUserFullDetails(selectedUserDetails.user._id); // Refresh
-            fetchUsers(); // Refresh background list
+            fetchUserFullDetails(selectedUserDetails.user._id);
+            fetchUsers();
         } catch (error) { showToast({ icon: 'error', title: 'Failed to update profile' }); }
     };
 
-    // 🟢 4. Force Assign Logic
+    // 🟢 Force Assign Logic (Fetches ASSIGNABLE issues globally)
     const openForceAssignModal = async () => {
         try {
-            const district = selectedUserDetails.user.authorityProfile?.assignedDistrict || selectedUserDetails.user.contact?.city;
-            if (!district) return showToast({ icon: 'error', title: 'User has no district assigned' });
+            // Fetch ALL active issues so admin can assign cross-district
+            const res = await axiosInstance.get(`/admin/issues/assignable`);
+            if (res.data.data.length === 0) return showToast({ icon: 'error', title: `No active assignable issues globally` });
 
-            const res = await axiosInstance.get(`/admin/issues/open/${district}`);
-            if (res.data.data.length === 0) return showToast({ icon: 'error', title: `No OPEN issues in ${district}` });
-
-            setForceAssignModal({ isOpen: true, issues: res.data.data, selectedIssue: '', reason: '' });
+            setForceAssignModal({ isOpen: true, issues: res.data.data, selectedIssue: '', commitmentTimeHours: '' });
         } catch (error) { showToast({ icon: 'error', title: 'Failed to fetch issues' }); }
     };
 
@@ -160,15 +144,27 @@ const AdminUsers = () => {
         try {
             await axiosInstance.patch(`/admin/issue/${forceAssignModal.selectedIssue}/force-assign`, {
                 authorityId: selectedUserDetails.user._id,
-                reason: forceAssignModal.reason
+                commitmentTimeHours: Number(forceAssignModal.commitmentTimeHours)
             });
-            showToast({ icon: 'success', title: 'Issue Forcibly Assigned!' });
-            setForceAssignModal({ isOpen: false, issues: [], selectedIssue: '', reason: '' });
-            fetchUserFullDetails(selectedUserDetails.user._id); // Refresh
+
+            // Cross-District Alert Logic
+            const assignedIssue = forceAssignModal.issues.find(i => i._id === forceAssignModal.selectedIssue);
+            const userDistrict = selectedUserDetails.user.authorityProfile?.assignedDistrict || selectedUserDetails.user.contact?.city;
+            const issueDistrict = assignedIssue?.location?.city || assignedIssue?.location?.district;
+
+            const isMismatch = userDistrict?.toLowerCase() !== issueDistrict?.toLowerCase();
+
+            if (isMismatch) {
+                showToast({ icon: 'info', title: `Assigned! Note: Issue is in ${issueDistrict || 'another area'}.` });
+            } else {
+                showToast({ icon: 'success', title: 'Issue Forcibly Locked!' });
+            }
+
+            setForceAssignModal({ isOpen: false, issues: [], selectedIssue: '', commitmentTimeHours: '' });
+            fetchUserFullDetails(selectedUserDetails.user._id);
         } catch (error) { showToast({ icon: 'error', title: 'Failed to assign issue' }); }
     };
 
-    // 🟢 5. Force Unassign Logic
     const handleForceUnassign = async (e) => {
         e.preventDefault();
         try {
@@ -178,10 +174,9 @@ const AdminUsers = () => {
             });
             showToast({ icon: 'success', title: 'Authority stripped from issue' });
             setForceUnassignModal({ isOpen: false, issueId: '', reason: '', penalty: 0 });
-            fetchUserFullDetails(selectedUserDetails.user._id); // Refresh
+            fetchUserFullDetails(selectedUserDetails.user._id);
         } catch (error) { showToast({ icon: 'error', title: 'Failed to unassign' }); }
     };
-
 
     const handleRoleChange = async (id, newRole) => {
         try { await axiosInstance.patch(`/admin/user/${id}/role`, { role: newRole }); setUsers(users.map(u => u._id === id ? { ...u, role: newRole } : u)); showToast({ icon: 'success', title: `Role updated` }); } catch (e) { showToast({ icon: 'error', title: 'Failed to update' }); }
@@ -202,7 +197,6 @@ const AdminUsers = () => {
             setSelectedIssueForDetail(res.data.data?.issue || res.data.data || issue);
             setIsIssueModalOpen(true);
         } catch (e) { setSelectedIssueForDetail(issue); setIsIssueModalOpen(true); } finally { setFetchingIssueId(null); }
-
     };
 
     const closeIssueModal = () => {
@@ -220,7 +214,7 @@ const AdminUsers = () => {
             <div className="flex flex-col xl:flex-row justify-between items-start xl:items-center gap-4">
                 <div className="flex items-center gap-3">
                     <h2 className="text-xl md:text-2xl font-bold text-foreground shrink-0">User Management</h2>
-                    <button onClick={handleGlobalExport} className="flex items-center gap-1.5 px-3 py-1.5 bg-green-500/10 hover:bg-green-500/20 text-green-500 border border-green-500/20 rounded-lg text-xs font-bold transition-colors">
+                    <button onClick={handleGlobalExport} className="flex items-center gap-1.5 px-3 py-1.5 bg-green-500/10 hover:bg-green-500/20 text-green-500 border border-green-500/20 rounded-lg text-xs font-bold transition-colors shrink-0">
                         <Download size={14} /> Export Users
                     </button>
                 </div>
@@ -316,7 +310,8 @@ const AdminUsers = () => {
             {/* MAIN USER PROFILE MODAL */}
             {isModalOpen && (
                 <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 bg-black/50 backdrop-blur-sm animate-fade-in transition-all duration-300 ease-in-out">
-                    <div className="bg-card w-full max-w-3xl border border-border/50 rounded-2xl shadow-2xl overflow-hidden flex flex-col max-h-[95dvh] relative">
+                    {/* 🚀 FIXED: Set max-h-[85dvh] and added my-4 so it floats safely and scrolls internally */}
+                    <div className="bg-card w-full max-w-3xl border border-border/50 rounded-2xl shadow-2xl overflow-hidden flex flex-col max-h-[85dvh] my-4 relative">
                         <div className="p-4 md:p-6 border-b border-border/50 flex justify-between items-center bg-muted/10 shrink-0">
                             <h3 className="text-lg md:text-xl font-bold text-foreground flex items-center gap-2">
                                 <UserIcon className="w-5 h-5 text-primary" /> User Profile & Audit
@@ -326,6 +321,7 @@ const AdminUsers = () => {
                             </div>
                         </div>
 
+                        {/* 🚀 FIXED: flex-1 min-h-0 allows the container to shrink and overflow-y-auto enables internal scroll */}
                         <div className="p-4 md:p-6 overflow-y-auto thin-scrollbar flex-1 min-h-0">
                             {modalLoading ? (
                                 <div className="flex justify-center items-center py-12"><div className="w-8 h-8 border-4 border-primary border-t-transparent rounded-full animate-spin"></div></div>
@@ -342,7 +338,6 @@ const AdminUsers = () => {
                                             </div>
                                             <p className="text-sm text-muted-foreground">@{selectedUserDetails.user.userName} • {selectedUserDetails.user.contact?.email}</p>
 
-                                            {/* Edit Profile Button */}
                                             <button
                                                 onClick={() => setEditProfileModal({ isOpen: true, formData: { name: selectedUserDetails.user.name, email: selectedUserDetails.user.contact?.email, password: '' } })}
                                                 className="text-[11px] font-bold text-blue-500 flex items-center gap-1 justify-center sm:justify-start mt-1 hover:underline"
@@ -420,17 +415,12 @@ const AdminUsers = () => {
                                         <div>
                                             <div className="flex justify-between items-center mb-3 mt-6">
                                                 <h4 className="font-semibold text-foreground uppercase text-xs tracking-wider">Authority Operations</h4>
-                                                {/* Force Assign Button */}
                                                 <button onClick={openForceAssignModal} className="px-3 py-1.5 bg-primary text-primary-foreground text-xs font-bold rounded-lg shadow hover:bg-primary/90 flex items-center gap-1.5">
-                                                    <div className="flex items-center gap-0.5">
-                                                        <Plus size={12} />
-                                                        <span className="text-[8px]">/</span>
-                                                        <Minus size={12} />
-                                                    </div> Force Assign Job
+                                                    <div className="flex items-center gap-0.5"><Plus size={12} /><span className="text-[8px]">/</span><Minus size={12} /></div> Force Assign Job
                                                 </button>
                                             </div>
 
-                                            <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+                                            <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 pb-4">
                                                 <button onClick={() => { setActiveHistoryTab('ASSIGNED'); setIsListModalOpen(true); }} className="bg-indigo-500/5 hover:bg-indigo-500/10 p-3 rounded-xl border border-indigo-500/20 flex flex-col items-center"><Briefcase className="w-5 h-5 text-indigo-500 mb-1" /><p className="text-[10px] text-indigo-500">Assigned</p><span className="text-lg font-bold text-indigo-500">{selectedUserDetails.history?.ASSIGNED?.length || 0}</span></button>
                                                 <button onClick={() => { setActiveHistoryTab('BIDS'); setIsListModalOpen(true); }} className="bg-yellow-500/5 hover:bg-yellow-500/10 p-3 rounded-xl border border-yellow-500/20 flex flex-col items-center"><FileSignature className="w-5 h-5 text-yellow-500 mb-1" /><p className="text-[10px] text-yellow-500">Bids</p><span className="text-lg font-bold text-yellow-500">{selectedUserDetails.history?.BIDS?.length || 0}</span></button>
                                                 <button onClick={() => { setActiveHistoryTab('COMPLETED'); setIsListModalOpen(true); }} className="bg-blue-500/5 hover:bg-blue-500/10 p-3 rounded-xl border border-blue-500/20 flex flex-col items-center"><CheckSquare className="w-5 h-5 text-blue-500 mb-1" /><p className="text-[10px] text-blue-500">Completed</p><span className="text-lg font-bold text-blue-500">{selectedUserDetails.history?.COMPLETED?.length || 0}</span></button>
@@ -445,11 +435,11 @@ const AdminUsers = () => {
                 </div>
             )}
 
-            {/* NESTED HISTORY LIST MODAL (Includes Force Unassign) */}
+            {/* NESTED HISTORY LIST MODAL */}
             {isListModalOpen && (
                 <div className="fixed inset-0 z-[60] flex items-center justify-center p-3 sm:p-4 bg-black/60 backdrop-blur-md animate-fade-in transition-all duration-300 ease-in-out">
-                    <div className="bg-card w-full max-w-3xl border border-border/50 rounded-2xl shadow-2xl overflow-hidden flex flex-col max-h-[90dvh]">
-                        <div className="p-4 md:p-5 border-b border-border/50 flex justify-between items-center bg-muted/10"><h3 className="text-lg font-bold flex items-center gap-2"><FileSignature className="w-5 h-5 text-primary" /> {activeHistoryTab} History</h3><button onClick={() => setIsListModalOpen(false)} className="text-muted-foreground p-1.5"><X size={20} /></button></div>
+                    <div className="bg-card w-full max-w-3xl border border-border/50 rounded-2xl shadow-2xl overflow-hidden flex flex-col max-h-[85dvh] my-4">
+                        <div className="p-4 md:p-5 border-b border-border/50 flex justify-between items-center bg-muted/10 shrink-0"><h3 className="text-lg font-bold flex items-center gap-2"><FileSignature className="w-5 h-5 text-primary" /> {activeHistoryTab} History</h3><button onClick={() => setIsListModalOpen(false)} className="text-muted-foreground p-1.5"><X size={20} /></button></div>
                         <div className="overflow-y-auto thin-scrollbar flex-1 p-3 sm:p-4 space-y-3 bg-muted/5">
                             {activeList.length === 0 ? <div className="text-center py-16 text-muted-foreground"><Clock className="w-12 h-12 mx-auto mb-3 opacity-20" /><p>No issues found.</p></div> :
                                 activeList.map(issue => (
@@ -460,9 +450,8 @@ const AdminUsers = () => {
                                         </div>
                                         <div className="flex flex-col items-end gap-2 shrink-0">
                                             <span className="text-[10px] font-bold px-2.5 py-1 rounded-md border">{issue.status}</span>
-                                            {/* Force Unassign Button inside Assigned Tab */}
                                             {activeHistoryTab === 'ASSIGNED' && issue.status !== 'RESOLVED' && (
-                                                <button onClick={(e) => { e.stopPropagation(); setForceUnassignModal({ isOpen: true, issueId: issue._id, reason: '', penalty: 0 }); }} className="text-[10px] px-2 py-1 bg-red-500/10 text-red-500 rounded border border-red-500/20 hover:bg-red-500/20 font-bold z-10">Unassign</button>
+                                                <button onClick={(e) => { e.stopPropagation(); setForceUnassignModal({ isOpen: true, issueId: issue._id, reason: '', penalty: 0 }); }} className="text-[10px] px-2 py-1 bg-red-500/10 text-red-500 rounded border border-red-500/20 hover:bg-red-500/20 font-bold z-10">Revoke</button>
                                             )}
                                         </div>
                                     </div>
@@ -473,9 +462,7 @@ const AdminUsers = () => {
                 </div>
             )}
 
-            {/* GOD-MODE ACTION MODALS */}
-
-            {/* A. Point Adjustment Overlay */}
+            {/* ACTION MODALS */}
             {pointsModal.isOpen && (
                 <div className="fixed inset-0 z-[70] flex items-center justify-center bg-black/60 backdrop-blur-sm p-4 animate-fade-in transition-all duration-300">
                     <form onSubmit={handlePointAdjustment} className="bg-card p-6 rounded-2xl border border-border/50 shadow-2xl w-full max-w-sm">
@@ -490,7 +477,6 @@ const AdminUsers = () => {
                 </div>
             )}
 
-            {/* B. Edit Profile Overlay */}
             {editProfileModal.isOpen && (
                 <div className="fixed inset-0 z-[70] flex items-center justify-center bg-black/60 backdrop-blur-sm p-4 animate-fade-in transition-all duration-300">
                     <form onSubmit={handleEditProfileSubmit} className="bg-card p-6 rounded-2xl border border-border/50 shadow-2xl w-full max-w-md">
@@ -508,28 +494,37 @@ const AdminUsers = () => {
                 </div>
             )}
 
-            {/* C. Force Assign Overlay */}
+            {/* 🚀 FIXED: Force Assign Overlay (Now uses CustomSelect) */}
             {forceAssignModal.isOpen && (
                 <div className="fixed inset-0 z-[70] flex items-center justify-center bg-black/60 backdrop-blur-sm p-4 animate-fade-in transition-all duration-300">
-                    <form onSubmit={handleForceAssign} className="bg-card p-6 rounded-2xl border border-border/50 shadow-2xl w-full max-w-md">
+                    <form onSubmit={handleForceAssign} className="bg-card p-6 rounded-2xl border border-border/50 shadow-2xl w-full max-w-md overflow-visible">
                         <h3 className="font-bold text-lg mb-2">Force Assign Issue</h3>
-                        <p className="text-xs text-muted-foreground mb-4">Showing OPEN issues in {selectedUserDetails?.user?.authorityProfile?.assignedDistrict}</p>
+                        <p className="text-xs text-muted-foreground mb-4">Showing ALL active issues globally</p>
 
-                        <select required value={forceAssignModal.selectedIssue} onChange={e => setForceAssignModal({ ...forceAssignModal, selectedIssue: e.target.value })} className="w-full mb-3 p-3 bg-muted border border-border rounded-xl text-sm outline-none">
-                            <option value="" disabled>Select an Issue to lock...</option>
-                            {forceAssignModal.issues.map(issue => <option key={issue._id} value={issue._id}>{issue.title}</option>)}
-                        </select>
-                        <textarea placeholder="Mandatory Reason for overriding bidding" required value={forceAssignModal.reason} onChange={e => setForceAssignModal({ ...forceAssignModal, reason: e.target.value })} className="w-full mb-4 p-3 bg-muted border border-border rounded-xl text-sm resize-none" rows="3"></textarea>
+                        <div className="mb-3 relative z-50">
+                            <CustomSelect
+                                options={forceAssignModal.issues.map(issue => ({
+                                    value: issue._id,
+                                    label: `${issue.title} - ${issue.location?.city || issue.location?.district || 'Unknown'}`
+                                }))}
+                                value={forceAssignModal.selectedIssue}
+                                onChange={(val) => setForceAssignModal({ ...forceAssignModal, selectedIssue: val })}
+                                placeholder="Select an Issue to lock..."
+                            />
+                        </div>
 
-                        <div className="flex gap-3 justify-end">
-                            <button type="button" onClick={() => setForceAssignModal({ isOpen: false, issues: [], selectedIssue: '', reason: '' })} className="px-4 py-2 text-sm text-muted-foreground hover:bg-muted rounded-xl">Cancel</button>
-                            <button type="submit" className="px-4 py-2 text-sm bg-indigo-500 text-white font-bold rounded-xl shadow hover:bg-indigo-600">Assign Job</button>
+                        <input type="number" min="1" placeholder="Mandatory Hrs (e.g. 24)" required value={forceAssignModal.commitmentTimeHours} onChange={e => setForceAssignModal({ ...forceAssignModal, commitmentTimeHours: e.target.value })} className="w-full mb-4 p-3 bg-muted border border-border rounded-xl text-sm" />
+
+                        <div className="flex gap-3 justify-end relative z-10">
+                            <button type="button" onClick={() => setForceAssignModal({ isOpen: false, issues: [], selectedIssue: '', commitmentTimeHours: '' })} className="px-4 py-2 text-sm text-muted-foreground hover:bg-muted rounded-xl">Cancel</button>
+                            <button type="submit" disabled={isUpdating || !forceAssignModal.selectedIssue || !forceAssignModal.commitmentTimeHours} className="px-4 py-2 text-sm bg-indigo-500 text-white font-bold rounded-xl shadow hover:bg-indigo-600 flex items-center gap-1">
+                                Lock Job <ArrowRight size={14} />
+                            </button>
                         </div>
                     </form>
                 </div>
             )}
 
-            {/* D. Force Unassign Overlay */}
             {forceUnassignModal.isOpen && (
                 <div className="fixed inset-0 z-[80] flex items-center justify-center bg-black/60 backdrop-blur-sm p-4 animate-fade-in transition-all duration-300">
                     <form onSubmit={handleForceUnassign} className="bg-card p-6 rounded-2xl border border-red-500/30 shadow-2xl w-full max-w-sm">
