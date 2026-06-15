@@ -1,11 +1,12 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { LayoutDashboard, AlertCircle, Users, MessageSquare, Radio, ArrowLeft, Sun, Moon, Menu, X } from 'lucide-react';
+import { LayoutDashboard, AlertCircle, Users, MessageSquare, Radio, ArrowLeft, Sun, Moon, Menu, X, Shield } from 'lucide-react';
 import AdminAnalytics from '../components/admin/AdminAnalytics';
 import AdminIssues from '../components/admin/AdminIssues';
 import AdminUsers from '../components/admin/AdminUsers';
 import AdminInquiries from '../components/admin/AdminInquiries';
 import AdminBroadcast from '../components/admin/AdminBroadcast';
+import AdminVerification from '../components/admin/AdminVerification'; // 🟢 Added new component
 import logo from "/logo.png";
 import { useTranslation } from "react-i18next";
 
@@ -46,6 +47,8 @@ const AdminDashboard = () => {
         { id: 'analytics', label: t('admin_nav_analytics'), icon: LayoutDashboard },
         { id: 'issues', label: t('admin_nav_issues'), icon: AlertCircle },
         { id: 'users', label: t('admin_nav_users'), icon: Users },
+        // 🟢 Added Gatekeeper Tab
+        { id: 'gatekeeper', label: t('admin_nav_gatekeeper', 'Verifications'), icon: Shield },
         { id: 'inquiries', label: t('admin_nav_inquiries'), icon: MessageSquare },
         { id: 'broadcast', label: t('admin_nav_broadcast'), icon: Radio },
     ];
@@ -132,10 +135,13 @@ const AdminDashboard = () => {
                 <div className="flex-1 overflow-y-auto thin-scrollbar p-4 md:p-6 lg:p-10 w-full">
                     <div className="max-w-7xl mx-auto flex flex-col h-full space-y-4 md:space-y-6 w-full">
                         {activeTab === 'analytics' && <AdminAnalytics />}
-                        {(activeTab === 'issues' || activeTab === 'users' || activeTab === 'inquiries' || activeTab === 'broadcast') && (
+
+                        {/* 🟢 Included 'gatekeeper' in the shared card wrapper condition */}
+                        {(activeTab === 'issues' || activeTab === 'users' || activeTab === 'gatekeeper' || activeTab === 'inquiries' || activeTab === 'broadcast') && (
                             <div className="bg-card glass-card border border-border/50 rounded-xl md:rounded-2xl p-4 md:p-6 shadow-xl flex-1 flex flex-col min-h-[500px] md:min-h-[600px] overflow-hidden">
                                 {activeTab === 'issues' && <AdminIssues />}
                                 {activeTab === 'users' && <AdminUsers />}
+                                {activeTab === 'gatekeeper' && <AdminVerification />} {/* 🟢 Render new component */}
                                 {activeTab === 'inquiries' && <AdminInquiries />}
                                 {activeTab === 'broadcast' && <AdminBroadcast />}
                             </div>

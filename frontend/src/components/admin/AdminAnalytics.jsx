@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import axiosInstance from '../../utils/axios';
-import { Users, AlertCircle, CheckCircle, Clock, MapPin, TrendingUp, Filter, ShieldAlert, Award } from 'lucide-react';
+import { Users, AlertCircle, CheckCircle, Clock, MapPin, TrendingUp, Filter, ShieldAlert, Award, Building2, Briefcase, Hourglass } from 'lucide-react';
 import Loader from '../Loader';
 
 const AdminAnalytics = () => {
@@ -45,8 +45,11 @@ const AdminAnalytics = () => {
     if (loading || !globalStats) return <div className="flex justify-center items-center h-full min-h-[400px]"><Loader /></div>;
 
     const topLevelCards = [
-        { title: 'Total Users', value: globalStats.totalUsers, icon: Users, color: 'text-blue-500', bg: 'bg-blue-500/10', border: 'border-blue-500/30' },
-        { title: 'Total Issues', value: globalStats.totalIssues, icon: AlertCircle, color: 'text-purple-500', bg: 'bg-purple-500/10', border: 'border-purple-500/30' },
+        { title: 'Standard Users', value: globalStats.totalUsers || 0, icon: Users, color: 'text-blue-500', bg: 'bg-blue-500/10', border: 'border-blue-500/30' },
+        { title: 'Pending Requests', value: globalStats.pendingRequests || 0, icon: Hourglass, color: 'text-orange-500', bg: 'bg-orange-500/10', border: 'border-orange-500/30' },
+        { title: 'Verified Officials', value: globalStats.totalOfficials || 0, icon: Briefcase, color: 'text-indigo-500', bg: 'bg-indigo-500/10', border: 'border-indigo-500/30' },
+        { title: 'Verified NGOs', value: globalStats.totalNGOs || 0, icon: Building2, color: 'text-teal-500', bg: 'bg-teal-500/10', border: 'border-teal-500/30' },
+        { title: 'Total Issues', value: globalStats.totalIssues || 0, icon: AlertCircle, color: 'text-purple-500', bg: 'bg-purple-500/10', border: 'border-purple-500/30' },
         { title: 'Open Issues', value: globalStats.issueStats.OPEN || 0, icon: Clock, color: 'text-yellow-500', bg: 'bg-yellow-500/10', border: 'border-yellow-500/30' },
         { title: 'Resolved Issues', value: globalStats.issueStats.RESOLVED || 0, icon: CheckCircle, color: 'text-green-500', bg: 'bg-green-500/10', border: 'border-green-500/30' },
     ];
@@ -62,7 +65,7 @@ const AdminAnalytics = () => {
                 <p className="text-sm md:text-base text-muted-foreground mt-1">Global overview and city-level deep dives.</p>
             </div>
 
-            <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-4 md:gap-6 relative z-10">
+            <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 xl:grid-cols-4 gap-4 md:gap-6 relative z-10">
                 {topLevelCards.map((card, idx) => {
                     const Icon = card.icon;
                     return (
@@ -96,8 +99,8 @@ const AdminAnalytics = () => {
                                     key={idx}
                                     onClick={() => setSelectedCity(stat._id === selectedCity ? '' : stat._id)}
                                     className={`w-full text-left p-3 md:p-4 rounded-xl border transition-all ${selectedCity === stat._id
-                                            ? 'bg-primary/10 border-primary/30 shadow-[0_0_10px_rgba(45,212,191,0.15)]'
-                                            : 'bg-background border-border/50 hover:bg-muted/50'
+                                        ? 'bg-primary/10 border-primary/30 shadow-[0_0_10px_rgba(45,212,191,0.15)]'
+                                        : 'bg-background border-border/50 hover:bg-muted/50'
                                         }`}
                                 >
                                     <div className="flex justify-between items-center mb-1.5 md:mb-2">
