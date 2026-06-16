@@ -36,9 +36,8 @@ const Sidebar = () => {
 
   const { unreadCount, markAsRead } = useNotifications(user);
 
-  // --- NEW: Download State & Logic ---
+  // --- Download State & Logic ---
   const [isDownloading, setIsDownloading] = useState(false);
-  const isNative = Capacitor.isNativePlatform();
   const isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent) && !window.MSStream;
 
   const handleDownloadApp = async () => {
@@ -237,31 +236,29 @@ const Sidebar = () => {
 
             <div className="space-y-1">
 
-              {/* --- NEW: APP DOWNLOAD BANNER (TOP) --- */}
-              {!isNative && (
-                <div className="mb-3 p-3 bg-primary/10 rounded-xl border border-primary/20 flex flex-col gap-3">
-                  <div className="flex items-center gap-3 px-1">
-                    <div className="w-9 h-9 rounded-lg bg-primary/20 flex items-center justify-center shrink-0">
-                      <Download className="w-5 h-5 text-primary" />
-                    </div>
-                    <div>
-                      <h4 className="text-sm font-semibold text-foreground">Install App</h4>
-                      <p className="text-xs text-primary/80 font-medium">
-                        {isIOS ? "iOS App coming soon." : "Get the native Android experience."}
-                      </p>
-                    </div>
+              {/* --- APP DOWNLOAD BANNER (TOP) --- */}
+              <div className="mb-3 p-3 bg-primary/10 rounded-xl border border-primary/20 flex flex-col gap-3">
+                <div className="flex items-center gap-3 px-1">
+                  <div className="w-9 h-9 rounded-lg bg-primary/20 flex items-center justify-center shrink-0">
+                    <Download className="w-5 h-5 text-primary" />
                   </div>
-                  {!isIOS && (
-                    <button
-                      onClick={handleDownloadApp}
-                      disabled={isDownloading}
-                      className="w-full py-2 bg-primary text-white rounded-lg text-sm font-semibold hover:bg-primary/90 transition-colors disabled:opacity-50"
-                    >
-                      {isDownloading ? "Starting..." : "Download APK"}
-                    </button>
-                  )}
+                  <div>
+                    <h4 className="text-sm font-semibold text-foreground">Install App</h4>
+                    <p className="text-xs text-primary/80 font-medium">
+                      {isIOS ? "iOS App coming soon." : "Get the native Android experience."}
+                    </p>
+                  </div>
                 </div>
-              )}
+                {!isIOS && (
+                  <button
+                    onClick={handleDownloadApp}
+                    disabled={isDownloading}
+                    className="w-full py-2 bg-primary text-white rounded-lg text-sm font-semibold hover:bg-primary/90 transition-colors disabled:opacity-50"
+                  >
+                    {isDownloading ? "Starting..." : "Download APK"}
+                  </button>
+                )}
+              </div>
               {/* -------------------------------------- */}
 
               <NavLink
