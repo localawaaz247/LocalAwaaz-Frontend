@@ -1,12 +1,13 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { LayoutDashboard, AlertCircle, Users, MessageSquare, Radio, ArrowLeft, Sun, Moon, Menu, X, Shield } from 'lucide-react';
+import { LayoutDashboard, AlertCircle, Users, MessageSquare, Radio, ArrowLeft, Sun, Moon, Menu, X, Shield, Skull, ShieldAlert } from 'lucide-react';
 import AdminAnalytics from '../components/admin/AdminAnalytics';
 import AdminIssues from '../components/admin/AdminIssues';
+import AdminTriage from '../components/admin/AdminTriage';
 import AdminUsers from '../components/admin/AdminUsers';
 import AdminInquiries from '../components/admin/AdminInquiries';
 import AdminBroadcast from '../components/admin/AdminBroadcast';
-import AdminVerification from '../components/admin/AdminVerification'; // 🟢 Added new component
+import AdminVerification from '../components/admin/AdminVerification';
 import logo from "/logo.png";
 import { useTranslation } from "react-i18next";
 
@@ -44,13 +45,14 @@ const AdminDashboard = () => {
     }, [isDarkMode]);
 
     const navItems = [
-        { id: 'analytics', label: t('admin_nav_analytics'), icon: LayoutDashboard },
-        { id: 'issues', label: t('admin_nav_issues'), icon: AlertCircle },
-        { id: 'users', label: t('admin_nav_users'), icon: Users },
-        // 🟢 Added Gatekeeper Tab
+        { id: 'analytics', label: t('admin_nav_analytics', 'Analytics'), icon: LayoutDashboard },
+        { id: 'issues', label: t('admin_nav_issues', 'Issues'), icon: AlertCircle },
+        // 🟢 Added Orphaned Triage Tab
+        { id: 'orphaned', label: t('admin_nav_triage', 'Triage Center'), icon: ShieldAlert },
+        { id: 'users', label: t('admin_nav_users', 'Users'), icon: Users },
         { id: 'gatekeeper', label: t('admin_nav_gatekeeper', 'Verifications'), icon: Shield },
-        { id: 'inquiries', label: t('admin_nav_inquiries'), icon: MessageSquare },
-        { id: 'broadcast', label: t('admin_nav_broadcast'), icon: Radio },
+        { id: 'inquiries', label: t('admin_nav_inquiries', 'Inquiries'), icon: MessageSquare },
+        { id: 'broadcast', label: t('admin_nav_broadcast', 'Broadcast'), icon: Radio },
     ];
 
     return (
@@ -82,15 +84,19 @@ const AdminDashboard = () => {
                     {navItems.map((item) => {
                         const Icon = item.icon;
                         const isActive = activeTab === item.id;
+                        // 🟢 Highlight orphaned tab in red for extra urgency
+                        const activeColor = item.id === 'orphaned' ? 'text-red-500 bg-red-500/10 border-red-500/20 shadow-[0_0_15px_rgba(239,68,68,0.1)]' : 'bg-primary/10 text-primary border-primary/20 shadow-[0_0_15px_rgba(45,212,191,0.1)]';
+                        const inactiveIconColor = item.id === 'orphaned' ? 'text-red-500/70' : 'text-muted-foreground';
+
                         return (
                             <button
                                 key={item.id}
                                 onClick={() => { setActiveTab(item.id); setIsSidebarOpen(false); }}
-                                className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl transition-all font-medium text-sm ${isActive
-                                    ? 'bg-primary/10 text-primary border border-primary/20 shadow-[0_0_15px_rgba(45,212,191,0.1)]'
-                                    : 'text-muted-foreground hover:bg-muted hover:text-foreground border border-transparent'}`}
+                                className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl transition-all font-medium text-sm border ${isActive
+                                    ? activeColor
+                                    : 'text-muted-foreground hover:bg-muted hover:text-foreground border-transparent'}`}
                             >
-                                <Icon className={`w-5 h-5 ${isActive ? 'text-primary' : 'text-muted-foreground'}`} />
+                                <Icon className={`w-5 h-5 ${isActive ? (item.id === 'orphaned' ? 'text-red-500' : 'text-primary') : inactiveIconColor}`} />
                                 {item.label}
                             </button>
                         );
@@ -128,7 +134,7 @@ const AdminDashboard = () => {
                         <button onClick={() => setIsSidebarOpen(true)} className="lg:hidden p-2 rounded-xl bg-card border border-border/50 text-muted-foreground hover:text-foreground transition-colors">
                             <Menu size={20} />
                         </button>
-                        <h1 className="text-lg md:text-xl font-bold font-display text-foreground text-gradient">{t('dashboard_overview')}</h1>
+                        <h1 className="text-lg md:text-xl font-bold font-display text-foreground text-gradient">{t('dashboard_overview', 'Dashboard Overview')}</h1>
                     </div>
                 </div>
 
@@ -136,12 +142,13 @@ const AdminDashboard = () => {
                     <div className="max-w-7xl mx-auto flex flex-col h-full space-y-4 md:space-y-6 w-full">
                         {activeTab === 'analytics' && <AdminAnalytics />}
 
-                        {/* 🟢 Included 'gatekeeper' in the shared card wrapper condition */}
-                        {(activeTab === 'issues' || activeTab === 'users' || activeTab === 'gatekeeper' || activeTab === 'inquiries' || activeTab === 'broadcast') && (
+                        {/* 🟢 Included 'orphaned' in the shared card wrapper condition */}
+                        {(activeTab === 'issues' || activeTab === 'orphaned' || activeTab === 'users' || activeTab === 'gatekeeper' || activeTab === 'inquiries' || activeTab === 'broadcast') && (
                             <div className="bg-card glass-card border border-border/50 rounded-xl md:rounded-2xl p-4 md:p-6 shadow-xl flex-1 flex flex-col min-h-[500px] md:min-h-[600px] overflow-hidden">
                                 {activeTab === 'issues' && <AdminIssues />}
+                                {activeTab === 'orphaned' && <AdminTriage />} {/* 🟢 Render new component */}
                                 {activeTab === 'users' && <AdminUsers />}
-                                {activeTab === 'gatekeeper' && <AdminVerification />} {/* 🟢 Render new component */}
+                                {activeTab === 'gatekeeper' && <AdminVerification />}
                                 {activeTab === 'inquiries' && <AdminInquiries />}
                                 {activeTab === 'broadcast' && <AdminBroadcast />}
                             </div>

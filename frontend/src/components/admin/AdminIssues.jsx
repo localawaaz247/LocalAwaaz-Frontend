@@ -4,7 +4,8 @@ import { showToast } from '../../utils/toast';
 import {
     MapPin, X, User, FileText, ChevronLeft, ChevronRight,
     CheckCircle, AlertTriangle, Trash2, Search, Shield,
-    Leaf, Flame, Clock, History, Briefcase, Download, ArrowRight, RotateCcw
+    Leaf, Flame, Clock, History, Briefcase, Download, ArrowRight, RotateCcw,
+    ShieldAlert
 } from 'lucide-react';
 import MiniLoader from '../MiniLoader';
 import CustomSelect from '../CustomSelect';
@@ -43,10 +44,14 @@ const AdminIssues = () => {
 
     // Modal Action States
     const [actionTab, setActionTab] = useState('STATUS');
-    const [updateData, setUpdateData] = useState({ status: '', adminRemark: '' });
+    // Added resolvedByAuthority to the update data state
+    const [updateData, setUpdateData] = useState({ status: '', adminRemark: '', resolvedByAuthority: '' });
     const [assignData, setAssignData] = useState({ authorityId: '', commitmentTimeHours: '' });
     const [revokeData, setRevokeData] = useState({ reason: '', penaltyPoints: 0 });
     const [isUpdating, setIsUpdating] = useState(false);
+
+    // Action Media State (Handles BOTH Disputed & Resolved evidence)
+    const [actionMedia, setActionMedia] = useState(null);
 
     const [currentMediaIndex, setCurrentMediaIndex] = useState(0);
     const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
@@ -64,7 +69,8 @@ const AdminIssues = () => {
         { value: 'IN_REVIEW', label: 'In Review' },
         { value: 'RESOLVED', label: 'Resolved' },
         { value: 'REJECTED', label: 'Rejected' },
-        { value: 'DISPUTED', label: 'Disputed' }
+        { value: 'DISPUTED', label: 'Disputed' },
+        { value: 'ORPHANED', label: 'Orphaned' }
     ];
 
     const REPORTER_ROLE_OPTIONS = [
@@ -78,7 +84,9 @@ const AdminIssues = () => {
         { value: 'OPEN', label: 'OPEN (Attention)' },
         { value: 'IN_REVIEW', label: 'IN REVIEW (Initiated)' },
         { value: 'RESOLVED', label: 'RESOLVED (Fixed)' },
-        { value: 'REJECTED', label: 'REJECTED (Spam)' }
+        { value: 'REJECTED', label: 'REJECTED (Spam)' },
+        { value: 'DISPUTED', label: 'DISPUTED (Conflict)' },
+        { value: 'ORPHANED', label: 'ORPHANED (Stagnant)' }
     ];
 
     useEffect(() => {
@@ -155,7 +163,22 @@ const AdminIssues = () => {
         e.preventDefault();
         setIsUpdating(true);
         try {
-            await axiosInstance.patch(`/admin/issue/${selectedIssue._id}`, updateData);
+            let payload = updateData;
+            let headers = {};
+
+            // If Disputed OR Resolved AND a file was selected, send as FormData
+            if (['DISPUTED', 'RESOLVED'].includes(updateData.status) && actionMedia) {
+                payload = new FormData();
+                payload.append('status', updateData.status);
+                payload.append('adminRemark', updateData.adminRemark);
+                if (updateData.resolvedByAuthority) {
+                    payload.append('resolvedByAuthority', updateData.resolvedByAuthority);
+                }
+                payload.append('media', actionMedia);
+                headers = { 'Content-Type': 'multipart/form-data' };
+            }
+
+            await axiosInstance.patch(`/admin/issue/${selectedIssue._id}`, payload, { headers });
             showToast({ icon: 'success', title: 'Status updated and users notified' });
             closeModal();
             fetchIssues();
@@ -219,9 +242,15 @@ const AdminIssues = () => {
 
     const openModal = async (issue) => {
         setSelectedIssue(issue);
-        setUpdateData({ status: issue.status, adminRemark: issue.adminRemark || '' });
+        // Reset state, map existing resolution authority if it exists
+        setUpdateData({
+            status: issue.status,
+            adminRemark: issue.adminRemark || '',
+            resolvedByAuthority: issue.resolvedByAuthority || issue.resolutionEvidence?.resolvedByAuthority || ''
+        });
         setAssignData({ authorityId: '', commitmentTimeHours: '' });
         setRevokeData({ reason: '', penaltyPoints: 0 });
+        setActionMedia(null);
         setActionTab('STATUS');
 
         const vMedia = Array.isArray(issue.media) ? issue.media : [];
@@ -235,7 +264,11 @@ const AdminIssues = () => {
         setIsModalVisible(false);
         setShowDeleteConfirm(false);
         setDragY(0);
-        setTimeout(() => { setSelectedIssue(null); setIsDragging(false); }, 300);
+        setTimeout(() => {
+            setSelectedIssue(null);
+            setIsDragging(false);
+            setActionMedia(null);
+        }, 300);
     };
 
     const handleTouchStart = (e) => {
@@ -264,7 +297,8 @@ const AdminIssues = () => {
         IN_REVIEW: "bg-blue-500/10 text-blue-500 border-blue-500/20",
         RESOLVED: "bg-green-500/10 text-green-500 border-green-500/20",
         REJECTED: "bg-red-500/10 text-red-500 border-red-500/20",
-        DISPUTED: "bg-orange-500/10 text-orange-500 border-orange-500/20"
+        DISPUTED: "bg-orange-500/10 text-orange-500 border-orange-500/20",
+        ORPHANED: "bg-purple-500/10 text-purple-500 border-purple-500/20"
     };
 
     const generateTimeline = (issue) => {
@@ -335,7 +369,7 @@ const AdminIssues = () => {
                         </thead>
                         <tbody className="divide-y divide-border/50">
                             {loading ? (
-                                <tr><td colSpan="5" className="p-8 text-center text-sm text-muted-foreground">Loading forensic database...</td></tr>
+                                <tr><td colSpan="5" className="p-8 text-center text-sm text-muted-foreground">Loading database...</td></tr>
                             ) : issues.length === 0 ? (
                                 <tr><td colSpan="5" className="p-8 text-center text-sm text-muted-foreground">No issues found matching parameters.</td></tr>
                             ) : (
@@ -367,8 +401,6 @@ const AdminIssues = () => {
                                                     </span>
                                                     <span className="text-[9px] md:text-xs text-muted-foreground flex items-center gap-1"><Clock size={10} /> {timeAgo(issue.createdAt)}</span>
                                                 </div>
-
-                                                {/* Assigned Official Details */}
                                                 {issue.bidding?.winningBid?.authorityId && (
                                                     <div className="text-[10px] text-muted-foreground mt-1 flex flex-col">
                                                         <span className="font-semibold text-indigo-500 truncate max-w-[150px]">
@@ -409,7 +441,7 @@ const AdminIssues = () => {
                 </div>
             )}
 
-            {/* Forensic Modal Overlay */}
+            {/* Modal Overlay */}
             {selectedIssue && (
                 <div className="fixed inset-0 z-[100] flex items-center justify-center p-2 sm:p-4">
                     <div className={`absolute inset-0 bg-black/80 backdrop-blur-sm transition-opacity duration-300 ${isModalVisible ? 'opacity-100' : 'opacity-0'}`} onClick={closeModal} />
@@ -431,7 +463,6 @@ const AdminIssues = () => {
                             </div>
                         </div>
 
-                        {/* 🚀 FIXED: Inner Flex Layout handles Mobile Scroll smoothly */}
                         <div className="flex flex-col lg:flex-row flex-1 min-h-0 overflow-y-auto lg:overflow-hidden thin-scrollbar">
 
                             {/* LEFT COLUMN: Media & Core Data */}
@@ -470,7 +501,6 @@ const AdminIssues = () => {
                             {/* RIGHT COLUMN: The Players, ACTION ZONE & Timeline */}
                             <div className="w-full lg:w-1/2 flex flex-col bg-muted/5 shrink-0 lg:shrink relative z-30">
 
-                                {/* The Players */}
                                 <div className="p-4 md:p-5 border-b border-border/50 shrink-0">
                                     <div className="grid grid-cols-2 gap-3">
                                         <div className="bg-card border border-border/50 p-3 rounded-xl">
@@ -491,11 +521,9 @@ const AdminIssues = () => {
                                     </div>
                                 </div>
 
-                                {/* ACTION ZONE: Guaranteed visible Dropdown */}
                                 <div className="p-4 md:p-5 border-b border-border/50 shrink-0 bg-background relative z-50">
                                     <div className="flex gap-4 mb-3 border-b border-border/50">
                                         <button onClick={() => setActionTab('STATUS')} className={`pb-2 text-xs font-bold uppercase tracking-wider ${actionTab === 'STATUS' ? 'text-primary border-b-2 border-primary' : 'text-muted-foreground'}`}>Update Status</button>
-
                                         {selectedIssue.bidding?.winningBid?.authorityId ? (
                                             <button onClick={() => setActionTab('REVOKE')} className={`pb-2 text-xs font-bold uppercase tracking-wider ${actionTab === 'REVOKE' ? 'text-red-500 border-b-2 border-red-500' : 'text-muted-foreground'}`}>Revoke Assignment</button>
                                         ) : (
@@ -504,14 +532,61 @@ const AdminIssues = () => {
                                     </div>
 
                                     {actionTab === 'STATUS' && (
-                                        <form onSubmit={handleUpdateStatus} className="flex flex-col gap-2 relative">
-                                            <div className="flex gap-2 relative">
-                                                <div className="w-1/2">
+                                        <form onSubmit={handleUpdateStatus} className="flex flex-col gap-3 relative z-50">
+                                            <div className="flex gap-2 relative z-50">
+                                                <div className="w-1/2 relative z-50">
+                                                    <label className="text-[10px] text-muted-foreground mb-1 block font-semibold uppercase">Change Status</label>
                                                     <CustomSelect options={UPDATE_STATUS_OPTIONS} value={updateData.status} onChange={(val) => setUpdateData({ ...updateData, status: val })} />
                                                 </div>
-                                                <input type="text" value={updateData.adminRemark} onChange={(e) => setUpdateData({ ...updateData, adminRemark: e.target.value })} placeholder="Audit Remark..." className="w-1/2 px-3 py-2 bg-muted border border-border/50 rounded-xl text-xs focus:border-primary outline-none" required />
+                                                <div className="w-1/2 relative z-10">
+                                                    <label className="text-[10px] text-muted-foreground mb-1 block font-semibold uppercase">
+                                                        {/* Optional for DISPUTED, RESOLVED, and ORPHANED */}
+                                                        {['DISPUTED', 'ORPHANED', 'RESOLVED'].includes(updateData.status) ? 'Audit Remark (Optional)' : 'Audit Remark (Required)'}
+                                                    </label>
+                                                    <input
+                                                        type="text"
+                                                        value={updateData.adminRemark}
+                                                        onChange={(e) => setUpdateData({ ...updateData, adminRemark: e.target.value })}
+                                                        placeholder={['DISPUTED', 'ORPHANED', 'RESOLVED'].includes(updateData.status) ? "Optional context..." : "State reason..."}
+                                                        className="w-full px-3 py-2 bg-muted border border-border/50 rounded-xl text-xs focus:border-primary outline-none"
+                                                        required={!['DISPUTED', 'ORPHANED', 'RESOLVED'].includes(updateData.status)}
+                                                    />
+                                                </div>
                                             </div>
-                                            <button type="submit" disabled={isUpdating} className="w-full py-2.5 mt-1 bg-primary text-primary-foreground font-bold text-xs rounded-xl shadow-md flex items-center justify-center gap-1.5">
+
+                                            {/* 🟢 NEW: Official/NGO Assignment specifically for RESOLVED Status */}
+                                            {updateData.status === 'RESOLVED' && (
+                                                <div className="relative z-40 mb-1 animate-fade-in">
+                                                    <label className="text-[10px] text-green-500 mb-1 block font-bold uppercase flex items-center gap-1">
+                                                        <ShieldAlert size={12} /> Resolved By (Optional Authority)
+                                                    </label>
+                                                    <CustomSelect
+                                                        options={[{ value: '', label: 'Unknown / System Resolved' }, ...authorities]}
+                                                        value={updateData.resolvedByAuthority || ''}
+                                                        onChange={(val) => setUpdateData({ ...updateData, resolvedByAuthority: val })}
+                                                    />
+                                                </div>
+                                            )}
+
+                                            {/* Media Upload available for both DISPUTED and RESOLVED */}
+                                            {['DISPUTED', 'RESOLVED'].includes(updateData.status) && (
+                                                <div className={`relative z-10 p-3 border rounded-xl animate-fade-in ${updateData.status === 'RESOLVED' ? 'bg-green-500/5 border-green-500/20' : 'bg-red-500/5 border-red-500/20'}`}>
+                                                    <label className={`text-xs mb-2 block font-bold flex items-center gap-1 ${updateData.status === 'RESOLVED' ? 'text-green-500' : 'text-red-500'}`}>
+                                                        <ShieldAlert size={12} /> {updateData.status === 'RESOLVED' ? 'Attach Resolution Evidence (Optional)' : 'Attach Dispute Evidence (Optional)'}
+                                                    </label>
+                                                    <input
+                                                        type="file"
+                                                        accept="image/*"
+                                                        onChange={(e) => setActionMedia(e.target.files[0])}
+                                                        className={`w-full text-xs file:mr-3 file:py-1.5 file:px-3 file:rounded-lg file:border-0 file:font-bold cursor-pointer text-muted-foreground ${updateData.status === 'RESOLVED' ? 'file:bg-green-500/10 file:text-green-500 hover:file:bg-green-500/20' : 'file:bg-red-500/10 file:text-red-500 hover:file:bg-red-500/20'}`}
+                                                    />
+                                                    <p className="text-[10px] text-muted-foreground mt-2 leading-tight">
+                                                        Optional: Provide photographic evidence to support the {updateData.status === 'RESOLVED' ? 'resolution' : "official's dispute claim"}. This will be visible to the citizen.
+                                                    </p>
+                                                </div>
+                                            )}
+
+                                            <button type="submit" disabled={isUpdating} className="w-full py-2.5 mt-1 bg-primary text-primary-foreground font-bold text-xs rounded-xl shadow-md flex items-center justify-center gap-1.5 relative z-10">
                                                 {isUpdating ? <MiniLoader className="w-3.5 h-3.5" /> : <>Log Action <CheckCircle size={14} /></>}
                                             </button>
                                         </form>
@@ -544,7 +619,6 @@ const AdminIssues = () => {
                                     )}
                                 </div>
 
-                                {/* Audit Timeline Section */}
                                 <div className="flex-1 p-4 md:p-5 lg:overflow-y-auto thin-scrollbar relative z-10">
                                     <div className="space-y-4 relative before:absolute before:inset-0 before:ml-5 before:-translate-x-px md:before:mx-auto md:before:translate-x-0 before:h-full before:w-0.5 before:bg-gradient-to-b before:from-transparent before:via-border/50 before:to-transparent pb-4">
                                         {generateTimeline(selectedIssue).map((event, i) => (
@@ -561,14 +635,12 @@ const AdminIssues = () => {
                                         ))}
                                     </div>
                                 </div>
-
                             </div>
                         </div>
                     </div>
                 </div>
             )}
 
-            {/* Nuclear Delete Confirmation */}
             {showDeleteConfirm && (
                 <div className="fixed inset-0 z-[200] flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm animate-fade-in">
                     <div className="bg-card border border-red-500/30 rounded-2xl p-5 md:p-6 max-w-sm w-full shadow-2xl" onClick={e => e.stopPropagation()}>
