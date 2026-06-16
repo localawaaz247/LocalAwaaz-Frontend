@@ -226,7 +226,6 @@ const IssueDetail = ({ issue, isOpen, onClose, hideConfirm = false, isAdminView 
       <div className={`fixed inset-0 z-[60] flex items-center justify-center p-4 md:p-6 lg:p-10 transition-all duration-300 ease-in-out min-h-0 ${isOpen ? "opacity-100 visible" : "opacity-0 invisible"}`}>
         <div className={`absolute inset-0 bg-black/80 backdrop-blur-sm transition-opacity duration-300 ${isOpen ? "opacity-100" : "opacity-0"}`} onClick={onClose} />
 
-        {/* 2. Removed h-full, changed max-h to 90dvh, and changed sm:rounded-2xl to just rounded-2xl */}
         <div
           className={`relative w-full max-w-5xl bg-card rounded-2xl shadow-2xl flex flex-col overflow-hidden transform transition-all duration-400 ease-out border border-border/50 
           max-h-[90dvh] md:max-h-[85vh]
@@ -236,7 +235,7 @@ const IssueDetail = ({ issue, isOpen, onClose, hideConfirm = false, isAdminView 
         >
           {issue && (
             <>
-              {/* Header section - changed sm:rounded-t-2xl to rounded-t-2xl */}
+              {/* Header section */}
               <div className="flex justify-between items-center p-4 md:p-5 border-b border-border/50 bg-muted/30 shrink-0 rounded-t-2xl">
                 <div className="flex items-center gap-2 flex-wrap">
                   <span className={`px-2.5 py-1 sm:px-3 sm:py-1.5 rounded-full text-[10px] sm:text-xs font-bold uppercase tracking-wider border ${colors[color] || colors.emerald}`}>
@@ -255,7 +254,8 @@ const IssueDetail = ({ issue, isOpen, onClose, hideConfirm = false, isAdminView 
               {/* Main Content Scrollable Area */}
               <div className="overflow-y-auto w-full thin-scrollbar p-4 md:p-6 lg:p-8 flex-1 min-h-0 bg-background/50">
                 <div className="mb-5 sm:mb-6">
-                  <h2 className="text-xl sm:text-2xl md:text-3xl font-extrabold text-foreground mb-3 leading-tight tracking-tight break-words">
+                  {/* ADDED break-all TO PREVENT TITLE OVERFLOW */}
+                  <h2 className="text-xl sm:text-2xl md:text-3xl font-extrabold text-foreground mb-3 leading-tight tracking-tight break-all">
                     {title}
                   </h2>
                   {priority && (
@@ -317,10 +317,12 @@ const IssueDetail = ({ issue, isOpen, onClose, hideConfirm = false, isAdminView 
                         <MapPin size={14} className="sm:w-4 sm:h-4" /> {t('location')}
                       </h4>
                       <div className="space-y-1 sm:space-y-1.5">
-                        <p className="text-foreground font-bold text-base sm:text-lg leading-tight break-words">
+                        {/* ADDED break-all TO PREVENT LOCATION OVERFLOW */}
+                        <p className="text-foreground font-bold text-base sm:text-lg leading-tight break-all">
                           {typeof location === 'string' ? location : location?.address || t('location_not_provided')}
                         </p>
-                        {location?.city && <p className="text-muted-foreground text-xs sm:text-sm font-medium break-words">{location?.city}, {location?.state} {location?.pinCode}</p>}
+                        {/* ADDED break-all TO PREVENT LOCATION DETAILS OVERFLOW */}
+                        {location?.city && <p className="text-muted-foreground text-xs sm:text-sm font-medium break-all">{location?.city}, {location?.state} {location?.pinCode}</p>}
                       </div>
                     </div>
 
@@ -389,11 +391,12 @@ const IssueDetail = ({ issue, isOpen, onClose, hideConfirm = false, isAdminView 
                 )}
 
                 {/* Description */}
-                <div className="bg-card rounded-xl sm:rounded-2xl p-4 sm:p-5 md:p-6 mb-6 border border-border/50 shadow-sm">
+                <div className="bg-card rounded-xl sm:rounded-2xl p-4 sm:p-5 md:p-6 mb-6 border border-border/50 shadow-sm w-full">
                   <h4 className="text-xs sm:text-sm font-bold text-blue-600 dark:text-blue-500 mb-2 sm:mb-3 flex items-center gap-2 uppercase tracking-widest">
                     <FileText size={14} className="sm:w-4 sm:h-4" /> {t('description')}
                   </h4>
-                  <p className="text-sm md:text-base text-foreground/80 leading-relaxed whitespace-pre-wrap break-words">
+                  {/* ADDED break-all TO PREVENT DESCRIPTION OVERFLOW */}
+                  <p className="text-sm md:text-base text-foreground/80 leading-relaxed whitespace-pre-wrap break-all w-full">
                     {description}
                   </p>
                 </div>
