@@ -14,7 +14,7 @@ import { showToast } from "../utils/toast";
 import { useTranslation } from "react-i18next";
 
 // --- NEW IMPORTS FOR VISITOR ODOMETER ---
-import { io } from 'socket.io-client';
+import { socket } from "../utils/socket";
 import Odometer from 'react-odometerjs';
 import 'odometer/themes/odometer-theme-minimal.css';
 
@@ -51,12 +51,6 @@ const Feed = () => {
 
   // --- NEW REAL-TIME SOCKET EFFECT ---
   useEffect(() => {
-    // 1. Add websocket transports for production
-    const socket = io(import.meta.env.VITE_BASE_URL || 'http://localhost:1111', {
-      transports: ['websocket'],
-      withCredentials: true
-    });
-
     socket.on('live_visitor_update', (data) => {
       setVisitors(data.count);
     });
@@ -70,7 +64,7 @@ const Feed = () => {
         );
         setTimeout(() => setVisitors(response.data.count), 150);
       } catch (error) {
-        console.error("Failed to fetch visit count:", error); 
+        console.error("Failed to fetch visit count:", error);
       }
     };
 

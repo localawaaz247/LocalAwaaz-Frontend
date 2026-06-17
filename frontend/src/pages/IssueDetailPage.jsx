@@ -20,8 +20,9 @@ const IssueDetailPage = () => {
 
       } catch (error) {
         console.error('Error fetching issue:', error);
-        showToast({ icon: 'error', title: 'Failed to load issue details' });
-        navigate('/dashboard');
+        if (error.response?.status !== 401 && error.response?.status !== 403) {
+          showToast({ icon: 'error', title: 'Failed to load issue details' });
+        }
       } finally {
         setLoading(false);
       }

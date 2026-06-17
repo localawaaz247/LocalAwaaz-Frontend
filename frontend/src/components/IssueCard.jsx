@@ -4,6 +4,7 @@ import { useSelector } from "react-redux";
 import axiosInstance from "../utils/axios";
 import { showToast } from "../utils/toast";
 import { useTranslation } from "react-i18next";
+import { APP_URL } from "../utils/config";
 
 const WhatsappIcon = ({ size = 20, className = "" }) => (
   <svg xmlns="http://www.w3.org/2000/svg" width={size} height={size} viewBox="0 0 24 24" fill="currentColor" className={className}>
@@ -108,7 +109,7 @@ const IssueCard = ({ issue, onClick, onFlagClick }) => {
 
   const handleWhatsappShare = (e) => {
     e.stopPropagation(); setLocalShareCount(prev => prev + 1); incrementShare();
-    const text = encodeURIComponent(`${t('check_out_issue')}: ${title}\n\n${window.location.origin}/issue/${_id}`);
+    const text = encodeURIComponent(`${t('check_out_issue')}: ${title}\n\n${APP_URL}/issue/${_id}`);
     window.open(`https://wa.me/?text=${text}`, '_blank');
   };
 

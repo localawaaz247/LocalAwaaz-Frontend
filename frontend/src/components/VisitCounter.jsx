@@ -2,7 +2,7 @@ import React, { useEffect, useState } from 'react';
 import Odometer from 'react-odometerjs';
 import { Users } from 'lucide-react';
 import axios from 'axios';
-import { io } from 'socket.io-client'; // <-- Added for real-time updates!
+import { socket } from '../utils/socket';
 
 // Using your preferred minimal theme
 import 'odometer/themes/odometer-theme-minimal.css';
@@ -11,11 +11,6 @@ const VisitCounter = () => {
     const [visits, setVisits] = useState(0);
 
     useEffect(() => {
-        // 1. Setup Real-Time Socket Connection
-        const socket = io(import.meta.env.VITE_BASE_URL || 'http://localhost:1111', {
-            transports: ['websocket'], // <-- THIS IS REQUIRED FOR PRODUCTION
-            withCredentials: true
-        });
         // Listen for the broadcast from your backend and update state instantly
         socket.on('live_visitor_update', (data) => {
             setVisits(data.count);

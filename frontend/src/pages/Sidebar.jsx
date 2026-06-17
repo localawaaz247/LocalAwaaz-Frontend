@@ -1,5 +1,8 @@
 import axios from "axios";
-import { Home, PlusCircle, Bell, User, Sparkle, Settings, HelpCircle, LogOut, Sun, Moon, X, ShieldCheck, Download } from "lucide-react";
+import {
+  Home, PlusCircle, Bell, User, Sparkle, Settings, HelpCircle,
+  LogOut, Sun, Moon, X, ShieldCheck, Download, Briefcase, Trophy
+} from "lucide-react";
 import { useState, useEffect } from "react";
 import { NavLink, useLocation, useNavigate } from "react-router-dom";
 import { useDispatch, useSelector } from "react-redux";
@@ -35,6 +38,11 @@ const Sidebar = () => {
   const profilePic = profileDetail?.profilePic || user?.profilePic;
 
   const { unreadCount, markAsRead } = useNotifications(user);
+
+  // 🟢 Check if the logged-in user is an approved authority
+  const isApprovedAuthority = user &&
+    ['official', 'ngo'].includes(user.role) &&
+    (user.authorityProfile?.verificationStatus === 'APPROVED' || user.authorityProfile?.isVerified === true);
 
   // --- Download State & Logic ---
   const [isDownloading, setIsDownloading] = useState(false);
@@ -166,6 +174,23 @@ const Sidebar = () => {
             <NavLink to="assistant" className="w-auto lg:w-full">
               <SidebarItem icon={Sparkle} label={t('nav_lokai')} active={path === "/dashboard/assistant"} />
             </NavLink>
+
+            {/* 🟢 NEW: Leaderboard Button - Visible to all, placed above special panels */}
+            <NavLink to="leaderboard" className="w-auto lg:w-full">
+              <SidebarItem icon={Trophy} label={t('nav_leaderboard', 'Leaderboard')} active={path.startsWith("/dashboard/leaderboard")} />
+            </NavLink>
+
+            {/* 🟢 NEW: Authority Panel Button */}
+            {isApprovedAuthority && (
+              <NavLink to="/authority" className="w-auto lg:w-full">
+                <SidebarItem
+                  icon={Briefcase}
+                  label="Authority Space"
+                  active={path.startsWith("/authority")}
+                  isAuthorityLink={true}
+                />
+              </NavLink>
+            )}
 
             {user?.role === 'admin' && (
               <NavLink to="/admin" className="w-auto lg:w-full">
@@ -346,16 +371,17 @@ const Sidebar = () => {
   );
 };
 
-const SidebarItem = ({ icon: Icon, label, active, unreadCount, isAdminLink }) => {
+// 🟢 Updated SidebarItem to handle Authority styling
+const SidebarItem = ({ icon: Icon, label, active, unreadCount, isAdminLink, isAuthorityLink }) => {
   return (
     <div
       title={label}
       className={`flex items-center justify-center lg:justify-start px-3 py-2 md:px-4 md:py-2.5 lg:px-4 lg:py-3 rounded-xl cursor-pointer transition-all duration-200 relative w-auto lg:w-full
-        ${active && isAdminLink
+        ${active && (isAdminLink || isAuthorityLink)
           ? "bg-red-500/10 text-red-500 border border-red-500/20 shadow-lg scale-105"
           : active
             ? "bg-gradient-to-r from-primary to-secondary text-primary-foreground shadow-lg scale-105"
-            : isAdminLink
+            : (isAdminLink || isAuthorityLink)
               ? "text-red-500/80 hover:bg-red-500/10 hover:text-red-500"
               : "text-foreground/80 hover:bg-muted hover:text-foreground"
         }`}

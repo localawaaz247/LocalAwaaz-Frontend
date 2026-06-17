@@ -16,7 +16,7 @@ import { useRegisterSW } from 'virtual:pwa-register/react';
 import { PushNotifications } from '@capacitor/push-notifications';
 import { Capacitor } from '@capacitor/core';
 
-// Pages
+// Pages & Components
 import LoginRegister from "./pages/LoginRegister";
 import ForgotPassword from "./pages/ForgotPassword";
 import NotFound from "./pages/NotFound";
@@ -40,6 +40,11 @@ import Cookies from "./pages/Cookies";
 import FAQ from "./pages/FAQ";
 import Help from "./pages/Help";
 import AdminDashboard from "./pages/AdminDashboard";
+import AuthorityDashboard from "./pages/AuthorityDashboard";
+
+// 🟢 NEW: Import LeaderBoard Component
+import LeaderBoard from "./components/shared/LeaderBoard"; // Adjust path to './pages/LeaderBoard' if you placed it there
+
 import axiosInstance from "./utils/axios";
 
 const AppLanguageInitializer = ({ children }) => {
@@ -182,10 +187,16 @@ const AppContent = () => {
             <Route path="notifications" element={<Notifications />} />
             <Route path="profile" element={<Profile />} />
             <Route path="help" element={<Help />} />
+
+            {/* 🟢 NEW: LEADERBOARD ROUTE */}
+            <Route path="leaderboard" element={<LeaderBoard />} />
           </Route>
 
           {/* ADMIN ROUTE */}
           <Route path="/admin" element={<ProtectedRoute requireAdmin={true}><AdminDashboard /></ProtectedRoute>} />
+
+          {/* AUTHORITY ROUTE */}
+          <Route path="/authority" element={<ProtectedRoute><AuthorityDashboard /></ProtectedRoute>} />
 
           {/* 404 Route */}
           <Route path="*" element={<NotFound />} />
