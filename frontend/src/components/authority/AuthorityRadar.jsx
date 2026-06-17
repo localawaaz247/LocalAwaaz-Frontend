@@ -3,7 +3,7 @@ import axiosInstance from '../../utils/axios';
 import { showToast } from '../../utils/toast';
 import {
     Clock, AlertTriangle, ShieldAlert, CheckCircle,
-    XCircle, Zap, MapPin, Calendar, Search, Timer, Check, X, RotateCcw, User
+    XCircle, Zap, MapPin, Calendar, Search, Timer, Check, X, RotateCcw, User, Plus, Minus
 } from 'lucide-react';
 import MiniLoader from '../MiniLoader';
 import CustomSelect from '../../components/CustomSelect';
@@ -334,9 +334,9 @@ const AuthorityRadar = () => {
                         <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="absolute inset-0 bg-black/60 backdrop-blur-md" onClick={() => setBidModal({ isOpen: false, issue: null, timeValue: '', timeUnit: 'DAYS' })} />
                         <motion.div
                             initial={{ opacity: 0, scale: 0.95, y: 20 }} animate={{ opacity: 1, scale: 1, y: 0 }} exit={{ opacity: 0, scale: 0.95, y: 20 }}
-                            className="bg-card/95 backdrop-blur-2xl w-full max-w-md border border-white/10 rounded-3xl shadow-[0_0_50px_rgba(0,0,0,0.5)] overflow-hidden flex flex-col relative z-10"
+                            className="bg-card/95 backdrop-blur-2xl w-full max-w-md border border-white/10 rounded-3xl shadow-[0_0_50px_rgba(0,0,0,0.5)] overflow-visible flex flex-col relative z-10"
                         >
-                            <div className="p-6 border-b border-border/50 bg-primary/5">
+                            <div className="p-6 border-b border-border/50 bg-primary/5 rounded-t-3xl">
                                 <h3 className="text-2xl font-black flex items-center gap-3"><Timer className="text-primary" size={28} /> Place Your Bid</h3>
                                 <p className="text-sm font-medium text-muted-foreground mt-2">Commit to resolving this issue. Bids cannot be revoked.</p>
                             </div>
@@ -355,14 +355,32 @@ const AuthorityRadar = () => {
                                 <div>
                                     <label className="block text-xs font-bold text-muted-foreground uppercase tracking-widest mb-3">Committed Resolution Time</label>
                                     <div className="flex gap-3">
-                                        <input
-                                            type="number" min="1" required
-                                            value={bidModal.timeValue}
-                                            onChange={(e) => setBidModal({ ...bidModal, timeValue: e.target.value })}
-                                            className="flex-1 bg-background/50 border border-border/60 rounded-xl px-4 py-3 text-lg font-black focus:border-primary focus:ring-2 focus:ring-primary/20 outline-none transition-all shadow-inner"
-                                            placeholder="E.g., 3"
-                                        />
-                                        <div className="w-40 relative z-50">
+                                        <div className="flex flex-1 min-w-0 items-center bg-background/50 border border-border/60 rounded-xl overflow-hidden focus-within:border-primary focus-within:ring-2 focus-within:ring-primary/20 transition-all shadow-inner">
+                                            <button
+                                                type="button"
+                                                onClick={() => setBidModal(prev => ({ ...prev, timeValue: Math.max(1, Number(prev.timeValue) - 1) }))}
+                                                className="p-3 text-muted-foreground hover:text-foreground hover:bg-muted/30 transition-colors cursor-pointer"
+                                            >
+                                                <Minus size={18} />
+                                            </button>
+
+                                            <input
+                                                type="number" min="1" required
+                                                value={bidModal.timeValue}
+                                                onChange={(e) => setBidModal({ ...bidModal, timeValue: e.target.value })}
+                                                className="w-full text-center bg-transparent text-lg font-black outline-none appearance-none [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none m-0"
+                                                placeholder="3"
+                                            />
+
+                                            <button
+                                                type="button"
+                                                onClick={() => setBidModal(prev => ({ ...prev, timeValue: Number(prev.timeValue) + 1 }))}
+                                                className="p-3 text-muted-foreground hover:text-foreground hover:bg-muted/30 transition-colors cursor-pointer"
+                                            >
+                                                <Plus size={18} />
+                                            </button>
+                                        </div>
+                                        <div className="w-28 sm:w-36 shrink-0 relative z-50">
                                             <CustomSelect
                                                 options={[{ label: 'Hours', value: 'HOURS' }, { label: 'Days', value: 'DAYS' }, { label: 'Weeks', value: 'WEEKS' }, { label: 'Months', value: 'MONTHS' }]}
                                                 value={bidModal.timeUnit}
@@ -391,7 +409,7 @@ const AuthorityRadar = () => {
                         <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="absolute inset-0 bg-black/60 backdrop-blur-md" onClick={() => setRejectModal({ isOpen: false, issue: null, reason: '' })} />
                         <motion.div
                             initial={{ opacity: 0, scale: 0.95, y: 20 }} animate={{ opacity: 1, scale: 1, y: 0 }} exit={{ opacity: 0, scale: 0.95, y: 20 }}
-                            className="bg-card/95 backdrop-blur-2xl w-full max-w-md border border-white/10 rounded-3xl shadow-[0_0_50px_rgba(0,0,0,0.5)] overflow-hidden flex flex-col relative z-10"
+                            className="bg-card/95 backdrop-blur-2xl w-full max-w-md border border-white/10 rounded-3xl shadow-[0_0_50px_rgba(0,0,0,0.5)] overflow-visible flex flex-col relative z-10"
                         >
                             <div className="p-6 border-b border-border/50 bg-red-500/5">
                                 <h3 className="text-2xl font-black text-red-500 flex items-center gap-3"><XCircle size={28} /> Dismiss Issue</h3>

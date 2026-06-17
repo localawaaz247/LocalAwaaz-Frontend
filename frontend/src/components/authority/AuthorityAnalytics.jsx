@@ -284,7 +284,7 @@ const AuthorityAnalytics = () => {
         <motion.div
             initial={{ opacity: 0, y: 10 }}
             animate={{ opacity: 1, y: 0 }}
-            className="space-y-6 flex flex-col h-full relative"
+            className="space-y-6 flex flex-col min-h-full h-auto md:h-full relative"
         >
             {/* Header */}
             <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 relative z-[50]">
@@ -394,72 +394,71 @@ const AuthorityAnalytics = () => {
             </div>
 
             {/* The Table Wrapper */}
-            <div className="bg-card/40 backdrop-blur-2xl border border-border/60 rounded-2xl overflow-hidden shadow-xl flex-1 flex flex-col min-h-0 relative z-[10]">
-                <div className="overflow-x-auto thin-scrollbar flex-1 bg-background/20">
-                    <table className="w-full text-left whitespace-nowrap">
-                        <thead className="bg-muted/40 backdrop-blur-md border-b border-border/50 sticky top-0 z-10 shadow-sm">
-                            <tr className="text-muted-foreground text-[11px] uppercase tracking-widest">
-                                <th className="py-4 px-6 font-bold">Issue Detail</th>
-                                <th className="py-4 px-6 font-bold">Location</th>
-                                <th className="py-4 px-6 font-bold">Status</th>
-                                <th className="py-4 px-6 font-bold text-right">Impact Score</th>
-                            </tr>
-                        </thead>
-                        <tbody className="divide-y divide-border/30">
-                            <AnimatePresence>
-                                {visibleIssues.length === 0 ? (
-                                    <motion.tr initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}>
-                                        <td colSpan="4" className="p-12 text-center text-sm font-medium text-muted-foreground">
-                                            <Search className="w-8 h-8 opacity-20 mx-auto mb-2" />
-                                            <p>No issues found matching your filters.</p>
-                                        </td>
-                                    </motion.tr>
-                                ) : (
-                                    visibleIssues.map((issue) => {
-                                        const isMyJob = issue.bidding?.winningBid?.authorityId === user?._id;
-                                        return (
-                                            <motion.tr
-                                                layout
-                                                initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }}
-                                                key={issue._id}
-                                                onClick={() => openModal(issue._id)}
-                                                className="hover:bg-primary/5 transition-all cursor-pointer group"
-                                            >
-                                                <td className="py-4 px-6">
-                                                    <div className="flex items-center gap-2">
-                                                        <span className="font-bold text-sm text-foreground group-hover:text-primary transition-colors">
-                                                            {fetchingIssueId === issue._id ? 'Loading Details...' : issue.title}
-                                                        </span>
-                                                    </div>
-                                                    <p className="text-[10px] text-muted-foreground mt-1 uppercase tracking-wider font-semibold">{issue.category}</p>
-                                                </td>
-                                                <td className="py-4 px-6">
-                                                    <p className="text-sm font-semibold">{issue.location?.city || issue.location?.district}</p>
-                                                    <p className="text-[11px] text-muted-foreground mt-0.5">{issue.location?.state}</p>
-                                                </td>
-                                                <td className="py-4 px-6 flex items-center gap-2">
-                                                    <span className={`text-[10px] border px-2.5 py-1 rounded-md font-bold uppercase tracking-widest shadow-sm ${statusColors[issue.status] || statusColors.OPEN}`}>
-                                                        {issue.status}
+            <div className="bg-card/40 backdrop-blur-2xl border border-border/60 rounded-2xl overflow-hidden shadow-xl flex-1 flex flex-col min-h-[400px] md:min-h-0 relative z-[10] mb-8 md:mb-0">                <div className="overflow-x-auto thin-scrollbar flex-1 bg-background/20">
+                <table className="w-full text-left whitespace-nowrap">
+                    <thead className="bg-muted/40 backdrop-blur-md border-b border-border/50 sticky top-0 z-10 shadow-sm">
+                        <tr className="text-muted-foreground text-[11px] uppercase tracking-widest">
+                            <th className="py-4 px-6 font-bold">Issue Detail</th>
+                            <th className="py-4 px-6 font-bold">Location</th>
+                            <th className="py-4 px-6 font-bold">Status</th>
+                            <th className="py-4 px-6 font-bold text-right">Impact Score</th>
+                        </tr>
+                    </thead>
+                    <tbody className="divide-y divide-border/30">
+                        <AnimatePresence>
+                            {visibleIssues.length === 0 ? (
+                                <motion.tr initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}>
+                                    <td colSpan="4" className="p-12 text-center text-sm font-medium text-muted-foreground">
+                                        <Search className="w-8 h-8 opacity-20 mx-auto mb-2" />
+                                        <p>No issues found matching your filters.</p>
+                                    </td>
+                                </motion.tr>
+                            ) : (
+                                visibleIssues.map((issue) => {
+                                    const isMyJob = issue.bidding?.winningBid?.authorityId === user?._id;
+                                    return (
+                                        <motion.tr
+                                            layout
+                                            initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }}
+                                            key={issue._id}
+                                            onClick={() => openModal(issue._id)}
+                                            className="hover:bg-primary/5 transition-all cursor-pointer group"
+                                        >
+                                            <td className="py-4 px-6">
+                                                <div className="flex items-center gap-2">
+                                                    <span className="font-bold text-sm text-foreground group-hover:text-primary transition-colors">
+                                                        {fetchingIssueId === issue._id ? 'Loading Details...' : issue.title}
                                                     </span>
-                                                    {isMyJob && (
-                                                        <span className="bg-yellow-500/10 text-yellow-500 border border-yellow-500/30 px-2 py-1 rounded-md flex items-center gap-1.5 text-[9px] font-black uppercase tracking-widest">
-                                                            <Star size={10} className="fill-yellow-500" /> My Job
-                                                        </span>
-                                                    )}
-                                                </td>
-                                                <td className="py-4 px-6 text-right">
-                                                    <span className="inline-flex items-center justify-end gap-1.5 text-sm font-black text-yellow-500 bg-yellow-500/10 px-3 py-1 rounded-lg border border-yellow-500/20">
-                                                        <Zap size={14} className="fill-yellow-500/20" /> {issue.impactScore || 0}
+                                                </div>
+                                                <p className="text-[10px] text-muted-foreground mt-1 uppercase tracking-wider font-semibold">{issue.category}</p>
+                                            </td>
+                                            <td className="py-4 px-6">
+                                                <p className="text-sm font-semibold">{issue.location?.city || issue.location?.district}</p>
+                                                <p className="text-[11px] text-muted-foreground mt-0.5">{issue.location?.state}</p>
+                                            </td>
+                                            <td className="py-4 px-6 flex items-center gap-2">
+                                                <span className={`text-[10px] border px-2.5 py-1 rounded-md font-bold uppercase tracking-widest shadow-sm ${statusColors[issue.status] || statusColors.OPEN}`}>
+                                                    {issue.status}
+                                                </span>
+                                                {isMyJob && (
+                                                    <span className="bg-yellow-500/10 text-yellow-500 border border-yellow-500/30 px-2 py-1 rounded-md flex items-center gap-1.5 text-[9px] font-black uppercase tracking-widest">
+                                                        <Star size={10} className="fill-yellow-500" /> My Job
                                                     </span>
-                                                </td>
-                                            </motion.tr>
-                                        );
-                                    })
-                                )}
-                            </AnimatePresence>
-                        </tbody>
-                    </table>
-                </div>
+                                                )}
+                                            </td>
+                                            <td className="py-4 px-6 text-right">
+                                                <span className="inline-flex items-center justify-end gap-1.5 text-sm font-black text-yellow-500 bg-yellow-500/10 px-3 py-1 rounded-lg border border-yellow-500/20">
+                                                    <Zap size={14} className="fill-yellow-500/20" /> {issue.impactScore || 0}
+                                                </span>
+                                            </td>
+                                        </motion.tr>
+                                    );
+                                })
+                            )}
+                        </AnimatePresence>
+                    </tbody>
+                </table>
+            </div>
 
                 {/* Pagination */}
                 {!loading && totalPages > 1 && (
