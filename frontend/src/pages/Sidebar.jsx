@@ -40,10 +40,13 @@ const Sidebar = () => {
   const { unreadCount, markAsRead } = useNotifications(user);
 
   // 🟢 Check if the logged-in user is an approved authority
-  const isApprovedAuthority = user &&
-    ['official', 'ngo'].includes(user.role) &&
-    (user.authorityProfile?.verificationStatus === 'APPROVED' || user.authorityProfile?.isVerified === true);
+  const currentRole = profileDetail?.role || user?.role;
+  const currentAuthorityProfile = profileDetail?.authorityProfile || user?.authorityProfile;
 
+  const isApprovedAuthority = (user || profileDetail) &&
+    ['official', 'ngo'].includes(currentRole) &&
+    currentAuthorityProfile?.verificationStatus === 'APPROVED';
+    
   // --- Download State & Logic ---
   const [isDownloading, setIsDownloading] = useState(false);
   const isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent) && !window.MSStream;
