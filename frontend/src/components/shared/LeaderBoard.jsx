@@ -326,35 +326,6 @@ const LeaderBoard = () => {
                 )}
             </AnimatePresence>
 
-            {/* Sticky Action Bar */}
-            <div className="bg-card/60 backdrop-blur-xl sticky top-0 md:top-2 z-40 mx-2 md:mx-4 p-3 md:p-4 rounded-b-xl md:rounded-2xl shadow-lg border border-border/60 flex justify-between items-center gap-4 flex-wrap mt-2">
-                <div className="flex bg-muted/50 p-1 rounded-xl w-max border border-border/50">
-                    <button onClick={() => setActiveTab('CITIZENS')} className={`px-4 py-2 rounded-lg text-sm font-bold transition-all ${activeTab === 'CITIZENS' ? 'bg-primary text-white shadow-md' : 'text-muted-foreground hover:text-foreground'}`}>Citizens</button>
-                    <button onClick={() => setActiveTab('AUTHORITIES')} className={`px-4 py-2 rounded-lg text-sm font-bold transition-all ${activeTab === 'AUTHORITIES' ? 'bg-primary text-white shadow-md' : 'text-muted-foreground hover:text-foreground'}`}>Authorities</button>
-                </div>
-
-                <div className="flex items-center gap-2">
-                    {canExportExcel && (
-                        <motion.button
-                            whileHover={{ scale: 1.05 }} whileTap={{ scale: 0.95 }}
-                            onClick={handleExportExcel} disabled={isExporting}
-                            className="flex items-center gap-2 px-4 py-2.5 bg-card border border-border/50 text-foreground font-bold text-sm rounded-xl shadow-sm hover:bg-muted transition-all"
-                        >
-                            <FileSpreadsheet size={18} className={`text-emerald-500 ${isExporting ? 'animate-pulse' : ''}`} />
-                            <span className="hidden sm:inline">Export CSV</span>
-                        </motion.button>
-                    )}
-                    <motion.button
-                        whileHover={{ scale: 1.05 }} whileTap={{ scale: 0.95 }}
-                        onClick={handleCaptureShare} disabled={isCapturing}
-                        className="flex items-center gap-2 px-4 py-2.5 bg-gradient-to-tr from-indigo-500 to-purple-500 text-white font-bold text-sm rounded-xl shadow-[0_0_15px_rgba(99,102,241,0.4)] hover:shadow-[0_0_25px_rgba(99,102,241,0.6)] transition-all"
-                    >
-                        <Camera size={18} className={isCapturing ? "animate-pulse" : ""} />
-                        <span className="hidden sm:inline">Share Rank</span>
-                    </motion.button>
-                </div>
-            </div>
-
             {/* Scrollable Container (This exact area is captured) */}
             <div className="flex-1 overflow-y-auto thin-scrollbar relative">
                 <div id="capture-wrap" ref={captureRef} className="p-4 md:p-8 w-full max-w-4xl mx-auto h-max relative flex flex-col items-center bg-background">
@@ -362,13 +333,12 @@ const LeaderBoard = () => {
                     {/* Decorative Background Blob inside capture area */}
                     <div className="absolute top-0 right-0 w-96 h-96 bg-primary/10 rounded-full blur-[100px] pointer-events-none" />
 
-                    {/* --- BEAUTIFUL HEADER --- */}
+                    {/* --- BEAUTIFUL HEADER (Now visually at the very top of the page!) --- */}
                     <div className="text-center w-full flex flex-col items-center justify-center pt-4 pb-8 relative z-10">
                         <div className="w-16 h-16 bg-primary/10 rounded-2xl border border-primary/20 flex items-center justify-center mb-4 shadow-sm">
                             <ShieldCheck className="w-8 h-8 text-primary" />
                         </div>
 
-                        {/* MODIFIED: Increased padding, added pb-2, and removed tracking-tight during capture */}
                         <h1 className={`text-4xl md:text-5xl font-black drop-shadow-sm mb-2 ${isCapturing
                             ? 'text-indigo-400 px-4 pb-2 tracking-normal' // Extra breathing room for the screenshot
                             : 'bg-clip-text text-transparent bg-gradient-to-r from-indigo-400 via-purple-400 to-primary px-2 tracking-tight'
@@ -384,6 +354,35 @@ const LeaderBoard = () => {
                         <div className="inline-flex items-center gap-2 px-4 py-2 bg-card/60 backdrop-blur-md border border-border/50 rounded-xl text-xs font-bold text-muted-foreground shadow-sm">
                             <Clock size={14} className="text-primary" />
                             Last Updated: {formatTimestamp(lastUpdated)}
+                        </div>
+                    </div>
+
+                    {/* Sticky Action Bar - Sticks right under the header when scrolling */}
+                    <div data-html2canvas-ignore="true" className="bg-card/60 backdrop-blur-xl sticky top-0 md:top-2 z-40 w-full p-3 md:p-4 rounded-xl md:rounded-2xl shadow-lg border border-border/60 flex justify-between items-center gap-4 flex-wrap mb-8">
+                        <div className="flex bg-muted/50 p-1 rounded-xl w-max border border-border/50">
+                            <button onClick={() => setActiveTab('CITIZENS')} className={`px-4 py-2 rounded-lg text-sm font-bold transition-all ${activeTab === 'CITIZENS' ? 'bg-primary text-white shadow-md' : 'text-muted-foreground hover:text-foreground'}`}>Citizens</button>
+                            <button onClick={() => setActiveTab('AUTHORITIES')} className={`px-4 py-2 rounded-lg text-sm font-bold transition-all ${activeTab === 'AUTHORITIES' ? 'bg-primary text-white shadow-md' : 'text-muted-foreground hover:text-foreground'}`}>Authorities</button>
+                        </div>
+
+                        <div className="flex items-center gap-2">
+                            {canExportExcel && (
+                                <motion.button
+                                    whileHover={{ scale: 1.05 }} whileTap={{ scale: 0.95 }}
+                                    onClick={handleExportExcel} disabled={isExporting}
+                                    className="flex items-center gap-2 px-4 py-2.5 bg-card border border-border/50 text-foreground font-bold text-sm rounded-xl shadow-sm hover:bg-muted transition-all"
+                                >
+                                    <FileSpreadsheet size={18} className={`text-emerald-500 ${isExporting ? 'animate-pulse' : ''}`} />
+                                    <span className="hidden sm:inline">Export CSV</span>
+                                </motion.button>
+                            )}
+                            <motion.button
+                                whileHover={{ scale: 1.05 }} whileTap={{ scale: 0.95 }}
+                                onClick={handleCaptureShare} disabled={isCapturing}
+                                className="flex items-center gap-2 px-4 py-2.5 bg-gradient-to-tr from-indigo-500 to-purple-500 text-white font-bold text-sm rounded-xl shadow-[0_0_15px_rgba(99,102,241,0.4)] hover:shadow-[0_0_25px_rgba(99,102,241,0.6)] transition-all"
+                            >
+                                <Camera size={18} className={isCapturing ? "animate-pulse" : ""} />
+                                <span className="hidden sm:inline">Share Rank</span>
+                            </motion.button>
                         </div>
                     </div>
 
