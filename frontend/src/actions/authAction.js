@@ -1,6 +1,6 @@
-import { login, register } from "../reducer/authReducer";
+import { login } from "../reducer/authReducer";
 import { showToast } from "../utils/toast";
-import axiosInstance from "../utils/axios"; // Import your axios instance
+import axiosInstance from "../utils/axios";
 
 export default async function authAction(prevState, formData, dispatch, navigate) {
   const mode = formData.get("mode");
@@ -57,6 +57,26 @@ export default async function authAction(prevState, formData, dispatch, navigate
 
     } catch (error) {
       const errorMsg = error.response?.data?.message || "Registration failed";
+      showToast({ icon: "error", title: errorMsg });
+      return { error: errorMsg, success: false };
+    }
+
+  } else if (mode === "register") {
+    // ==========================================
+    // CITIZEN REGISTRATION
+    // ==========================================
+    try {
+      // Your backend expects name, email, gender, and password
+      const response = await axiosInstance.post('/auth/register', data);
+
+      showToast({ icon: "success", title: "Account created successfully! Please log in." });
+
+      // Returning success: true will trigger the useEffect in your component 
+      // that clears the form and switches the UI back to the login screen
+      return { success: true, message: response.data.message };
+
+    } catch (error) {
+      const errorMsg = error.response?.data?.message || "Citizen registration failed";
       showToast({ icon: "error", title: errorMsg });
       return { error: errorMsg, success: false };
     }

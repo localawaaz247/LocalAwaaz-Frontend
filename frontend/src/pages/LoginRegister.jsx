@@ -15,7 +15,6 @@ import SEO from '../components/SEO';
 import { Capacitor } from '@capacitor/core';
 import { GoogleAuth } from '@codetrix-studio/capacitor-google-auth';
 import { cscApi } from '../utils/cscAPI';
-// Import your CustomSelect
 import CustomSelect from '../components/CustomSelect';
 
 const categories = [
@@ -31,11 +30,13 @@ const categories = [
   { label: 'Health', value: "HEALTH" },
   { label: 'Education', value: "EDUCATION" },
   { label: 'Corruption', value: "CORRUPTION" },
+  { label: 'Other', value: "OTHER" }, // Added OTHER
 ];
 
 const roleOptions = [
+  { label: 'Govt Official', value: 'official' },
   { label: 'NGO', value: 'ngo' },
-  { label: 'Govt Official', value: 'official' }
+  { label: 'Other', value: 'other' } // Added OTHER
 ];
 
 const genderOptions = [
@@ -52,18 +53,20 @@ const LoginRegister = () => {
 
   // Toggles & Modes
   const [isLogin, setIsLogin] = useState(true);
-  const [accountType, setAccountType] = useState('citizen'); // 'citizen' | 'authority'
+  const [accountType, setAccountType] = useState('citizen');
 
   // Form States (Common)
   const [name, setName] = useState("");
-  const [userName, setUserName] = useState("");
+  const [userName, setUserName] = useState(""); // Only used for Login now
   const [password, setPassword] = useState("");
   const [gender, setGender] = useState("");
 
   // Form States (Authority Specific)
-  const [role, setRole] = useState("ngo");
+  const [role, setRole] = useState("official");
+  const [otherRole, setOtherRole] = useState(""); // Custom Role
   const [organizationName, setOrganizationName] = useState("");
   const [departmentName, setDepartmentName] = useState("");
+  const [otherDepartment, setOtherDepartment] = useState(""); // Custom Department
   const [assignedState, setAssignedState] = useState("");
   const [assignedDistrict, setAssignedDistrict] = useState("");
   const [expertiseTags, setExpertiseTags] = useState("");
@@ -90,24 +93,20 @@ const LoginRegister = () => {
   const [statesList, setStatesList] = useState([]);
   const [districtsList, setDistrictsList] = useState([]);
 
-  // 1. Fetch Indian States on Mount
+  const [tempUploadToken, setTempUploadToken] = useState("");
+
   useEffect(() => {
-    // "IN" is the standard ISO2 code for India
     cscApi.get("/countries/IN/states")
       .then((res) => setStatesList(res.data))
       .catch((err) => console.error("Failed to load states:", err));
   }, []);
 
-  // 2. Fetch Districts when the Assigned State changes
   useEffect(() => {
     if (!assignedState) {
       setDistrictsList([]);
       return;
     }
-
-    // Find the ISO2 code for the selected state (required by cscApi)
     const selectedStateObj = statesList.find(s => s.name === assignedState);
-
     if (selectedStateObj) {
       cscApi.get(`/countries/IN/states/${selectedStateObj.iso2}/cities`)
         .then((res) => setDistrictsList(res.data))
@@ -115,13 +114,11 @@ const LoginRegister = () => {
     }
   }, [assignedState, statesList]);
 
-  // --- HANDLERS & OPTIONS ---
   const handleStateChange = (newStateName) => {
     setAssignedState(newStateName);
-    setAssignedDistrict(""); // Reset district when state changes
+    setAssignedDistrict("");
   };
 
-  // Format options for the CustomSelect component
   const stateOptions = statesList.map(s => ({ value: s.name, label: s.name }));
   const districtOptions = districtsList.map(d => ({ value: d.name, label: d.name }));
 
@@ -137,15 +134,11 @@ const LoginRegister = () => {
 
   useEffect(() => {
     if (isAuthenticated && profileDetail) {
-      if (profileDetail.role === 'admin') {
-        navigate('/admin', { replace: true });
-      } else {
-        navigate('/dashboard', { replace: true });
-      }
+      if (profileDetail.role === 'admin') navigate('/admin', { replace: true });
+      else navigate('/dashboard', { replace: true });
     }
   }, [isAuthenticated, profileDetail, navigate]);
 
-  // Reset form on successful registration
   useEffect(() => {
     if (result && result.success && !isLogin) {
       setEmailInput("");
@@ -160,8 +153,11 @@ const LoginRegister = () => {
       setUserName("");
       setPassword("");
       setGender("");
+      setRole("official");
+      setOtherRole("");
       setOrganizationName("");
       setDepartmentName("");
+      setOtherDepartment("");
       setAssignedDistrict("");
       setAssignedState("");
       setExpertiseTags("");
@@ -218,12 +214,19 @@ const LoginRegister = () => {
     const email = e.target.value;
     setEmailInput(email);
     setIsValidEmail(validateEmail(email));
+
+    if (emailVerified || showOtpInput) {
+      setEmailVerified(false);
+      setShowOtpInput(false);
+      setEmailVerificationRequested(false);
+      setEmailVerificationCode(['', '', '', '', '', '']);
+    }
   };
 
   const handleVerifyEmail = async () => {
     try {
       setEmailVerificationRequested(true);
-      await axiosInstance.post(`/otp/request`, { email: emailInput, userName });
+      await axiosInstance.post(`/otp/request`, { email: emailInput }); // No userName needed!
       setShowOtpInput(true);
       setEmailVerificationRequested(false);
       setTimer(30);
@@ -239,7 +242,10 @@ const LoginRegister = () => {
     try {
       if (otp.length === 6) {
         setIsOTPVerifying(true);
-        await axiosInstance.post(`/otp/verify`, { email: emailInput, otp, userName });
+        const res = await axiosInstance.post(`/otp/verify`, { email: emailInput, otp }); // No userName needed!
+        if (res.data.tempUploadToken) {
+          setTempUploadToken(res.data.tempUploadToken);
+        }
         setEmailVerified(true);
         setShowOtpInput(false);
         setShowVerifiedMessage(true);
@@ -273,20 +279,20 @@ const LoginRegister = () => {
     }
   };
 
-  // Cloudflare R2 Upload Handler
   const handleFileUpload = async (e) => {
     const file = e.target.files[0];
     if (!file) return;
-
     const formData = new FormData();
     formData.append('media', file);
 
     try {
       setIsUploadingFile(true);
       const res = await axiosInstance.post('/media/upload', formData, {
-        headers: { 'Content-Type': 'multipart/form-data' }
+        headers: {
+          'Content-Type': 'multipart/form-data',
+          'Authorization': `Bearer ${tempUploadToken}`
+        }
       });
-
       const uploadedUrl = res.data.urls ? res.data.urls[0] : res.data.url;
       setIdProofUrl(uploadedUrl);
       showToast({ icon: 'success', title: 'Document uploaded successfully' });
@@ -338,32 +344,16 @@ const LoginRegister = () => {
         </div>
       </div>
 
-      {/* Right Form Section - FIXED LAYOUT */}
-      {/* 
-        Changes Made: 
-        1. Outer container is flex-col, items-center to center the modal horizontally and vertically.
-        2. Removed overflow-y-auto from the outer container.
-      */}
+      {/* Right Form Section */}
       <div className="w-full lg:w-1/2 h-screen flex flex-col items-center justify-center p-3 md:p-6 lg:p-12 relative">
-
-        {/* 
-          1. The modal wrapper enforces a max height (95vh). 
-          2. flex-col allows internal elements to size properly.
-        */}
         <div className="w-full max-w-md max-h-[95vh] flex flex-col relative">
 
-          {/* Header Link - Fixed at top */}
           <Link to="/" className="inline-flex items-center gap-2 text-foreground/70 hover:text-primary transition-colors mb-4 group flex-shrink-0">
             <ArrowLeft className="w-4 h-4 group-hover:-translate-x-1 transition-transform" /> Back to Home
           </Link>
 
-          {/* 
-            The Glass Card itself is now flex-col, flex-1, overflow-hidden.
-            This ensures the card boundaries NEVER break out of the screen.
-          */}
           <div className="glass-card flex flex-col flex-1 overflow-hidden md:p-8 p-4 rounded-2xl w-full">
 
-            {/* FIXED TOP SECTION (Title, Toggles, Google Login) */}
             <div className="flex-shrink-0">
               <h1 className="text-2xl font-bold text-foreground text-center lg:text-left mb-4">
                 {isLogin ? <div className="flex gap-2 items-center justify-center lg:justify-start">Sign In <ArrowRight className="w-5 h-5" /></div> : "Create Account"}
@@ -401,46 +391,57 @@ const LoginRegister = () => {
               )}
             </div>
 
-            {/* FORM WRAPPER - This handles the scrolling of inputs ONLY */}
             <form action={formAction} className="flex flex-col flex-1 min-h-0">
               <input type="hidden" name="mode" value={isLogin ? "login" : (accountType === 'authority' ? 'registerAuthority' : 'register')} />
 
-              {/* SCROLLABLE INNER SECTION - Added pb-20 so dropdowns don't get hidden under the scroll frame */}
               <div className="flex-1 overflow-y-auto no-scrollbar space-y-4 pr-1 pb-20 pt-2">
 
-                {/* COMMON FIELDS: Name & Email */}
+                {/* LOGIN SPECIFIC (Shows Username instead of split fields) */}
+                {isLogin && (
+                  <div className="space-y-1">
+                    <label className="text-sm font-medium text-foreground">Username / Email</label>
+                    <div className="relative">
+                      <User className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-foreground/40" />
+                      <input type="text" name="userName" value={userName} onChange={(e) => setUserName(e.target.value)} placeholder="username" className="w-full pl-11 pr-4 py-3 rounded-xl border border-border bg-card/50 focus:border-primary focus:ring-2 outline-none" />
+                    </div>
+                  </div>
+                )}
+
+                {/* REGISTRATION FIELDS (Common: Name -> Email -> OTP) */}
                 {!isLogin && (
                   <>
+                    {/* 1. Name */}
                     <div className="space-y-1">
                       <label className="text-sm font-medium text-foreground">{accountType === 'authority' ? "Representative Name" : "Name"}</label>
                       <div className="relative">
                         <UserCircle className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-foreground/40" />
-                        <input type="text" name="name" value={name} onChange={(e) => setName(e.target.value)} placeholder="John Doe" className="w-full pl-11 pr-4 py-3 rounded-xl border border-border bg-card/50 focus:bg-card focus:border-primary focus:ring-2 outline-none" required />
+                        <input type="text" name="name" value={name} onChange={(e) => setName(e.target.value)} placeholder="John Doe" className="w-full pl-11 pr-4 py-3 rounded-xl border border-border bg-card/50 focus:bg-card focus:border-primary focus:ring-2 outline-none" />
                       </div>
                     </div>
 
-                    {accountType === 'authority' && (
-                      <div className="space-y-1">
-                        <label className="text-sm font-medium text-foreground">Organization / NGO Name</label>
-                        <div className="relative">
-                          <Building2 className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-foreground/40" />
-                          <input type="text" name="organizationName" value={organizationName} onChange={(e) => setOrganizationName(e.target.value)} placeholder="e.g. GreenEarth NGO" className="w-full pl-11 pr-4 py-3 rounded-xl border border-border bg-card/50 focus:bg-card focus:border-primary focus:ring-2 outline-none" required />
-                        </div>
-                      </div>
-                    )}
-
+                    {/* 2. Email + Verification Button */}
                     <div className="space-y-1">
                       <label className="text-sm font-medium text-foreground">{accountType === 'authority' ? "Official Email" : "Email"}</label>
                       <div className="relative">
                         <Mail className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-foreground/40" />
-                        <input type="email" name="email" value={emailInput} onChange={handleEmailChange} placeholder="email@domain.com" className="w-full pl-11 pr-24 py-3 rounded-xl border border-border bg-card/50 focus:bg-card focus:border-primary focus:ring-2 outline-none" required />
+                        <input
+                          type="email"
+                          name="email"
+                          value={emailInput}
+                          onChange={handleEmailChange}
+                          readOnly={emailVerified}
+                          placeholder="email@domain.com"
+                          className="w-full pl-11 pr-24 py-3 rounded-xl border border-border bg-card/50 focus:bg-card focus:border-primary focus:ring-2 outline-none disabled:opacity-60 disabled:bg-muted/50 disabled:cursor-not-allowed"
+                        />
 
-                        {accountType === 'citizen' && isValidEmail && !emailVerified && !showOtpInput && (
-                          <button type="button" onClick={handleVerifyEmail} disabled={emailVerificationRequested} className="absolute right-2 top-1/2 -translate-y-1/2 px-3 py-1.5 bg-teal-800 text-white text-sm rounded-lg hover:bg-teal-700">
+                        {/* Universal Verify Button */}
+                        {isValidEmail && !emailVerified && !showOtpInput && (
+                          <button type="button" onClick={handleVerifyEmail} disabled={emailVerificationRequested} className="absolute right-2 top-1/2 -translate-y-1/2 px-3 py-1.5 bg-teal-800 text-white text-sm rounded-lg hover:bg-teal-700 transition-colors">
                             {emailVerificationRequested ? <MiniLoader className="w-4 h-4" /> : "Verify"}
                           </button>
                         )}
-                        {accountType === 'citizen' && emailVerified && (
+                        {/* Universal Verified Checkmark */}
+                        {emailVerified && (
                           <div className="absolute right-2 top-1/2 -translate-y-1/2 flex items-center gap-1 px-3 py-1.5 bg-green-100 rounded-lg">
                             <CheckCircle className="w-4 h-4 text-green-600" /><span className="text-xs text-green-600 font-medium">Verified</span>
                           </div>
@@ -448,19 +449,20 @@ const LoginRegister = () => {
                       </div>
                     </div>
 
-                    {accountType === 'citizen' && showOtpInput && (
-                      <div className="space-y-4">
+                    {/* 3. Universal OTP Input Block */}
+                    {showOtpInput && (
+                      <div className="space-y-4 p-3 bg-muted/20 rounded-xl border border-border">
                         <div className="flex gap-2 justify-center">
                           {emailVerificationCode.map((digit, index) => (
-                            <input key={index} id={`otp-${index}`} type="text" value={digit} onChange={(e) => handleOtpChange(index, e.target.value)} onKeyDown={(e) => handleOtpKeyDown(index, e)} className="w-10 h-10 md:w-12 md:h-12 text-center text-lg font-semibold rounded-xl border bg-card/50 focus:border-primary focus:ring-2 outline-none" maxLength={1} />
+                            <input key={index} id={`otp-${index}`} type="text" value={digit} onChange={(e) => handleOtpChange(index, e.target.value)} onKeyDown={(e) => handleOtpKeyDown(index, e)} className="w-10 h-10 md:w-12 md:h-12 text-center text-lg font-semibold rounded-xl border bg-card focus:border-primary focus:ring-2 outline-none shadow-sm" maxLength={1} />
                           ))}
                         </div>
                         <div className="flex gap-3 justify-center">
-                          <button type="button" onClick={handleVerifyOtp} disabled={emailVerificationCode.join("").length !== 6 || isOTPVerifying} className="px-6 py-2 bg-cyan-700 text-white rounded-lg hover:bg-cyan-800 disabled:opacity-50">
-                            {isOTPVerifying ? <MiniLoader className="size-5" /> : "Verify"}
+                          <button type="button" onClick={handleVerifyOtp} disabled={emailVerificationCode.join("").length !== 6 || isOTPVerifying} className="px-6 py-2 bg-cyan-700 text-white rounded-lg hover:bg-cyan-800 disabled:opacity-50 transition-colors">
+                            {isOTPVerifying ? <MiniLoader className="size-5" /> : "Confirm OTP"}
                           </button>
-                          <button type="button" onClick={() => { handleVerifyEmail(); setTimer(30); setIsTimerRunning(true); }} disabled={isTimerRunning} className="px-6 py-2 border rounded-lg hover:bg-muted disabled:opacity-50">
-                            {isTimerRunning ? `Resend (${timer}s)` : 'Resend'}
+                          <button type="button" onClick={() => { handleVerifyEmail(); setTimer(30); setIsTimerRunning(true); }} disabled={isTimerRunning} className="px-6 py-2 border border-border bg-card rounded-lg hover:bg-muted disabled:opacity-50 transition-colors text-foreground text-sm font-medium">
+                            {isTimerRunning ? `Resend in ${timer}s` : 'Resend'}
                           </button>
                         </div>
                       </div>
@@ -468,100 +470,112 @@ const LoginRegister = () => {
                   </>
                 )}
 
-                {/* USERNAME (Only for Login & Citizen) */}
-                {(isLogin || accountType === 'citizen') && (
+                {/* CITIZEN SPECIFIC FIELDS */}
+                {!isLogin && accountType === 'citizen' && (
                   <div className="space-y-1">
-                    <label className="text-sm font-medium text-foreground">{isLogin ? "Username / Email" : "Username"}</label>
-                    <div className="relative">
-                      <User className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-foreground/40" />
-                      <input type="text" name="userName" value={userName} onChange={(e) => setUserName(e.target.value)} placeholder="username" className="w-full pl-11 pr-4 py-3 rounded-xl border border-border bg-card/50 focus:border-primary focus:ring-2 outline-none" required={isLogin || accountType === 'citizen'} />
-                    </div>
+                    <label className="text-sm font-medium text-foreground">Gender</label>
+                    <input type="hidden" name="gender" value={gender} />
+                    <CustomSelect value={gender} onChange={setGender} options={genderOptions} placeholder="Select Gender" />
                   </div>
                 )}
 
-                {/* AUTHORITY SPECIFIC DROPDOWNS & UPLOAD */}
+                {/* AUTHORITY SPECIFIC FIELDS */}
                 {!isLogin && accountType === 'authority' && (
                   <div className="space-y-4 pt-2">
-                    <div className="grid grid-cols-2 gap-4 relative z-30">
-                      <div className="space-y-1">
-                        <label className="text-sm font-medium">Type</label>
-                        <input type="hidden" name="role" value={role} required />
-                        <CustomSelect value={role} onChange={setRole} options={roleOptions} placeholder="Select Type" />
-                      </div>
 
-                      <div className="space-y-1">
-                        <label className="text-sm font-medium">Department Focus</label>
-                        <input type="hidden" name="departmentName" value={departmentName} required />
-                        <CustomSelect value={departmentName} onChange={setDepartmentName} options={categories} placeholder="Select Sector" />
-                      </div>
+                    {/* 4. Type (Role) */}
+                    <div className="space-y-1">
+                      <label className="text-sm font-medium">Type of Authority</label>
+                      <input type="hidden" name="role" value={role} />
+                      <CustomSelect value={role} onChange={setRole} options={roleOptions} placeholder="Select Type" />
                     </div>
 
+                    {/* Conditional: Organization Name (If NGO) */}
+                    {role === 'ngo' && (
+                      <div className="space-y-1">
+                        <label className="text-sm font-medium text-foreground">Organization / NGO Name</label>
+                        <div className="relative">
+                          <Building2 className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-foreground/40" />
+                          <input type="text" name="organizationName" value={organizationName} onChange={(e) => setOrganizationName(e.target.value)} placeholder="e.g. GreenEarth NGO" className="w-full pl-11 pr-4 py-3 rounded-xl border border-border bg-card/50 focus:bg-card focus:border-primary focus:ring-2 outline-none" required={role === 'ngo'} />
+                        </div>
+                      </div>
+                    )}
+
+                    {/* Conditional: Other Role (If Other) */}
+                    {role === 'other' && (
+                      <div className="space-y-1">
+                        <label className="text-sm font-medium text-foreground">Specify Custom Role</label>
+                        <div className="relative">
+                          <Briefcase className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-foreground/40" />
+                          <input type="text" name="otherRole" value={otherRole} onChange={(e) => setOtherRole(e.target.value)} placeholder="e.g. Independent Journalist" className="w-full pl-11 pr-4 py-3 rounded-xl border border-border bg-card/50 focus:bg-card focus:border-primary focus:ring-2 outline-none" required={role === 'other'} />
+                        </div>
+                      </div>
+                    )}
+
+                    {/* 5. Department Focus */}
+                    <div className="space-y-1">
+                      <label className="text-sm font-medium">Department Focus</label>
+                      <input type="hidden" name="departmentName" value={departmentName} />
+                      <CustomSelect value={departmentName} onChange={setDepartmentName} options={categories} placeholder="Select Sector" />
+                    </div>
+
+                    {/* Conditional: Other Department */}
+                    {departmentName === 'OTHER' && (
+                      <div className="space-y-1">
+                        <label className="text-sm font-medium text-foreground">Specify Custom Department</label>
+                        <div className="relative">
+                          <Briefcase className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-foreground/40" />
+                          <input type="text" name="otherDepartment" value={otherDepartment} onChange={(e) => setOtherDepartment(e.target.value)} placeholder="e.g. Public Transport" className="w-full pl-11 pr-4 py-3 rounded-xl border border-border bg-card/50 focus:bg-card focus:border-primary focus:ring-2 outline-none" required={departmentName === 'OTHER'} />
+                        </div>
+                      </div>
+                    )}
+
+                    {/* 6 & 7. Location Grid */}
                     <div className="grid grid-cols-2 gap-4 relative z-20">
                       <div className="space-y-1">
                         <label className="text-sm font-medium">Assigned State</label>
-                        <input type="hidden" name="assignedState" value={assignedState} required />
-                        <CustomSelect
-                          value={assignedState}
-                          onChange={handleStateChange}
-                          options={stateOptions}
-                          placeholder="Select State"
-                        />
+                        <input type="hidden" name="assignedState" value={assignedState} />
+                        <CustomSelect value={assignedState} onChange={handleStateChange} options={stateOptions} placeholder="Select State" />
                       </div>
 
                       <div className="space-y-1">
                         <label className="text-sm font-medium">Assigned District</label>
-                        <input type="hidden" name="assignedDistrict" value={assignedDistrict} required />
-                        <CustomSelect
-                          value={assignedDistrict}
-                          onChange={setAssignedDistrict}
-                          options={districtOptions}
-                          placeholder={assignedState ? "Select District" : "Select State First"}
-                        />
+                        <input type="hidden" name="assignedDistrict" value={assignedDistrict} />
+                        <CustomSelect value={assignedDistrict} onChange={setAssignedDistrict} options={districtOptions} placeholder={assignedState ? "Select District" : "Select State First"} />
                       </div>
                     </div>
 
+                    {/* 8. Expertise Tags */}
                     <div className="space-y-1">
                       <label className="text-sm font-medium">Expertise Tags (Optional)</label>
-                      <input type="text" name="expertiseTags" value={expertiseTags} onChange={(e) => setExpertiseTags(e.target.value)} placeholder="Roads, Sanitation, etc." className="w-full px-4 py-2.5 rounded-xl border bg-card/50 focus:border-primary outline-none text-sm" />
+                      <input type="text" name="expertiseTags" value={expertiseTags} onChange={(e) => setExpertiseTags(e.target.value)} placeholder="Roads, Sanitation, etc." className="w-full px-4 py-2.5 rounded-xl border border-border bg-card/50 focus:bg-card focus:border-primary focus:ring-2 outline-none text-sm" />
                     </div>
 
+                    {/* 9. ID Proof Upload */}
                     <div className="space-y-1">
                       <label className="text-sm font-medium">ID Proof / Registration Document</label>
                       <div className="relative">
-                        <input type="hidden" name="idProofUrl" value={idProofUrl} required />
-
+                        <input type="hidden" name="idProofUrl" value={idProofUrl} />
                         <div className="flex items-center gap-3 w-full px-4 py-2 rounded-xl border border-border bg-card/50">
                           <FileUp className="w-5 h-5 text-primary shrink-0" />
-                          <input
-                            type="file"
-                            accept="image/*,.pdf"
-                            onChange={handleFileUpload}
-                            className="w-full text-sm text-foreground/70 file:mr-4 file:py-1.5 file:px-4 file:rounded-full file:border-0 file:text-sm file:font-semibold file:bg-primary/10 file:text-primary hover:file:bg-primary/20 transition-all cursor-pointer"
-                          />
+                          <input type="file" accept="image/*,.pdf" onChange={handleFileUpload} className="w-full text-sm text-foreground/70 file:mr-4 file:py-1.5 file:px-4 file:rounded-full file:border-0 file:text-sm file:font-semibold file:bg-primary/10 file:text-primary hover:file:bg-primary/20 transition-all cursor-pointer" />
                           {isUploadingFile && <MiniLoader className="w-5 h-5 text-primary shrink-0" />}
                           {idProofUrl && !isUploadingFile && <CheckCircle className="w-5 h-5 text-green-500 shrink-0" />}
                         </div>
                       </div>
                     </div>
+
                   </div>
                 )}
 
-                {/* CITIZEN GENDER */}
-                {!isLogin && accountType === 'citizen' && (
-                  <div className="space-y-1">
-                    <label className="text-sm font-medium text-foreground">Gender</label>
-                    <input type="hidden" name="gender" value={gender} required />
-                    <CustomSelect value={gender} onChange={setGender} options={genderOptions} placeholder="Select Gender" />
-                  </div>
-                )}
-
-                {/* PASSWORD (STRICTLY HIDDEN FOR AUTHORITY) */}
+                {/* COMMON PASSWORD (Used for Login & Citizen Signup) */}
+                {/* STRICTLY HIDDEN for Authority Registration */}
                 {(isLogin || accountType === 'citizen') && (
                   <div className="space-y-1">
                     <label className="text-sm font-medium text-foreground">Password</label>
                     <div className="relative">
                       <Lock className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-foreground/40" />
-                      <input type={showPassword ? 'text' : 'password'} name="password" value={password} onChange={(e) => setPassword(e.target.value)} placeholder="••••••••" className="w-full pl-11 pr-12 py-3 rounded-xl border border-border bg-card/50 focus:border-primary outline-none" required />
+                      <input type={showPassword ? 'text' : 'password'} name="password" value={password} onChange={(e) => setPassword(e.target.value)} placeholder="••••••••" className="w-full pl-11 pr-12 py-3 rounded-xl border border-border bg-card/50 focus:bg-card focus:border-primary focus:ring-2 outline-none" />
                       <button type="button" onClick={() => setShowPassword(!showPassword)} className="absolute right-3 top-1/2 -translate-y-1/2 text-foreground/40 hover:text-foreground">
                         {showPassword ? <EyeOff className="w-5 h-5" /> : <Eye className="w-5 h-5" />}
                       </button>
@@ -573,10 +587,10 @@ const LoginRegister = () => {
                     )}
                   </div>
                 )}
+
               </div>
 
-              {/* FIXED BOTTOM SECTION (Submit Button & Footer Links) */}
-              {/* flex-shrink-0 keeps it permanently pinned to the bottom of the card */}
+              {/* FIXED BOTTOM SECTION */}
               <div className="flex-shrink-0 pt-3 border-t border-border/20 mt-auto bg-background/50 backdrop-blur-sm -mx-4 -mb-4 px-4 pb-4 md:-mx-8 md:-mb-8 md:px-8 md:pb-8">
 
                 {!isLogin && (
@@ -585,7 +599,8 @@ const LoginRegister = () => {
                   </p>
                 )}
 
-                <button type="submit" disabled={isPending || (!isLogin && accountType === 'citizen' && !emailVerified) || (accountType === 'authority' && !idProofUrl && !isLogin)} className="w-full btn-gradient py-3 rounded-xl font-semibold text-white flex justify-center items-center disabled:opacity-70 disabled:cursor-not-allowed">
+                {/* Submit button enforces OTP verification for ALL non-login paths */}
+                <button type="submit" disabled={isPending || (!isLogin && !emailVerified) || (accountType === 'authority' && !idProofUrl && !isLogin)} className="w-full btn-gradient py-3 rounded-xl font-semibold text-white flex justify-center items-center disabled:opacity-70 disabled:cursor-not-allowed">
                   {isPending ? <MiniLoader className='size-5' /> : (isLogin ? "Sign In" : (accountType === 'authority' ? "Submit Application" : "Create Account"))}
                 </button>
 

@@ -44,9 +44,9 @@ const Sidebar = () => {
   const currentAuthorityProfile = profileDetail?.authorityProfile || user?.authorityProfile;
 
   const isApprovedAuthority = (user || profileDetail) &&
-    ['official', 'ngo'].includes(currentRole) &&
+    ['official', 'ngo', 'other'].includes(currentRole) &&
     currentAuthorityProfile?.verificationStatus === 'APPROVED';
-    
+
   // --- Download State & Logic ---
   const [isDownloading, setIsDownloading] = useState(false);
   const isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent) && !window.MSStream;

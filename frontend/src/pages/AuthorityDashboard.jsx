@@ -15,8 +15,8 @@ const AuthorityDashboard = () => {
 
     // Hard redirect if a standard citizen tries to access this route
     useEffect(() => {
-        if (!user || !['official', 'ngo'].includes(user.role) || user.authorityProfile?.verificationStatus !== 'APPROVED') {
-            navigate('/dashboard');
+        if (user && !['official', 'ngo', 'other'].includes(user.role)) {
+            navigate('/dashboard', { replace: true });
         }
     }, [user, navigate]);
 
