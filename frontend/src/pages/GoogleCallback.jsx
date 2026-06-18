@@ -34,8 +34,6 @@ const GoogleCallback = () => {
           } else {
             navigate('/dashboard');
           }
-        } else {
-          navigate('/complete-profile');
         }
       } catch (error) {
         console.error('Failed to validate token:', error);

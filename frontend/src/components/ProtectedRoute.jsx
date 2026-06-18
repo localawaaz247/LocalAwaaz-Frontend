@@ -37,16 +37,6 @@ export const ProtectedRoute = ({ children, requireAdmin = false }) => {
     // 5. PROFILE COMPLETION GUARDS
     const hasCompleteProfile = Boolean(user.isProfileComplete);
 
-    // Guard A: If profile is INCOMPLETE, strictly trap them on the complete-profile page.
-    if (!hasCompleteProfile && location.pathname !== "/complete-profile") {
-        return <Navigate to="/complete-profile" replace />;
-    }
-
-    // Guard B: If profile IS COMPLETE, stop them from manually going back to the setup page.
-    if (hasCompleteProfile && location.pathname === "/complete-profile") {
-        return <Navigate to="/dashboard" replace />;
-    }
-
     // 6. Passed all checks. Return content. 
     return children;
 };

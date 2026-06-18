@@ -4,7 +4,6 @@ Allow: /
 # Prevent search engines from crawling authenticated and administrative areas
 Disallow: /dashboard/
 Disallow: /admin/
-Disallow: /complete-profile/
 Disallow: /google/callback
 
 # --------------------------------------------------------

@@ -22,7 +22,6 @@ import ForgotPassword from "./pages/ForgotPassword";
 import NotFound from "./pages/NotFound";
 import LandingPage from "./pages/LandingPage";
 import Homepage from "./pages/Homepage";
-import CompleteProfile from "./pages/CompleteProfile";
 import ReportIssue from "./pages/ReportIssue";
 import Notifications from "./pages/Notifications";
 import Profile from "./pages/Profile";
@@ -176,9 +175,6 @@ const AppContent = () => {
           <Route path="/cookies" element={<Cookies />} />
           <Route path="/google/callback" element={<GoogleCallback />} />
           <Route path="/issue/:id" element={<IssueDetailPage />} />
-
-          {/* PROTECTED ROUTES */}
-          <Route path="/complete-profile" element={<ProtectedRoute><CompleteProfile /></ProtectedRoute>} />
 
           <Route path="/dashboard" element={<ProtectedRoute><Homepage /></ProtectedRoute>}>
             <Route index element={<Feed />} />
