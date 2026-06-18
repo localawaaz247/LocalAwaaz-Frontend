@@ -1,9 +1,13 @@
 import React, { useState, useEffect } from 'react';
 import axiosInstance from '../../utils/axios';
 import { showToast } from '../../utils/toast';
-import { X, Mail, User, Calendar, CheckCheck, MessageSquare } from 'lucide-react';
+import { motion, AnimatePresence } from 'framer-motion';
+import {
+    X, Mail, User, Calendar, CheckCheck,
+    MessageSquare, Search, Inbox, Reply, ShieldAlert
+} from 'lucide-react';
 import MiniLoader from '../MiniLoader';
-import CustomSelect from '../CustomSelect'; // 🟢 Added import
+import CustomSelect from '../CustomSelect';
 
 const AdminInquiries = () => {
     const [inquiries, setInquiries] = useState([]);
@@ -13,10 +17,9 @@ const AdminInquiries = () => {
     const [totalPages, setTotalPages] = useState(1);
 
     const [selectedInquiry, setSelectedInquiry] = useState(null);
-    const [isModalVisible, setIsModalVisible] = useState(false);
     const [isMarkingAll, setIsMarkingAll] = useState(false);
 
-    // 🟢 Options arrays for CustomSelect
+    // Options arrays for CustomSelect
     const FILTER_STATUS_OPTIONS = [
         { value: '', label: 'All Inquiries' },
         { value: 'unread', label: 'Unread' },
@@ -46,6 +49,7 @@ const AdminInquiries = () => {
             setTotalPages(res.data.data.pagination.totalPages);
         } catch (error) {
             console.error(error);
+            showToast({ icon: 'error', title: 'Failed to load inquiries' });
         } finally {
             setLoading(false);
         }
@@ -89,193 +93,255 @@ const AdminInquiries = () => {
         }
     };
 
-    const openModal = (inquiry) => {
-        setSelectedInquiry(inquiry);
-        setTimeout(() => setIsModalVisible(true), 10);
-    };
-
-    const closeModal = () => {
-        setIsModalVisible(false);
-        setTimeout(() => setSelectedInquiry(null), 300);
-    };
-
     const formatDate = (isoDate) => {
         return new Date(isoDate).toLocaleDateString("en-GB", {
             day: "2-digit", month: "short", year: "numeric", hour: "2-digit", minute: "2-digit"
         });
     };
 
+    const getStatusStyles = (status) => {
+        switch (status) {
+            case 'unread': return 'bg-blue-500/10 text-blue-500 border-blue-500/30';
+            case 'resolved': return 'bg-emerald-500/10 text-emerald-500 border-emerald-500/30';
+            case 'read': return 'bg-muted/50 text-muted-foreground border-border/50';
+            default: return 'bg-muted text-muted-foreground border-border/50';
+        }
+    };
+
     return (
-        <div className="space-y-4 md:space-y-6 animate-fade-in flex flex-col h-full relative">
+        <motion.div
+            initial={{ opacity: 0, y: 10 }}
+            animate={{ opacity: 1, y: 0 }}
+            className="space-y-6 md:space-y-8 flex flex-col h-full relative pb-10"
+        >
+            {/* --- HEADER --- */}
+            <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 relative z-[50]">
+                <div className="flex flex-col gap-1">
+                    <h2 className="text-3xl md:text-4xl font-black bg-clip-text text-transparent bg-gradient-to-r from-foreground to-foreground/60 drop-shadow-sm flex items-center gap-3">
+                        <MessageSquare className="text-primary w-8 h-8" /> Platform Inquiries
+                    </h2>
+                    <p className="text-sm font-medium text-muted-foreground">
+                        Manage incoming questions, feedback, and support tickets from users.
+                    </p>
+                </div>
+            </div>
 
-            <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3 md:gap-4">
-                <h2 className="text-xl md:text-2xl font-bold text-foreground">Platform Inquiries</h2>
+            {/* --- FILTER & ACTION BAR --- */}
+            <div className="bg-card/60 backdrop-blur-xl border border-border/60 rounded-2xl p-4 shadow-lg relative z-[40]">
+                <div className="flex flex-col sm:flex-row justify-between items-center gap-4">
+                    <div className="flex items-center gap-3 w-full sm:w-auto text-sm font-bold text-muted-foreground">
+                        <Inbox className="w-5 h-5 text-primary" /> Filter Queue:
+                    </div>
 
-                <div className="flex flex-col sm:flex-row gap-2 md:gap-3 w-full sm:w-auto">
-                    <button
-                        onClick={handleMarkAllRead}
-                        disabled={isMarkingAll || inquiries.every(i => i.status !== 'unread')}
-                        className="flex items-center justify-center gap-2 px-3 md:px-4 py-2 md:py-2.5 bg-blue-500/10 text-blue-500 border border-blue-500/20 rounded-lg md:rounded-xl text-sm font-medium hover:bg-blue-500/20 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-                    >
-                        {isMarkingAll ? <MiniLoader className="w-4 h-4" /> : <CheckCheck size={16} />}
-                        Mark All Read
-                    </button>
-
-                    <div className="w-full sm:w-auto">
-                        <CustomSelect
-                            options={FILTER_STATUS_OPTIONS}
-                            value={statusFilter}
-                            onChange={(val) => { setStatusFilter(val); setPage(1); }}
-                        />
+                    <div className="flex flex-col sm:flex-row gap-3 w-full sm:w-auto items-center">
+                        <div className="w-full sm:w-48 relative z-[70]">
+                            <CustomSelect
+                                options={FILTER_STATUS_OPTIONS}
+                                value={statusFilter}
+                                onChange={(val) => { setStatusFilter(val); setPage(1); }}
+                            />
+                        </div>
+                        <button
+                            onClick={handleMarkAllRead}
+                            disabled={isMarkingAll || inquiries.every(i => i.status !== 'unread')}
+                            className="w-full sm:w-auto flex items-center justify-center gap-2 px-5 py-2.5 bg-blue-500/10 text-blue-500 border border-blue-500/30 rounded-xl text-sm font-bold hover:bg-blue-500/20 transition-all disabled:opacity-50 disabled:cursor-not-allowed shadow-sm shrink-0"
+                        >
+                            {isMarkingAll ? <MiniLoader className="w-4 h-4 border-blue-500 border-t-transparent" /> : <CheckCheck size={16} />}
+                            Mark All Read
+                        </button>
                     </div>
                 </div>
             </div>
 
-            <div className="bg-card glass-card border border-border/50 rounded-xl md:rounded-2xl overflow-hidden shadow-lg flex-1 flex flex-col min-h-0">
-                <div className="overflow-x-auto thin-scrollbar flex-1">
+            {/* --- MAIN TABLE AREA --- */}
+            <div className="bg-card/40 backdrop-blur-2xl border border-border/60 rounded-2xl overflow-hidden shadow-xl flex-1 flex flex-col relative z-[10] min-h-[400px]">
+                <div className="overflow-x-auto thin-scrollbar flex-1 bg-background/20">
                     <table className="w-full text-left whitespace-nowrap">
-                        <thead className="bg-card/95 backdrop-blur-md border-b border-border/50 sticky top-0 z-20 shadow-sm">
-                            <tr className="text-muted-foreground text-xs md:text-sm">
-                                <th className="py-3 px-4 md:py-4 md:px-6 font-medium hidden sm:table-cell">Name</th>
-                                <th className="py-3 px-4 md:py-4 md:px-6 font-medium">Contact</th>
-                                <th className="py-3 px-4 md:py-4 md:px-6 font-medium w-full sm:w-1/2">Message</th>
-                                <th className="py-3 px-4 md:py-4 md:px-6 font-medium text-right">Status</th>
+                        <thead className="bg-muted/40 backdrop-blur-md border-b border-border/50 sticky top-0 z-20 shadow-sm">
+                            <tr className="text-muted-foreground text-[11px] uppercase tracking-widest">
+                                <th className="py-4 px-6 font-bold hidden sm:table-cell">Sender Details</th>
+                                <th className="py-4 px-6 font-bold sm:hidden">Contact</th>
+                                <th className="py-4 px-6 font-bold w-full sm:w-1/2">Message Preview</th>
+                                <th className="py-4 px-6 font-bold text-right">Status Control</th>
                             </tr>
                         </thead>
-                        <tbody className="divide-y divide-border/50">
+                        <tbody className="divide-y divide-border/30">
                             {loading ? (
-                                <tr><td colSpan="4" className="p-6 md:p-8 text-center text-sm text-muted-foreground">Loading inquiries...</td></tr>
+                                <tr>
+                                    <td colSpan="4" className="p-12 text-center">
+                                        <div className="flex justify-center"><MiniLoader /></div>
+                                    </td>
+                                </tr>
                             ) : inquiries.length === 0 ? (
-                                <tr><td colSpan="4" className="p-6 md:p-8 text-center text-sm text-muted-foreground">No inquiries found.</td></tr>
+                                <tr>
+                                    <td colSpan="4" className="p-12 text-center">
+                                        <div className="flex flex-col items-center justify-center text-muted-foreground">
+                                            <ShieldAlert className="w-12 h-12 opacity-20 mb-3" />
+                                            <p className="font-medium text-sm">No inquiries found for this filter.</p>
+                                        </div>
+                                    </td>
+                                </tr>
                             ) : (
-                                inquiries.map((inquiry) => (
-                                    <tr
-                                        key={inquiry._id}
-                                        onClick={() => openModal(inquiry)}
-                                        className={`transition-colors group cursor-pointer ${inquiry.status === 'unread' ? 'bg-primary/5 hover:bg-primary/10' : 'hover:bg-muted/30'}`}
-                                    >
-                                        <td className="py-3 px-4 md:py-4 md:px-6 text-xs md:text-sm font-medium text-foreground hidden sm:table-cell">
-                                            {inquiry.name}
-                                        </td>
-                                        <td className="py-3 px-4 md:py-4 md:px-6 text-xs md:text-sm">
-                                            <div className="flex flex-col">
-                                                <span className="sm:hidden font-medium text-foreground mb-0.5">{inquiry.name}</span>
-                                                <span className="text-muted-foreground">{inquiry.email}</span>
-                                            </div>
-                                        </td>
-                                        <td className="py-3 px-4 md:py-4 md:px-6 text-xs md:text-sm text-muted-foreground truncate max-w-[150px] sm:max-w-[200px] md:max-w-[300px] whitespace-normal">
-                                            <span className={inquiry.status === 'unread' ? 'font-semibold text-foreground' : ''}>
-                                                {inquiry.message}
-                                            </span>
-                                        </td>
-                                        <td className="py-3 px-4 md:py-4 md:px-6 text-right [&>div]:min-w-0" onClick={(e) => e.stopPropagation()}>
-                                            <div className="ml-auto flex justify-end">
-                                                <CustomSelect
-                                                    options={INQUIRY_STATUS_OPTIONS}
-                                                    value={inquiry.status}
-                                                    onChange={(val) => handleStatusChange(inquiry._id, val)}
-                                                />
-                                            </div>
-                                        </td>
-                                    </tr>
-                                ))
+                                <AnimatePresence>
+                                    {inquiries.map((inquiry, index) => (
+                                        <motion.tr
+                                            layout
+                                            initial={{ opacity: 0, y: 10 }}
+                                            animate={{ opacity: 1, y: 0 }}
+                                            transition={{ delay: index * 0.03 }}
+                                            key={inquiry._id}
+                                            onClick={() => setSelectedInquiry(inquiry)}
+                                            className={`transition-all group cursor-pointer ${inquiry.status === 'unread'
+                                                    ? 'bg-primary/5 hover:bg-primary/10 border-l-4 border-l-primary'
+                                                    : 'hover:bg-muted/30 border-l-4 border-l-transparent'
+                                                }`}
+                                        >
+                                            <td className="py-4 px-6 hidden sm:table-cell">
+                                                <h5 className="font-bold text-sm text-foreground group-hover:text-primary transition-colors">{inquiry.name}</h5>
+                                                <p className="text-[11px] text-muted-foreground mt-0.5 font-medium">{inquiry.email}</p>
+                                            </td>
+                                            {/* Mobile only column */}
+                                            <td className="py-4 px-6 sm:hidden">
+                                                <h5 className="font-bold text-sm text-foreground truncate max-w-[120px]">{inquiry.name}</h5>
+                                                <p className="text-[10px] text-muted-foreground truncate max-w-[120px]">{inquiry.email}</p>
+                                            </td>
+
+                                            <td className="py-4 px-6 text-sm text-muted-foreground truncate max-w-[150px] sm:max-w-[200px] md:max-w-[350px] whitespace-normal">
+                                                <span className={inquiry.status === 'unread' ? 'font-bold text-foreground' : 'font-medium'}>
+                                                    {inquiry.message}
+                                                </span>
+                                            </td>
+
+                                            <td className="py-4 px-6 text-right [&>div]:min-w-[120px]" onClick={(e) => e.stopPropagation()}>
+                                                <div className="ml-auto flex justify-end relative z-30">
+                                                    <CustomSelect
+                                                        options={INQUIRY_STATUS_OPTIONS}
+                                                        value={inquiry.status}
+                                                        onChange={(val) => handleStatusChange(inquiry._id, val)}
+                                                    />
+                                                </div>
+                                            </td>
+                                        </motion.tr>
+                                    ))}
+                                </AnimatePresence>
                             )}
                         </tbody>
                     </table>
                 </div>
+
+                {/* Pagination */}
+                {!loading && totalPages > 1 && (
+                    <div className="p-4 border-t border-border/50 bg-background/40 backdrop-blur-md flex justify-between items-center text-xs font-semibold text-muted-foreground">
+                        <span className="tracking-widest uppercase">Page {page} of {totalPages}</span>
+                        <div className="space-x-2 flex">
+                            <button disabled={page === 1} onClick={() => setPage(p => p - 1)} className="px-4 py-2 bg-card border border-border/50 rounded-xl hover:bg-muted disabled:opacity-50 transition-all shadow-sm">Prev</button>
+                            <button disabled={page === totalPages} onClick={() => setPage(p => p + 1)} className="px-4 py-2 bg-card border border-border/50 rounded-xl hover:bg-muted disabled:opacity-50 transition-all shadow-sm">Next</button>
+                        </div>
+                    </div>
+                )}
             </div>
 
-            {totalPages > 1 && (
-                <div className="flex justify-between items-center text-xs md:text-sm text-muted-foreground pt-2">
-                    <span>Page {page} of {totalPages}</span>
-                    <div className="space-x-1.5 md:space-x-2">
-                        <button disabled={page === 1} onClick={() => setPage(p => p - 1)} className="px-3 py-1.5 md:px-4 md:py-2 bg-card glass-card border border-border/50 rounded-lg md:rounded-xl disabled:opacity-50 hover:bg-muted transition-colors">Prev</button>
-                        <button disabled={page === totalPages} onClick={() => setPage(p => p + 1)} className="px-3 py-1.5 md:px-4 md:py-2 bg-card glass-card border border-border/50 rounded-lg md:rounded-xl disabled:opacity-50 hover:bg-muted transition-colors">Next</button>
-                    </div>
-                </div>
-            )}
+            {/* --- DETAIL MODAL --- */}
+            <AnimatePresence>
+                {selectedInquiry && (
+                    <div className="fixed inset-0 z-[100] flex items-end sm:items-center justify-center sm:p-6">
 
-            {selectedInquiry && (
-                <div className="fixed inset-0 z-[100] flex items-end sm:items-center justify-center sm:p-6">
+                        {/* Backdrop */}
+                        <motion.div
+                            initial={{ opacity: 0 }}
+                            animate={{ opacity: 1 }}
+                            exit={{ opacity: 0 }}
+                            className="absolute inset-0 bg-black/60 backdrop-blur-sm"
+                            onClick={() => setSelectedInquiry(null)}
+                        />
 
-                    <div
-                        className={`absolute inset-0 bg-black/80 backdrop-blur-sm transition-opacity duration-300 ease-in-out ${isModalVisible ? 'opacity-100' : 'opacity-0'}`}
-                        onClick={closeModal}
-                    />
-
-                    <div
-                        className={`relative bg-card border-t sm:border border-border/50 rounded-t-2xl sm:rounded-2xl w-full max-w-2xl shadow-2xl flex flex-col max-h-[90vh] overflow-hidden transform transition-all duration-300 ease-out ${isModalVisible
-                            ? 'translate-y-0 sm:scale-100 opacity-100'
-                            : 'translate-y-full sm:translate-y-8 sm:scale-95 opacity-0'
-                            }`}
-                        onClick={e => e.stopPropagation()}
-                    >
-
-                        <div className="flex justify-between items-center p-4 border-b border-border/50 bg-muted/20">
-                            <h3 className="text-lg font-bold text-foreground flex items-center gap-2">
-                                <MessageSquare className="text-primary w-5 h-5" />
-                                Inquiry Details
-                            </h3>
-                            <button onClick={closeModal} className="p-1.5 rounded-full bg-muted/50 text-muted-foreground hover:text-foreground hover:bg-muted transition-colors">
-                                <X size={20} />
-                            </button>
-                        </div>
-
-                        <div className="p-4 md:p-6 overflow-y-auto thin-scrollbar space-y-6 flex-1">
-                            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                                <div className="bg-background/50 border border-border/50 rounded-xl p-4">
-                                    <div className="flex items-center gap-2 mb-1">
-                                        <User size={14} className="text-muted-foreground" />
-                                        <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">Sender</p>
-                                    </div>
-                                    <p className="text-sm font-semibold text-foreground">{selectedInquiry.name}</p>
-                                </div>
-                                <div className="bg-background/50 border border-border/50 rounded-xl p-4">
-                                    <div className="flex items-center gap-2 mb-1">
-                                        <Mail size={14} className="text-muted-foreground" />
-                                        <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">Email</p>
-                                    </div>
-                                    <a href={`mailto:${selectedInquiry.email}`} className="text-sm font-medium text-primary hover:underline">{selectedInquiry.email}</a>
-                                </div>
-                                <div className="bg-background/50 border border-border/50 rounded-xl p-4 sm:col-span-2">
-                                    <div className="flex items-center gap-2 mb-1">
-                                        <Calendar size={14} className="text-muted-foreground" />
-                                        <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">Received On</p>
-                                    </div>
-                                    <p className="text-sm font-medium text-foreground">{formatDate(selectedInquiry.createdAt)}</p>
+                        {/* Modal Content */}
+                        <motion.div
+                            initial={{ opacity: 0, y: '100%', scale: 0.95 }}
+                            animate={{ opacity: 1, y: 0, scale: 1 }}
+                            exit={{ opacity: 0, y: '100%', scale: 0.95 }}
+                            transition={{ type: "spring", damping: 25, stiffness: 200 }}
+                            className="relative bg-card/95 backdrop-blur-2xl border-t sm:border border-border/50 rounded-t-3xl sm:rounded-3xl w-full max-w-2xl shadow-2xl flex flex-col max-h-[90vh] overflow-hidden z-10"
+                            onClick={e => e.stopPropagation()}
+                        >
+                            {/* Modal Header */}
+                            <div className="flex justify-between items-center p-5 border-b border-border/50 bg-background/50 shrink-0">
+                                <h3 className="text-xl font-black text-foreground flex items-center gap-2">
+                                    <MessageSquare className="text-primary w-5 h-5" /> Inquiry Record
+                                </h3>
+                                <div className="flex items-center gap-3">
+                                    <span className={`px-3 py-1 rounded-lg text-[10px] font-black uppercase tracking-widest border shadow-sm ${getStatusStyles(selectedInquiry.status)}`}>
+                                        {selectedInquiry.status}
+                                    </span>
+                                    <button onClick={() => setSelectedInquiry(null)} className="p-2 bg-muted border border-border/50 rounded-full hover:bg-muted/80 transition-colors">
+                                        <X size={18} />
+                                    </button>
                                 </div>
                             </div>
 
-                            <div className="bg-background/40 border border-border/50 rounded-xl p-4 md:p-5">
-                                <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-3">Message Content</p>
-                                <p className="text-sm md:text-base text-foreground leading-relaxed whitespace-pre-wrap">
-                                    {selectedInquiry.message}
-                                </p>
-                            </div>
-                        </div>
+                            {/* Modal Body */}
+                            <div className="p-5 md:p-6 overflow-y-auto thin-scrollbar space-y-6 flex-1 bg-background/30">
 
-                        <div className="p-4 border-t border-border/50 bg-muted/10 flex flex-col sm:flex-row items-center justify-between gap-4">
-                            <span className="text-sm font-medium text-muted-foreground">Current Status:</span>
-                            <div className="flex w-full sm:w-auto items-center gap-2 [&>div]:w-full sm:[&>div]:w-auto">
-                                <CustomSelect
-                                    options={INQUIRY_STATUS_OPTIONS}
-                                    value={selectedInquiry.status}
-                                    onChange={(val) => handleStatusChange(selectedInquiry._id, val)}
-                                />
+                                {/* Top Meta Grid */}
+                                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                    <div className="bg-card border border-border/50 rounded-2xl p-4 shadow-sm flex items-start gap-3">
+                                        <div className="p-2 bg-primary/10 text-primary rounded-lg shrink-0"><User size={16} /></div>
+                                        <div>
+                                            <p className="text-[10px] font-bold text-muted-foreground uppercase tracking-wider mb-0.5">Sender Identity</p>
+                                            <p className="text-sm font-black text-foreground">{selectedInquiry.name}</p>
+                                        </div>
+                                    </div>
+                                    <div className="bg-card border border-border/50 rounded-2xl p-4 shadow-sm flex items-start gap-3">
+                                        <div className="p-2 bg-primary/10 text-primary rounded-lg shrink-0"><Mail size={16} /></div>
+                                        <div className="min-w-0">
+                                            <p className="text-[10px] font-bold text-muted-foreground uppercase tracking-wider mb-0.5">Contact Email</p>
+                                            <a href={`mailto:${selectedInquiry.email}`} className="text-sm font-bold text-primary hover:underline truncate block">{selectedInquiry.email}</a>
+                                        </div>
+                                    </div>
+                                    <div className="bg-card border border-border/50 rounded-2xl p-4 shadow-sm md:col-span-2 flex items-start gap-3">
+                                        <div className="p-2 bg-primary/10 text-primary rounded-lg shrink-0"><Calendar size={16} /></div>
+                                        <div>
+                                            <p className="text-[10px] font-bold text-muted-foreground uppercase tracking-wider mb-0.5">Timestamp</p>
+                                            <p className="text-sm font-bold text-foreground">{formatDate(selectedInquiry.createdAt)}</p>
+                                        </div>
+                                    </div>
+                                </div>
+
+                                {/* Message Content */}
+                                <div className="bg-muted/20 border border-border/50 rounded-2xl p-5 shadow-inner">
+                                    <p className="text-[10px] font-black text-muted-foreground uppercase tracking-widest mb-3 border-l-2 border-primary pl-2">Message Body</p>
+                                    <p className="text-sm md:text-base text-foreground/90 leading-relaxed whitespace-pre-wrap font-medium">
+                                        {selectedInquiry.message}
+                                    </p>
+                                </div>
+                            </div>
+
+                            {/* Modal Footer */}
+                            <div className="p-5 border-t border-border/50 bg-muted/10 backdrop-blur-md flex flex-col sm:flex-row items-center justify-between gap-4 shrink-0 relative z-30">
+                                <div className="flex items-center gap-3 w-full sm:w-auto">
+                                    <span className="text-xs font-bold text-muted-foreground uppercase tracking-wider hidden sm:inline">Update:</span>
+                                    <div className="w-full sm:w-48 relative z-50">
+                                        <CustomSelect
+                                            options={INQUIRY_STATUS_OPTIONS}
+                                            value={selectedInquiry.status}
+                                            onChange={(val) => handleStatusChange(selectedInquiry._id, val)}
+                                        />
+                                    </div>
+                                </div>
 
                                 <a
                                     href={`mailto:${selectedInquiry.email}?subject=Re: Your Inquiry to LocalAwaaz`}
-                                    className="px-4 py-2.5 bg-primary text-primary-foreground font-semibold rounded-xl text-sm hover:bg-primary/90 transition-colors shadow-md text-center hidden sm:block whitespace-nowrap"
+                                    className="w-full sm:w-auto px-6 py-3 bg-primary text-primary-foreground font-black rounded-xl text-sm hover:scale-[1.02] active:scale-[0.98] transition-all shadow-[0_0_15px_rgba(var(--primary),0.3)] text-center flex items-center justify-center gap-2"
                                 >
-                                    Reply via Email
+                                    <Reply size={16} /> Reply via Email
                                 </a>
                             </div>
-                        </div>
 
+                        </motion.div>
                     </div>
-                </div>
-            )}
-        </div>
+                )}
+            </AnimatePresence>
+        </motion.div>
     );
 };
 
