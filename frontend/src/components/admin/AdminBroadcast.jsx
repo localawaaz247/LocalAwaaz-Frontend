@@ -49,7 +49,8 @@ const AdminBroadcast = () => {
         { value: 'user', label: 'Citizens Only' },
         { value: 'official', label: 'Officials Only' },
         { value: 'ngo', label: 'NGOs Only' },
-        { value: 'admin', label: 'Admins Only' }
+        { value: 'admin', label: 'Admins Only' },
+        { value: 'other', label: 'Other Authorities' }
     ];
 
     const handleSubmit = async (e) => {
@@ -94,7 +95,7 @@ const AdminBroadcast = () => {
                     <div className="flex-1 overflow-y-auto p-4 sm:p-6 md:p-8 space-y-6 md:space-y-8 thin-scrollbar">
 
                         {/* Target Filters Grid */}
-                        <div className="space-y-3 md:space-y-4">
+                        <div className="space-y-3 md:space-y-4 relative z-40">
                             <h3 className="text-[10px] md:text-xs font-black uppercase tracking-widest text-muted-foreground flex items-center gap-2 border-l-2 border-primary pl-2">
                                 Target Audience
                             </h3>
