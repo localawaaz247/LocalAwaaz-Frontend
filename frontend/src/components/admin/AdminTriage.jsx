@@ -1,10 +1,11 @@
 import React, { useState, useEffect } from 'react';
+import { createPortal } from 'react-dom';
 import axiosInstance from '../../utils/axios';
 import { showToast } from '../../utils/toast';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
     AlertOctagon, Zap, Megaphone, Edit3, Briefcase,
-    MapPin, Clock, ArrowRight, ShieldAlert, Download, Eye, X, Search, Flame
+    MapPin, Clock, ArrowRight, ShieldAlert, Download, Eye, X, Search, Flame, Filter
 } from 'lucide-react';
 import CustomSelect from '../CustomSelect';
 import MiniLoader from '../MiniLoader';
@@ -12,6 +13,9 @@ import { cscApi } from '../../utils/cscAPI';
 import IssueDetail from '../IssueDetail';
 
 const AdminTriage = () => {
+    // Portal hydration state
+    const [isMounted, setIsMounted] = useState(false);
+
     const [issues, setIssues] = useState([]);
     const [loading, setLoading] = useState(true);
     const [page, setPage] = useState(1);
@@ -21,6 +25,9 @@ const AdminTriage = () => {
     const [statesList, setStatesList] = useState([]);
     const [districtsList, setDistrictsList] = useState([]);
     const [authorities, setAuthorities] = useState([]);
+
+    // Mobile Filter State
+    const [isMobileFilterOpen, setIsMobileFilterOpen] = useState(false);
 
     // Issue Detail Modal State
     const [isIssueModalOpen, setIsIssueModalOpen] = useState(false);
@@ -57,6 +64,7 @@ const AdminTriage = () => {
     ];
 
     useEffect(() => {
+        setIsMounted(true);
         cscApi.get("/countries/IN/states").then(res => setStatesList(res.data)).catch(console.error);
         fetchAuthorities();
     }, []);
@@ -221,22 +229,119 @@ const AdminTriage = () => {
                         <Download size={18} /> Export Triage
                     </motion.button>
                 </div>
+            </div>
 
-                <div className="grid grid-cols-2 lg:grid-cols-3 gap-3 w-full xl:w-auto relative z-[60]">
+            {/* Mobile Filter Toggle Header */}
+            <div className="flex xl:hidden justify-between items-center mt-2">
+                <h3 className="text-lg font-black text-foreground flex items-center gap-2">
+                    <Search className="text-primary" size={20} /> Triage Filters
+                </h3>
+                <button
+                    onClick={() => setIsMobileFilterOpen(!isMobileFilterOpen)}
+                    className={`p-2.5 rounded-xl border transition-colors ${isMobileFilterOpen ? 'bg-primary/10 border-primary/30 text-primary' : 'bg-card border-border/50 text-muted-foreground'}`}
+                >
+                    <Filter size={18} />
+                </button>
+            </div>
+
+            {/* Filters Section */}
+            <div className={`${isMobileFilterOpen ? 'block' : 'hidden'} xl:block bg-card/60 xl:bg-transparent backdrop-blur-xl xl:backdrop-blur-none border border-border/60 xl:border-none rounded-2xl p-4 xl:p-0 shadow-lg xl:shadow-none relative z-[40]`}>
+                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3 w-full relative z-[60]">
                     <CustomSelect options={ESCALATION_STATUSES} value={filters.status} onChange={(val) => { setFilters({ ...filters, status: val }); setPage(1); }} />
                     <CustomSelect options={stateOptions} value={filters.state} onChange={(val) => { setFilters({ ...filters, state: val, city: '' }); setPage(1); }} />
                     <CustomSelect options={districtOptions} value={filters.city} onChange={(val) => { setFilters({ ...filters, city: val }); setPage(1); }} />
                 </div>
             </div>
 
-            {/* --- TABLE CONTENT --- */}
-            <div className="bg-card/40 backdrop-blur-2xl border border-border/60 rounded-2xl overflow-hidden shadow-xl flex-1 flex flex-col min-h-[400px] relative z-10">
+            {/* 🟢 Mobile Card View Wrapper (Hidden on md+) */}
+            <div className="md:hidden flex flex-col gap-3 relative z-[10]">
+                <AnimatePresence>
+                    {loading ? (
+                        [...Array(4)].map((_, i) => (
+                            <div key={i} className="bg-card/60 border border-border/60 rounded-xl p-4 flex flex-col gap-3 animate-pulse">
+                                <div className="flex justify-between items-start gap-3">
+                                    <div className="flex-1 space-y-2">
+                                        <div className="h-4 w-3/4 bg-muted rounded"></div>
+                                        <div className="h-3 w-1/4 bg-muted/50 rounded"></div>
+                                    </div>
+                                    <div className="h-5 w-16 bg-muted rounded"></div>
+                                </div>
+                                <div className="flex justify-between items-end mt-1 pt-3 border-t border-border/30">
+                                    <div className="space-y-2">
+                                        <div className="h-3 w-24 bg-muted rounded"></div>
+                                        <div className="h-2 w-16 bg-muted/50 rounded"></div>
+                                    </div>
+                                    <div className="h-4 w-12 bg-muted rounded"></div>
+                                </div>
+                            </div>
+                        ))
+                    ) : issues.length === 0 ? (
+                        <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="p-10 text-center bg-card/40 border border-border/50 rounded-2xl">
+                            <AlertOctagon className="w-8 h-8 opacity-20 mx-auto mb-2 text-muted-foreground" />
+                            <p className="font-bold text-sm text-muted-foreground">No critical escalations found.</p>
+                        </motion.div>
+                    ) : (
+                        issues.map((issue) => {
+                            const stagnantDays = getDaysStagnant(issue.createdAt);
+                            const isDisputed = issue.status === 'DISPUTED';
+
+                            return (
+                                <motion.div
+                                    layout
+                                    initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }}
+                                    key={issue._id}
+                                    className="bg-card/60 backdrop-blur-md border border-border/60 rounded-xl p-4 flex flex-col gap-3 shadow-sm hover:border-primary/50 transition-all group"
+                                >
+                                    <div className="flex justify-between items-start gap-3">
+                                        <div className="flex items-center gap-2 bg-red-500/10 px-2 py-1 rounded-lg border border-red-500/20">
+                                            <Clock className="text-red-500 w-3 h-3 shrink-0" />
+                                            <span className="text-sm font-black text-red-500">{stagnantDays}d</span>
+                                        </div>
+                                        <span className={`shrink-0 px-2 py-0.5 rounded-[4px] text-[9px] font-bold tracking-wider uppercase border ${isDisputed ? 'bg-orange-500/10 text-orange-500 border-orange-500/30' : 'bg-red-500/10 text-red-500 border-red-500/30'}`}>
+                                            {isDisputed ? 'DISPUTED' : 'ORPHANED'}
+                                        </span>
+                                    </div>
+
+                                    <button onClick={() => handleIssueClick(issue._id)} disabled={fetchingIssueId === issue._id} className="text-left w-full">
+                                        <div className="flex items-center gap-1.5 w-full mb-1">
+                                            {issue.priority === 'CRITICAL' && <Flame className="w-3.5 h-3.5 text-red-500 shrink-0" />}
+                                            <span className="font-bold text-sm text-foreground truncate group-hover:text-primary transition-colors">
+                                                {fetchingIssueId === issue._id ? 'Loading...' : issue.title}
+                                            </span>
+                                        </div>
+                                        <div className="flex items-center gap-2">
+                                            <span className="text-[10px] font-bold bg-muted px-2 py-0.5 rounded text-muted-foreground uppercase">{issue.category}</span>
+                                            <span className={`text-[9px] font-bold px-2 py-0.5 rounded border uppercase ${issue.priority === 'CRITICAL' ? 'text-red-500 border-red-500/30 bg-red-500/10' : 'text-orange-500 border-orange-500/30 bg-orange-500/10'}`}>{issue.priority}</span>
+                                        </div>
+                                        <span className="text-[10px] font-medium text-muted-foreground mt-1.5 flex items-center gap-1 truncate w-full"><MapPin size={10} className="shrink-0" /> {issue.location?.city}, {issue.location?.state}</span>
+                                    </button>
+
+                                    <div className="flex justify-between items-center mt-1 pt-3 border-t border-border/30">
+                                        <div className="flex items-center gap-1 text-xs font-black text-yellow-500">
+                                            <Zap size={12} className="fill-yellow-500/20" /> {issue.impactScore || 0}
+                                        </div>
+                                        <div className="flex items-center gap-1.5">
+                                            <button onClick={() => setBoostModal({ isOpen: true, issueId: issue._id, amount: '' })} className="p-1.5 bg-yellow-500/10 text-yellow-500 rounded-md"><Zap size={14} /></button>
+                                            <button onClick={() => setCategoryModal({ isOpen: true, issueId: issue._id, category: issue.category, priority: issue.priority || 'LOW' })} className="p-1.5 bg-muted/50 text-muted-foreground rounded-md"><Edit3 size={14} /></button>
+                                            <button onClick={() => triggerSOSModal(issue._id)} className="p-1.5 bg-red-500/10 text-red-500 border border-red-500/20 rounded-md"><Megaphone size={14} /></button>
+                                            <button onClick={() => setAssignModal({ isOpen: true, issueId: issue._id, authorityId: '', hours: '' })} className="px-2 py-1.5 bg-indigo-500 text-white font-bold text-[10px] rounded-md"><Briefcase size={12} className="inline mr-1" />Assign</button>
+                                        </div>
+                                    </div>
+                                </motion.div>
+                            );
+                        })
+                    )}
+                </AnimatePresence>
+            </div>
+
+            {/* 🟢 Desktop Table Wrapper (Hidden on mobile) */}
+            <div className="hidden md:flex bg-card/40 backdrop-blur-2xl border border-border/60 rounded-2xl overflow-hidden shadow-xl flex-1 flex-col min-h-[400px] relative z-10">
                 <div className="overflow-x-auto thin-scrollbar flex-1 bg-background/20">
                     <table className="w-full text-left whitespace-nowrap">
                         <thead className="bg-red-500/10 backdrop-blur-md border-b border-red-500/20 sticky top-0 z-20 shadow-sm">
                             <tr className="text-red-400 text-[10px] md:text-sm uppercase tracking-widest">
                                 <th className="py-4 px-6 font-bold">Stagnant Time</th>
-                                <th className="py-4 px-6 font-bold hidden md:table-cell">Escalation State</th>
+                                <th className="py-4 px-6 font-bold">Escalation State</th>
                                 <th className="py-4 px-6 font-bold">Issue Details</th>
                                 <th className="py-4 px-6 font-bold hidden lg:table-cell">Impact / Bounty</th>
                                 <th className="py-4 px-6 font-bold text-right">Triage Actions</th>
@@ -245,11 +350,15 @@ const AdminTriage = () => {
                         <tbody className="divide-y divide-border/30">
                             <AnimatePresence>
                                 {loading ? (
-                                    <motion.tr initial={{ opacity: 0 }} animate={{ opacity: 1 }}>
-                                        <td colSpan="5" className="p-12 text-center text-sm font-medium text-muted-foreground">
-                                            <div className="flex justify-center"><MiniLoader /></div>
-                                        </td>
-                                    </motion.tr>
+                                    [...Array(5)].map((_, i) => (
+                                        <tr key={i} className="animate-pulse border-b border-border/30">
+                                            <td className="py-4 px-6"><div className="h-6 w-16 bg-muted rounded mb-1"></div><div className="h-3 w-10 bg-muted/50 rounded"></div></td>
+                                            <td className="py-4 px-6"><div className="h-5 w-24 bg-muted rounded-md mb-2"></div><div className="h-3 w-32 bg-muted/50 rounded"></div></td>
+                                            <td className="py-4 px-6"><div className="h-4 w-48 bg-muted rounded mb-2"></div><div className="h-3 w-24 bg-muted/50 rounded"></div></td>
+                                            <td className="py-4 px-6 hidden lg:table-cell"><div className="h-8 w-16 bg-muted rounded-xl"></div></td>
+                                            <td className="py-4 px-6 flex justify-end"><div className="h-8 w-32 bg-muted rounded-lg"></div></td>
+                                        </tr>
+                                    ))
                                 ) : issues.length === 0 ? (
                                     <motion.tr initial={{ opacity: 0 }} animate={{ opacity: 1 }}>
                                         <td colSpan="5" className="p-12 text-center text-muted-foreground">
@@ -272,23 +381,15 @@ const AdminTriage = () => {
                                                 key={issue._id}
                                                 className="hover:bg-red-500/5 transition-colors group"
                                             >
-                                                {/* Stagnant Time */}
                                                 <td className="py-4 px-6">
                                                     <div className="flex items-center gap-2">
                                                         <Clock className="text-red-500 w-4 h-4 md:w-5 md:h-5 shrink-0" />
                                                         <span className="text-xl md:text-2xl font-black text-red-500">{stagnantDays}</span>
                                                         <span className="text-[10px] text-red-500/70 font-bold uppercase mt-1">Days</span>
                                                     </div>
-                                                    {/* Mobile Only Status Badge */}
-                                                    <div className="md:hidden mt-2">
-                                                        <span className={`px-2 py-0.5 rounded-[4px] text-[9px] font-bold tracking-wider uppercase border ${isDisputed ? 'bg-orange-500/10 text-orange-500 border-orange-500/30' : 'bg-red-500/10 text-red-500 border-red-500/30'}`}>
-                                                            {isDisputed ? 'DISPUTED' : 'ORPHANED'}
-                                                        </span>
-                                                    </div>
                                                 </td>
 
-                                                {/* Escalation State (Desktop) */}
-                                                <td className="py-4 px-6 hidden md:table-cell">
+                                                <td className="py-4 px-6">
                                                     <div className="flex flex-col items-start gap-1.5">
                                                         <span className={`px-2.5 py-1 rounded-[4px] text-[10px] font-bold tracking-wider uppercase border shadow-sm ${isDisputed ? 'bg-orange-500/10 text-orange-500 border-orange-500/30' : 'bg-red-500/10 text-red-500 border-red-500/30'}`}>
                                                             {isDisputed ? 'DISPUTED' : 'ORPHANED'}
@@ -301,7 +402,6 @@ const AdminTriage = () => {
                                                     </div>
                                                 </td>
 
-                                                {/* Details */}
                                                 <td className="py-4 px-6">
                                                     <button onClick={() => handleIssueClick(issue._id)} disabled={fetchingIssueId === issue._id} className="flex flex-col items-start max-w-[200px] sm:max-w-[250px] text-left group/btn relative">
                                                         <div className="flex items-center gap-1.5 w-full">
@@ -319,14 +419,12 @@ const AdminTriage = () => {
                                                     </button>
                                                 </td>
 
-                                                {/* Impact */}
                                                 <td className="py-4 px-6 hidden lg:table-cell">
                                                     <div className="flex items-center gap-2 bg-yellow-500/5 border border-yellow-500/20 px-3 py-1.5 rounded-xl w-max">
                                                         <span className="text-lg font-black text-yellow-500 flex items-center gap-1"><Zap size={16} className="fill-yellow-500/20" /> {issue.impactScore || 0}</span>
                                                     </div>
                                                 </td>
 
-                                                {/* Actions */}
                                                 <td className="py-4 px-6">
                                                     <div className="flex items-center justify-end gap-1.5 md:gap-2">
                                                         <button onClick={() => setBoostModal({ isOpen: true, issueId: issue._id, amount: '' })} title="Boost Bounty" className="p-2 md:p-2.5 bg-yellow-500/10 text-yellow-500 hover:bg-yellow-500 hover:text-white rounded-xl transition-all shadow-sm">
@@ -351,165 +449,172 @@ const AdminTriage = () => {
                         </tbody>
                     </table>
                 </div>
-
-                {/* Pagination Controls */}
-                {!loading && totalPages > 1 && (
-                    <div className="p-4 border-t border-border/50 bg-background/40 backdrop-blur-md flex justify-between items-center text-xs font-semibold text-muted-foreground">
-                        <span className="tracking-widest uppercase">Page {page} of {totalPages}</span>
-                        <div className="space-x-2 flex">
-                            <button disabled={page === 1} onClick={() => setPage(p => p - 1)} className="p-2 bg-card/80 border border-border/50 rounded-xl hover:bg-muted disabled:opacity-50 transition-all shadow-sm"><ChevronLeft size={16} /></button>
-                            <button disabled={page === totalPages} onClick={() => setPage(p => p + 1)} className="p-2 bg-card/80 border border-border/50 rounded-xl hover:bg-muted disabled:opacity-50 transition-all shadow-sm"><ChevronRight size={16} /></button>
-                        </div>
-                    </div>
-                )}
             </div>
 
+            {/* Pagination Controls */}
+            {!loading && totalPages > 1 && (
+                <div className="p-4 border border-border/50 rounded-2xl md:rounded-b-2xl md:border-t-0 md:rounded-t-none bg-background/40 backdrop-blur-md flex justify-between items-center text-xs font-semibold text-muted-foreground mt-4 md:mt-0 shadow-sm">
+                    <span className="tracking-widest uppercase">Page {page} of {totalPages}</span>
+                    <div className="space-x-2 flex">
+                        <button disabled={page === 1} onClick={() => setPage(p => p - 1)} className="p-2 bg-card/80 border border-border/50 rounded-xl hover:bg-muted disabled:opacity-50 transition-all shadow-sm"><ChevronLeft size={16} /></button>
+                        <button disabled={page === totalPages} onClick={() => setPage(p => p + 1)} className="p-2 bg-card/80 border border-border/50 rounded-xl hover:bg-muted disabled:opacity-50 transition-all shadow-sm"><ChevronRight size={16} /></button>
+                    </div>
+                </div>
+            )}
+
             {/* ========================================================= */}
-            {/* ACTION MODALS */}
+            {/* PORTAL MODALS (Rendered completely outside DOM flow to prevent sidebar overlap) */}
             {/* ========================================================= */}
 
-            {/* 1. Boost Modal */}
-            <AnimatePresence>
-                {boostModal.isOpen && (
-                    <div className="fixed inset-0 z-[100] flex items-center justify-center p-4">
-                        <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="absolute inset-0 bg-black/60 backdrop-blur-sm" onClick={() => setBoostModal({ isOpen: false, issueId: '', amount: '' })} />
-                        <motion.form
-                            initial={{ opacity: 0, scale: 0.95, y: 20 }} animate={{ opacity: 1, scale: 1, y: 0 }} exit={{ opacity: 0, scale: 0.95, y: 20 }}
-                            onSubmit={handleBoost}
-                            className="bg-card p-6 rounded-3xl border border-yellow-500/30 shadow-[0_0_50px_rgba(234,179,8,0.15)] w-full max-w-sm relative z-10 overflow-hidden"
-                        >
-                            <div className="absolute top-0 right-0 p-6 opacity-10 pointer-events-none"><Zap size={100} className="text-yellow-500 -mr-6 -mt-6" /></div>
-                            <div className="flex items-center gap-3 mb-2 text-yellow-500 relative z-10">
-                                <div className="p-2 bg-yellow-500/10 rounded-xl border border-yellow-500/20"><Zap className="w-5 h-5" /></div>
-                                <h3 className="font-black text-xl">Inject Bounty</h3>
+            {isMounted && createPortal(
+                <>
+                    {/* 1. Boost Modal */}
+                    <AnimatePresence>
+                        {boostModal.isOpen && (
+                            <div className="fixed inset-0 z-[9999] flex items-center justify-center p-4">
+                                <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="absolute inset-0 bg-black/60 backdrop-blur-sm" onClick={() => setBoostModal({ isOpen: false, issueId: '', amount: '' })} />
+                                <motion.form
+                                    initial={{ opacity: 0, scale: 0.95, y: 20 }} animate={{ opacity: 1, scale: 1, y: 0 }} exit={{ opacity: 0, scale: 0.95, y: 20 }}
+                                    onSubmit={handleBoost}
+                                    className="bg-card p-6 rounded-3xl border border-yellow-500/30 shadow-[0_0_50px_rgba(234,179,8,0.15)] w-full max-w-sm relative z-10 overflow-hidden"
+                                >
+                                    <div className="absolute top-0 right-0 p-6 opacity-10 pointer-events-none"><Zap size={100} className="text-yellow-500 -mr-6 -mt-6" /></div>
+                                    <div className="flex items-center gap-3 mb-2 text-yellow-500 relative z-10">
+                                        <div className="p-2 bg-yellow-500/10 rounded-xl border border-yellow-500/20"><Zap className="w-5 h-5" /></div>
+                                        <h3 className="font-black text-xl">Inject Bounty</h3>
+                                    </div>
+                                    <p className="text-xs font-medium text-muted-foreground mb-6 relative z-10">Increase the impact score to push this issue to the top of the local marketplace.</p>
+                                    <div className="relative z-10 mb-6">
+                                        <label className="text-[10px] uppercase font-bold tracking-widest text-muted-foreground block mb-2">Bonus Points</label>
+                                        <input type="number" min="1" placeholder="e.g. 50, 100" required value={boostModal.amount} onChange={e => setBoostModal({ ...boostModal, amount: e.target.value })} className="w-full p-4 bg-background border border-border/60 rounded-xl text-sm font-bold focus:border-yellow-500 focus:ring-2 focus:ring-yellow-500/20 outline-none transition-all shadow-inner" />
+                                    </div>
+                                    <div className="flex justify-end gap-3 relative z-10">
+                                        <button type="button" onClick={() => setBoostModal({ isOpen: false, issueId: '', amount: '' })} className="px-5 py-2.5 text-sm font-bold text-muted-foreground hover:bg-muted rounded-xl transition-colors">Cancel</button>
+                                        <button type="submit" disabled={isActionLoading} className="px-5 py-2.5 text-sm bg-yellow-500 text-black font-black rounded-xl flex items-center justify-center min-w-[120px] shadow-[0_0_15px_rgba(234,179,8,0.4)] hover:bg-yellow-400 transition-all hover:scale-[1.02] active:scale-[0.98]">
+                                            {isActionLoading ? <MiniLoader className="border-black border-t-transparent" /> : 'Apply Boost'}
+                                        </button>
+                                    </div>
+                                </motion.form>
                             </div>
-                            <p className="text-xs font-medium text-muted-foreground mb-6 relative z-10">Increase the impact score to push this issue to the top of the local marketplace.</p>
-                            <div className="relative z-10 mb-6">
-                                <label className="text-[10px] uppercase font-bold tracking-widest text-muted-foreground block mb-2">Bonus Points</label>
-                                <input type="number" min="1" placeholder="e.g. 50, 100" required value={boostModal.amount} onChange={e => setBoostModal({ ...boostModal, amount: e.target.value })} className="w-full p-4 bg-background border border-border/60 rounded-xl text-sm font-bold focus:border-yellow-500 focus:ring-2 focus:ring-yellow-500/20 outline-none transition-all shadow-inner" />
+                        )}
+                    </AnimatePresence>
+
+                    {/* 2. Re-Categorize Modal */}
+                    <AnimatePresence>
+                        {categoryModal.isOpen && (
+                            <div className="fixed inset-0 z-[9999] flex items-center justify-center p-4">
+                                <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="absolute inset-0 bg-black/60 backdrop-blur-sm" onClick={() => setCategoryModal({ isOpen: false, issueId: '', category: '', priority: '' })} />
+                                <motion.form
+                                    initial={{ opacity: 0, scale: 0.95, y: 20 }} animate={{ opacity: 1, scale: 1, y: 0 }} exit={{ opacity: 0, scale: 0.95, y: 20 }}
+                                    onSubmit={handleReCategorize}
+                                    className="bg-card p-6 rounded-3xl border border-border/50 shadow-2xl w-full max-w-sm relative z-10"
+                                >
+                                    <div className="flex items-center gap-3 mb-2 text-primary">
+                                        <div className="p-2 bg-primary/10 rounded-xl border border-primary/20"><Edit3 className="w-5 h-5" /></div>
+                                        <h3 className="font-black text-xl text-foreground">Fix Classification</h3>
+                                    </div>
+                                    <p className="text-xs font-medium text-muted-foreground mb-6">Override the user's initial category and priority settings.</p>
+
+                                    <div className="space-y-4 mb-8">
+                                        <div className="relative z-50">
+                                            <label className="text-[10px] uppercase font-bold tracking-widest text-muted-foreground block mb-2">Category</label>
+                                            <CustomSelect options={CATEGORIES.filter(c => c.value !== '')} value={categoryModal.category} onChange={v => setCategoryModal({ ...categoryModal, category: v })} />
+                                        </div>
+                                        <div className="relative z-40">
+                                            <label className="text-[10px] uppercase font-bold tracking-widest text-muted-foreground block mb-2">Priority Level</label>
+                                            <CustomSelect options={PRIORITIES.filter(p => p.value !== '')} value={categoryModal.priority} onChange={v => setCategoryModal({ ...categoryModal, priority: v })} />
+                                        </div>
+                                    </div>
+
+                                    <div className="flex justify-end gap-3">
+                                        <button type="button" onClick={() => setCategoryModal({ isOpen: false, issueId: '', category: '', priority: '' })} className="px-5 py-2.5 text-sm font-bold text-muted-foreground hover:bg-muted rounded-xl transition-colors">Cancel</button>
+                                        <button type="submit" disabled={isActionLoading} className="px-5 py-2.5 text-sm bg-primary text-primary-foreground font-black rounded-xl flex items-center justify-center min-w-[120px] shadow-[0_0_15px_rgba(var(--primary),0.3)] hover:bg-primary/90 transition-all hover:scale-[1.02] active:scale-[0.98]">
+                                            {isActionLoading ? <MiniLoader /> : 'Update Meta'}
+                                        </button>
+                                    </div>
+                                </motion.form>
                             </div>
-                            <div className="flex justify-end gap-3 relative z-10">
-                                <button type="button" onClick={() => setBoostModal({ isOpen: false, issueId: '', amount: '' })} className="px-5 py-2.5 text-sm font-bold text-muted-foreground hover:bg-muted rounded-xl transition-colors">Cancel</button>
-                                <button type="submit" disabled={isActionLoading} className="px-5 py-2.5 text-sm bg-yellow-500 text-black font-black rounded-xl flex items-center justify-center min-w-[120px] shadow-[0_0_15px_rgba(234,179,8,0.4)] hover:bg-yellow-400 transition-all hover:scale-[1.02] active:scale-[0.98]">
-                                    {isActionLoading ? <MiniLoader className="border-black border-t-transparent" /> : 'Apply Boost'}
-                                </button>
+                        )}
+                    </AnimatePresence>
+
+                    {/* 3. Force Assign Modal */}
+                    <AnimatePresence>
+                        {assignModal.isOpen && (
+                            <div className="fixed inset-0 z-[9999] flex items-center justify-center p-4">
+                                <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="absolute inset-0 bg-black/60 backdrop-blur-sm" onClick={() => setAssignModal({ isOpen: false, issueId: '', authorityId: '', hours: '' })} />
+                                <motion.form
+                                    initial={{ opacity: 0, scale: 0.95, y: 20 }} animate={{ opacity: 1, scale: 1, y: 0 }} exit={{ opacity: 0, scale: 0.95, y: 20 }}
+                                    onSubmit={handleForceAssign}
+                                    className="bg-card p-6 rounded-3xl border border-indigo-500/30 shadow-[0_0_50px_rgba(99,102,241,0.15)] w-full max-w-md relative z-10"
+                                >
+                                    <div className="flex items-center gap-3 mb-2 text-indigo-500">
+                                        <div className="p-2 bg-indigo-500/10 rounded-xl border border-indigo-500/20"><Briefcase className="w-5 h-5" /></div>
+                                        <h3 className="font-black text-xl">Force Assignment</h3>
+                                    </div>
+                                    <p className="text-xs font-medium text-muted-foreground mb-6">Lock this stagnant issue directly to an official. It will immediately leave the triage dashboard.</p>
+
+                                    <div className="space-y-4 mb-8">
+                                        <div className="relative z-50">
+                                            <label className="text-[10px] uppercase font-bold tracking-widest text-muted-foreground block mb-2">Target Official</label>
+                                            <CustomSelect options={authorities} value={assignModal.authorityId} onChange={v => setAssignModal({ ...assignModal, authorityId: v })} placeholder="Select Official to assign..." />
+                                        </div>
+                                        <div className="relative z-40">
+                                            <label className="text-[10px] uppercase font-bold tracking-widest text-muted-foreground block mb-2">Mandatory Resolution Window (Hours)</label>
+                                            <input type="number" min="1" placeholder="e.g. 12, 24, 48" required value={assignModal.hours} onChange={e => setAssignModal({ ...assignModal, hours: e.target.value })} className="w-full p-4 bg-background border border-border/60 rounded-xl text-sm font-bold focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500/20 outline-none transition-all shadow-inner" />
+                                        </div>
+                                    </div>
+
+                                    <div className="flex justify-end gap-3">
+                                        <button type="button" onClick={() => setAssignModal({ isOpen: false, issueId: '', authorityId: '', hours: '' })} className="px-5 py-2.5 text-sm font-bold text-muted-foreground hover:bg-muted rounded-xl transition-colors">Cancel</button>
+                                        <button type="submit" disabled={isActionLoading || !assignModal.authorityId || !assignModal.commitmentTimeHours} className="px-5 py-2.5 text-sm bg-indigo-500 text-white font-black rounded-xl flex items-center justify-center min-w-[140px] shadow-[0_0_15px_rgba(99,102,241,0.4)] hover:bg-indigo-600 disabled:opacity-50 transition-all hover:scale-[1.02] active:scale-[0.98]">
+                                            {isActionLoading ? <MiniLoader className="text-white" /> : <>Lock & Warn <ArrowRight size={14} className="ml-1" /></>}
+                                        </button>
+                                    </div>
+                                </motion.form>
                             </div>
-                        </motion.form>
+                        )}
+                    </AnimatePresence>
+
+                    {/* 4. SOS Confirmation Modal */}
+                    <AnimatePresence>
+                        {sosModal.isOpen && (
+                            <div className="fixed inset-0 z-[9999] flex items-center justify-center p-4">
+                                <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="absolute inset-0 bg-black/60 backdrop-blur-sm" onClick={() => setSosModal({ isOpen: false, issueId: '' })} />
+                                <motion.div
+                                    initial={{ opacity: 0, scale: 0.95, y: 20 }} animate={{ opacity: 1, scale: 1, y: 0 }} exit={{ opacity: 0, scale: 0.95, y: 20 }}
+                                    className="bg-card p-6 md:p-8 rounded-3xl border border-red-500/30 shadow-[0_0_50px_rgba(239,68,68,0.15)] w-full max-w-sm relative z-10 text-center"
+                                >
+                                    <div className="w-16 h-16 bg-red-500/10 border border-red-500/20 rounded-full flex items-center justify-center mx-auto mb-4">
+                                        <Megaphone className="w-8 h-8 text-red-500 animate-pulse" />
+                                    </div>
+                                    <h3 className="font-black text-2xl text-foreground mb-2">Blast SOS?</h3>
+                                    <p className="text-sm font-medium text-muted-foreground mb-8 leading-relaxed">
+                                        Are you sure you want to blast an urgent SOS push notification to <strong className="text-foreground">every verified official</strong> in this district?
+                                    </p>
+                                    <div className="flex justify-center gap-3">
+                                        <button type="button" onClick={() => setSosModal({ isOpen: false, issueId: '' })} className="px-5 py-3 text-sm font-bold text-muted-foreground hover:bg-muted rounded-xl transition-colors w-full">Cancel</button>
+                                        <button type="button" onClick={confirmSOSPing} disabled={isActionLoading} className="px-5 py-3 text-sm bg-red-500 text-white font-black rounded-xl flex items-center justify-center w-full shadow-[0_0_15px_rgba(239,68,68,0.4)] hover:bg-red-600 transition-all hover:scale-[1.02] active:scale-[0.98]">
+                                            {isActionLoading ? <MiniLoader className="text-white" /> : 'Yes, Blast SOS'}
+                                        </button>
+                                    </div>
+                                </motion.div>
+                            </div>
+                        )}
+                    </AnimatePresence>
+
+                    {/* 5. Issue Detail Modal */}
+                    <div style={{ zIndex: 9999, position: 'relative' }}>
+                        <IssueDetail
+                            issue={selectedIssueForDetail}
+                            isOpen={isIssueModalOpen}
+                            onClose={closeIssueModal}
+                            hideConfirm={true}
+                            isAdminView={true}
+                        />
                     </div>
-                )}
-            </AnimatePresence>
-
-            {/* 2. Re-Categorize Modal */}
-            <AnimatePresence>
-                {categoryModal.isOpen && (
-                    <div className="fixed inset-0 z-[100] flex items-center justify-center p-4">
-                        <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="absolute inset-0 bg-black/60 backdrop-blur-sm" onClick={() => setCategoryModal({ isOpen: false, issueId: '', category: '', priority: '' })} />
-                        <motion.form
-                            initial={{ opacity: 0, scale: 0.95, y: 20 }} animate={{ opacity: 1, scale: 1, y: 0 }} exit={{ opacity: 0, scale: 0.95, y: 20 }}
-                            onSubmit={handleReCategorize}
-                            className="bg-card p-6 rounded-3xl border border-border/50 shadow-2xl w-full max-w-sm relative z-10"
-                        >
-                            <div className="flex items-center gap-3 mb-2 text-primary">
-                                <div className="p-2 bg-primary/10 rounded-xl border border-primary/20"><Edit3 className="w-5 h-5" /></div>
-                                <h3 className="font-black text-xl text-foreground">Fix Classification</h3>
-                            </div>
-                            <p className="text-xs font-medium text-muted-foreground mb-6">Override the user's initial category and priority settings.</p>
-
-                            <div className="space-y-4 mb-8">
-                                <div className="relative z-50">
-                                    <label className="text-[10px] uppercase font-bold tracking-widest text-muted-foreground block mb-2">Category</label>
-                                    <CustomSelect options={CATEGORIES.filter(c => c.value !== '')} value={categoryModal.category} onChange={v => setCategoryModal({ ...categoryModal, category: v })} />
-                                </div>
-                                <div className="relative z-40">
-                                    <label className="text-[10px] uppercase font-bold tracking-widest text-muted-foreground block mb-2">Priority Level</label>
-                                    <CustomSelect options={PRIORITIES.filter(p => p.value !== '')} value={categoryModal.priority} onChange={v => setCategoryModal({ ...categoryModal, priority: v })} />
-                                </div>
-                            </div>
-
-                            <div className="flex justify-end gap-3">
-                                <button type="button" onClick={() => setCategoryModal({ isOpen: false, issueId: '', category: '', priority: '' })} className="px-5 py-2.5 text-sm font-bold text-muted-foreground hover:bg-muted rounded-xl transition-colors">Cancel</button>
-                                <button type="submit" disabled={isActionLoading} className="px-5 py-2.5 text-sm bg-primary text-primary-foreground font-black rounded-xl flex items-center justify-center min-w-[120px] shadow-[0_0_15px_rgba(var(--primary),0.3)] hover:bg-primary/90 transition-all hover:scale-[1.02] active:scale-[0.98]">
-                                    {isActionLoading ? <MiniLoader /> : 'Update Meta'}
-                                </button>
-                            </div>
-                        </motion.form>
-                    </div>
-                )}
-            </AnimatePresence>
-
-            {/* 3. Force Assign Modal */}
-            <AnimatePresence>
-                {assignModal.isOpen && (
-                    <div className="fixed inset-0 z-[100] flex items-center justify-center p-4">
-                        <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="absolute inset-0 bg-black/60 backdrop-blur-sm" onClick={() => setAssignModal({ isOpen: false, issueId: '', authorityId: '', hours: '' })} />
-                        <motion.form
-                            initial={{ opacity: 0, scale: 0.95, y: 20 }} animate={{ opacity: 1, scale: 1, y: 0 }} exit={{ opacity: 0, scale: 0.95, y: 20 }}
-                            onSubmit={handleForceAssign}
-                            className="bg-card p-6 rounded-3xl border border-indigo-500/30 shadow-[0_0_50px_rgba(99,102,241,0.15)] w-full max-w-md relative z-10"
-                        >
-                            <div className="flex items-center gap-3 mb-2 text-indigo-500">
-                                <div className="p-2 bg-indigo-500/10 rounded-xl border border-indigo-500/20"><Briefcase className="w-5 h-5" /></div>
-                                <h3 className="font-black text-xl">Force Assignment</h3>
-                            </div>
-                            <p className="text-xs font-medium text-muted-foreground mb-6">Lock this stagnant issue directly to an official. It will immediately leave the triage dashboard.</p>
-
-                            <div className="space-y-4 mb-8">
-                                <div className="relative z-50">
-                                    <label className="text-[10px] uppercase font-bold tracking-widest text-muted-foreground block mb-2">Target Official</label>
-                                    <CustomSelect options={authorities} value={assignModal.authorityId} onChange={v => setAssignModal({ ...assignModal, authorityId: v })} placeholder="Select Official to assign..." />
-                                </div>
-                                <div className="relative z-40">
-                                    <label className="text-[10px] uppercase font-bold tracking-widest text-muted-foreground block mb-2">Mandatory Resolution Window (Hours)</label>
-                                    <input type="number" min="1" placeholder="e.g. 12, 24, 48" required value={assignModal.hours} onChange={e => setAssignModal({ ...assignModal, hours: e.target.value })} className="w-full p-4 bg-background border border-border/60 rounded-xl text-sm font-bold focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500/20 outline-none transition-all shadow-inner" />
-                                </div>
-                            </div>
-
-                            <div className="flex justify-end gap-3">
-                                <button type="button" onClick={() => setAssignModal({ isOpen: false, issueId: '', authorityId: '', hours: '' })} className="px-5 py-2.5 text-sm font-bold text-muted-foreground hover:bg-muted rounded-xl transition-colors">Cancel</button>
-                                <button type="submit" disabled={isActionLoading || !assignModal.authorityId} className="px-5 py-2.5 text-sm bg-indigo-500 text-white font-black rounded-xl flex items-center justify-center min-w-[140px] shadow-[0_0_15px_rgba(99,102,241,0.4)] hover:bg-indigo-600 disabled:opacity-50 transition-all hover:scale-[1.02] active:scale-[0.98]">
-                                    {isActionLoading ? <MiniLoader className="text-white" /> : <>Lock & Warn <ArrowRight size={14} className="ml-1" /></>}
-                                </button>
-                            </div>
-                        </motion.form>
-                    </div>
-                )}
-            </AnimatePresence>
-
-            {/* 4. SOS Confirmation Modal */}
-            <AnimatePresence>
-                {sosModal.isOpen && (
-                    <div className="fixed inset-0 z-[100] flex items-center justify-center p-4">
-                        <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="absolute inset-0 bg-black/60 backdrop-blur-sm" onClick={() => setSosModal({ isOpen: false, issueId: '' })} />
-                        <motion.div
-                            initial={{ opacity: 0, scale: 0.95, y: 20 }} animate={{ opacity: 1, scale: 1, y: 0 }} exit={{ opacity: 0, scale: 0.95, y: 20 }}
-                            className="bg-card p-6 md:p-8 rounded-3xl border border-red-500/30 shadow-[0_0_50px_rgba(239,68,68,0.15)] w-full max-w-sm relative z-10 text-center"
-                        >
-                            <div className="w-16 h-16 bg-red-500/10 border border-red-500/20 rounded-full flex items-center justify-center mx-auto mb-4">
-                                <Megaphone className="w-8 h-8 text-red-500 animate-pulse" />
-                            </div>
-                            <h3 className="font-black text-2xl text-foreground mb-2">Blast SOS?</h3>
-                            <p className="text-sm font-medium text-muted-foreground mb-8 leading-relaxed">
-                                Are you sure you want to blast an urgent SOS push notification to <strong className="text-foreground">every verified official</strong> in this district?
-                            </p>
-                            <div className="flex justify-center gap-3">
-                                <button type="button" onClick={() => setSosModal({ isOpen: false, issueId: '' })} className="px-5 py-3 text-sm font-bold text-muted-foreground hover:bg-muted rounded-xl transition-colors w-full">Cancel</button>
-                                <button type="button" onClick={confirmSOSPing} disabled={isActionLoading} className="px-5 py-3 text-sm bg-red-500 text-white font-black rounded-xl flex items-center justify-center w-full shadow-[0_0_15px_rgba(239,68,68,0.4)] hover:bg-red-600 transition-all hover:scale-[1.02] active:scale-[0.98]">
-                                    {isActionLoading ? <MiniLoader className="text-white" /> : 'Yes, Blast SOS'}
-                                </button>
-                            </div>
-                        </motion.div>
-                    </div>
-                )}
-            </AnimatePresence>
-
-            {/* 5. Issue Detail (Reusing the citizen viewer for deep dive reading without actions) */}
-            <IssueDetail
-                issue={selectedIssueForDetail}
-                isOpen={isIssueModalOpen}
-                onClose={closeIssueModal}
-                hideConfirm={true}
-                isAdminView={true}
-            />
+                </>,
+                document.body
+            )}
 
         </motion.div>
     );

@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
+import { createPortal } from 'react-dom';
 import axiosInstance from '../../utils/axios';
 import { showToast } from '../../utils/toast';
 import { motion, AnimatePresence } from 'framer-motion';
@@ -7,10 +8,10 @@ import {
     CheckCircle, AlertTriangle, Trash2, Search, Shield,
     Leaf, Flame, Clock, History, Briefcase, Download, ArrowRight, RotateCcw,
     ShieldAlert, Zap, MoreVertical, Ban, AlertOctagon, Trophy, Medal, Star, CheckSquare,
-    UserCog, Plus, Minus, FileSignature, Activity, Target
+    UserCog, Plus, Minus, FileSignature, Activity, Target, Filter
 } from 'lucide-react';
 import MiniLoader from '../MiniLoader';
-import CustomSelect from '../CustomSelect';
+import CustomSelect from '../../components/CustomSelect';
 import { cscApi } from '../../utils/cscAPI';
 
 // --- HELPERS ---
@@ -83,6 +84,9 @@ const Avatar = ({ src, name, size = "w-10 h-10", iconSize = "w-5 h-5" }) => {
 };
 
 const AdminUsers = () => {
+    // Portal hydration state
+    const [isMounted, setIsMounted] = useState(false);
+
     const [users, setUsers] = useState([]);
     const [loading, setLoading] = useState(true);
     const [search, setSearch] = useState('');
@@ -95,6 +99,9 @@ const AdminUsers = () => {
     const [statesList, setStatesList] = useState([]);
     const [districtsList, setDistrictsList] = useState([]);
     const [authorities, setAuthorities] = useState([]);
+
+    // Mobile Filter State
+    const [isMobileFilterOpen, setIsMobileFilterOpen] = useState(false);
 
     // 🟢 DYNAMIC Z-INDEX MANAGER (Solves Infinite Stacking)
     const [modalZ, setModalZ] = useState({ profile: 200, list: 200, issue: 200 });
@@ -138,7 +145,13 @@ const AdminUsers = () => {
     const [modalDistrictsList, setModalDistrictsList] = useState([]);
     const [modalAssignedDistrictsList, setModalAssignedDistrictsList] = useState([]);
 
-    const ROLE_OPTIONS = [{ value: 'user', label: 'User' }, { value: 'admin', label: 'Admin' }, { value: 'official', label: 'Official' }, { value: 'ngo', label: 'NGO' }];
+    const ROLE_OPTIONS = [
+        { value: 'user', label: 'User' },
+        { value: 'admin', label: 'Admin' },
+        { value: 'official', label: 'Official' },
+        { value: 'ngo', label: 'NGO' },
+        { value: 'other', label: 'Other' }
+    ];
     const FILTER_ROLE_OPTIONS = [{ value: '', label: 'All Roles' }, ...ROLE_OPTIONS];
     const STATUS_OPTIONS = [{ value: 'ACTIVE', label: 'Active' }, { value: 'SUSPENDED', label: 'Suspended' }, { value: 'BANNED', label: 'Banned' }];
 
@@ -153,6 +166,7 @@ const AdminUsers = () => {
 
     // Fetch Global States & Authorities
     useEffect(() => {
+        setIsMounted(true);
         cscApi.get("/countries/IN/states").then(res => setStatesList(res.data)).catch(console.error);
         fetchAuthorities();
     }, []);
@@ -203,13 +217,13 @@ const AdminUsers = () => {
 
     // Scroll Lock
     useEffect(() => {
-        if (isModalOpen || isListModalOpen || isIssueModalOpen || editProfileModal.isOpen || pointsModal.isOpen || csiModalOpen || showDeleteConfirm) {
+        if (isModalOpen || isListModalOpen || isIssueModalOpen || editProfileModal.isOpen || pointsModal.isOpen || csiModalOpen || showDeleteConfirm || forceAssignModal.isOpen || forceUnassignModal.isOpen) {
             document.body.style.overflow = 'hidden';
         } else {
             document.body.style.overflow = 'unset';
         }
         return () => { document.body.style.overflow = 'unset'; };
-    }, [isModalOpen, isListModalOpen, isIssueModalOpen, editProfileModal.isOpen, pointsModal.isOpen, csiModalOpen, showDeleteConfirm]);
+    }, [isModalOpen, isListModalOpen, isIssueModalOpen, editProfileModal.isOpen, pointsModal.isOpen, csiModalOpen, showDeleteConfirm, forceAssignModal.isOpen, forceUnassignModal.isOpen]);
 
     // Autoplay Video
     useEffect(() => {
@@ -450,7 +464,7 @@ const AdminUsers = () => {
     };
 
     const handleRoleChange = async (id, newRole) => {
-        try { await axiosInstance.patch(`/admin/user/${id}/role`, { role: newRole }); setUsers(users.map(u => u._id === id ? { ...u, role: newRole } : u)); showToast({ icon: 'success', title: `Role updated` }); } catch (e) { showToast({ icon: 'error', title: 'Failed to update' }); }
+        try { await axiosInstance.patch(`/admin/user/${id}/edit`, { role: newRole }); setUsers(users.map(u => u._id === id ? { ...u, role: newRole } : u)); showToast({ icon: 'success', title: `Role updated` }); } catch (e) { showToast({ icon: 'error', title: 'Failed to update' }); }
     };
     const handleStatusChange = async (id, newStatus) => {
         try { await axiosInstance.patch(`/admin/user/${id}/status`, { accountStatus: newStatus }); setUsers(users.map(u => u._id === id ? { ...u, accountStatus: newStatus } : u)); if (selectedUserDetails?.user?._id === id) setSelectedUserDetails(prev => ({ ...prev, user: { ...prev.user, accountStatus: newStatus } })); showToast({ icon: 'success', title: `Status updated` }); } catch (e) { showToast({ icon: 'error', title: 'Failed to update' }); }
@@ -461,9 +475,8 @@ const AdminUsers = () => {
         try { await axiosInstance.delete(`/admin/user/${id}`); setUsers(users.filter(u => u._id !== id)); if (selectedUserDetails?.user?._id === id) setIsModalOpen(false); showToast({ icon: 'success', title: 'User deleted' }); } catch (e) { showToast({ icon: 'error', title: 'Failed to delete' }); } finally { setIsDeleting(false); }
     };
 
-    const isAuthority = selectedUserDetails?.user?.role === 'official' || selectedUserDetails?.user?.role === 'ngo';
+    const isAuthority = ['official', 'ngo', 'other'].includes(selectedUserDetails?.user?.role);
     const activeList = selectedUserDetails?.history?.[activeHistoryTab] || [];
-    const csiLedger = getCsiLedger();
 
     const triggerEditProfile = () => {
         const u = selectedUserDetails.user;
@@ -504,8 +517,21 @@ const AdminUsers = () => {
                 </motion.button>
             </div>
 
+            {/* Mobile Filter Toggle Header */}
+            <div className="flex xl:hidden justify-between items-center mt-2">
+                <h3 className="text-lg font-black text-foreground flex items-center gap-2">
+                    <Search className="text-primary" size={20} /> User Filters
+                </h3>
+                <button
+                    onClick={() => setIsMobileFilterOpen(!isMobileFilterOpen)}
+                    className={`p-2.5 rounded-xl border transition-colors ${isMobileFilterOpen ? 'bg-primary/10 border-primary/30 text-primary' : 'bg-card border-border/50 text-muted-foreground'}`}
+                >
+                    <Filter size={18} />
+                </button>
+            </div>
+
             {/* FILTERS */}
-            <div className="bg-card/60 backdrop-blur-xl border border-border/60 rounded-2xl p-4 shadow-lg relative z-[40]">
+            <div className={`${isMobileFilterOpen ? 'block' : 'hidden'} xl:block bg-card/60 backdrop-blur-xl border border-border/60 rounded-2xl p-4 shadow-lg relative z-[40]`}>
                 <div className="flex flex-col xl:flex-row gap-4">
                     <div className="relative flex-1 group">
                         <Search className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground group-focus-within:text-primary transition-colors" />
@@ -519,30 +545,126 @@ const AdminUsers = () => {
                 </div>
             </div>
 
-            {/* TABLE */}
-            <div className="bg-card/40 backdrop-blur-2xl border border-border/60 rounded-2xl overflow-hidden shadow-xl flex-1 flex flex-col min-h-[400px] relative z-10">
-                <div className="overflow-x-auto thin-scrollbar bg-background/20 flex-1">
+            {/* 🟢 Mobile Card View Wrapper (Hidden on md+) */}
+            <div className="md:hidden flex flex-col gap-3 relative z-[10]">
+                <AnimatePresence>
                     {loading ? (
-                        <div className="flex h-full items-center justify-center p-12"><MiniLoader /></div>
+                        [...Array(4)].map((_, i) => (
+                            <div key={i} className="bg-card/60 border border-border/60 rounded-xl p-4 flex flex-col gap-3 animate-pulse">
+                                <div className="flex justify-between items-start gap-3">
+                                    <div className="flex items-center gap-3 min-w-0 flex-1">
+                                        <div className="w-10 h-10 rounded-full bg-muted shrink-0"></div>
+                                        <div className="min-w-0 flex-1 space-y-2">
+                                            <div className="h-4 w-3/4 bg-muted rounded"></div>
+                                            <div className="h-3 w-1/2 bg-muted/50 rounded"></div>
+                                        </div>
+                                    </div>
+                                    <div className="h-7 w-7 bg-muted rounded-md shrink-0"></div>
+                                </div>
+                                <div className="flex items-center gap-1.5 mt-1">
+                                    <div className="h-3 w-4 bg-muted rounded"></div>
+                                    <div className="h-3 w-2/3 bg-muted/50 rounded"></div>
+                                </div>
+                                <div className="grid grid-cols-2 gap-2 mt-2 pt-3 border-t border-border/30">
+                                    <div className="h-9 w-full bg-muted rounded-xl"></div>
+                                    <div className="h-9 w-full bg-muted rounded-xl"></div>
+                                </div>
+                            </div>
+                        ))
                     ) : users.length === 0 ? (
-                        <div className="flex flex-col items-center justify-center h-full p-12 text-muted-foreground">
-                            <Search className="w-8 h-8 opacity-20 mb-2" />
-                            <p className="font-medium">No users found matching parameters.</p>
-                        </div>
+                        <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="p-10 text-center bg-card/40 border border-border/50 rounded-2xl">
+                            <Search className="w-8 h-8 opacity-20 mx-auto mb-2 text-muted-foreground" />
+                            <p className="text-sm font-medium text-muted-foreground">No users found matching parameters.</p>
+                        </motion.div>
                     ) : (
-                        <table className="w-full text-left whitespace-nowrap table-fixed min-w-[800px]">
-                            <thead className="bg-muted/40 backdrop-blur-md border-b border-border/50 sticky top-0 z-20 shadow-sm">
-                                <tr className="text-muted-foreground text-[10px] md:text-sm uppercase tracking-widest">
-                                    <th className="py-4 px-6 font-bold w-[35%]">User Profile</th>
-                                    <th className="py-4 px-6 font-bold w-[25%]">Location</th>
-                                    <th className="py-4 px-6 font-bold w-[15%]">Role</th>
-                                    <th className="py-4 px-6 font-bold w-[15%]">Status</th>
-                                    <th className="py-4 px-6 font-bold w-[10%] text-right">Actions</th>
-                                </tr>
-                            </thead>
-                            <tbody className="divide-y divide-border/30">
-                                <AnimatePresence>
-                                    {users.map((user, index) => (
+                        users.map((user, index) => (
+                            <motion.div
+                                layout
+                                initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }}
+                                key={user._id}
+                                // 👇 ADDED 'relative' class here
+                                className="relative bg-card/60 backdrop-blur-md border border-border/60 rounded-xl p-4 flex flex-col gap-3 shadow-sm hover:border-primary/50 transition-all cursor-pointer group"
+                                // 👇 ADDED dynamic z-index here
+                                style={{ zIndex: users.length - index }}
+                                onClick={() => fetchUserFullDetails(user._id)}
+                            >
+                                <div className="flex justify-between items-start gap-3">
+                                    <div className="flex items-center gap-3 min-w-0 flex-1">
+                                        <Avatar src={user.profilePic} name={user.name} size="w-10 h-10" iconSize="w-5 h-5" />
+                                        <div className="min-w-0 flex-1">
+                                            <h4 className="font-bold text-sm text-foreground truncate group-hover:text-primary transition-colors">{user.name || user.userName}</h4>
+                                            <p className="text-[10px] text-muted-foreground mt-0.5 truncate">{user.contact?.email}</p>
+                                        </div>
+                                    </div>
+                                    <button onClick={(e) => { e.stopPropagation(); handleDelete(user._id); }} disabled={isDeleting} className="p-1.5 bg-red-500/10 text-red-500 rounded-md hover:bg-red-500 hover:text-white transition-all shrink-0">
+                                        <Trash2 className="w-4 h-4" />
+                                    </button>
+                                </div>
+
+                                <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
+                                    <MapPin size={12} className="opacity-50" />
+                                    <span className="truncate">{user.authorityProfile?.assignedDistrict || user.contact?.city || 'Unknown'}, {user.authorityProfile?.assignedState || user.contact?.state || 'Unknown'}</span>
+                                </div>
+
+                                <div className="grid grid-cols-2 gap-2 mt-2 pt-3 border-t border-border/30" onClick={e => e.stopPropagation()}>
+                                    <CustomSelect options={ROLE_OPTIONS} value={user.role} onChange={(val) => handleRoleChange(user._id, val)} />
+                                    <CustomSelect options={STATUS_OPTIONS} value={user.accountStatus || 'ACTIVE'} onChange={(val) => handleStatusChange(user._id, val)} />
+                                </div>
+                            </motion.div>
+                        ))
+                    )}
+                </AnimatePresence>
+            </div>
+
+            {/* 🟢 Desktop Table Wrapper (Hidden on mobile) */}
+            <div className="hidden md:flex bg-card/40 backdrop-blur-2xl border border-border/60 rounded-2xl overflow-hidden shadow-xl flex-1 flex-col min-h-[400px] relative z-10">
+                <div className="overflow-x-auto thin-scrollbar bg-background/20 flex-1">
+                    <table className="w-full text-left whitespace-nowrap table-fixed min-w-[800px]">
+                        <thead className="bg-muted/40 backdrop-blur-md border-b border-border/50 sticky top-0 z-20 shadow-sm">
+                            <tr className="text-muted-foreground text-[10px] md:text-sm uppercase tracking-widest">
+                                <th className="py-4 px-6 font-bold w-[35%]">User Profile</th>
+                                <th className="py-4 px-6 font-bold w-[25%]">Location</th>
+                                <th className="py-4 px-6 font-bold w-[15%]">Role</th>
+                                <th className="py-4 px-6 font-bold w-[15%]">Status</th>
+                                <th className="py-4 px-6 font-bold w-[10%] text-right">Actions</th>
+                            </tr>
+                        </thead>
+                        <tbody className="divide-y divide-border/30">
+                            <AnimatePresence>
+                                {loading ? (
+                                    [...Array(5)].map((_, i) => (
+                                        <tr key={i} className="animate-pulse border-b border-border/30">
+                                            <td className="py-4 px-6">
+                                                <div className="flex items-center gap-3">
+                                                    <div className="w-10 h-10 rounded-full bg-muted shrink-0"></div>
+                                                    <div className="flex flex-col gap-2">
+                                                        <div className="h-4 w-32 bg-muted rounded"></div>
+                                                        <div className="h-3 w-48 bg-muted/50 rounded"></div>
+                                                    </div>
+                                                </div>
+                                            </td>
+                                            <td className="py-4 px-6">
+                                                <div className="flex flex-col gap-2">
+                                                    <div className="h-4 w-24 bg-muted rounded"></div>
+                                                    <div className="h-3 w-32 bg-muted/50 rounded"></div>
+                                                </div>
+                                            </td>
+                                            <td className="py-4 px-6 pr-2"><div className="h-9 w-full bg-muted rounded-xl"></div></td>
+                                            <td className="py-4 px-6 pr-2"><div className="h-9 w-full bg-muted rounded-xl"></div></td>
+                                            <td className="py-4 px-6 flex justify-end items-center h-full pt-6"><div className="h-8 w-20 bg-muted rounded-lg"></div></td>
+                                        </tr>
+                                    ))
+                                ) : users.length === 0 ? (
+                                    <motion.tr initial={{ opacity: 0 }} animate={{ opacity: 1 }}>
+                                        <td colSpan="5" className="p-12 text-center text-sm font-medium text-muted-foreground">
+                                            <div className="flex flex-col items-center justify-center h-full text-muted-foreground">
+                                                <Search className="w-8 h-8 opacity-20 mb-2" />
+                                                <p className="font-medium">No users found matching parameters.</p>
+                                            </div>
+                                        </td>
+                                    </motion.tr>
+                                ) : (
+                                    users.map((user, index) => (
                                         <motion.tr layout initial={{ opacity: 0 }} animate={{ opacity: 1 }} key={user._id} className="hover:bg-primary/5 transition-all group" style={{ zIndex: users.length - index }}>
                                             <td className="py-4 px-6 truncate cursor-pointer" onClick={() => fetchUserFullDetails(user._id)}>
                                                 <div className="flex items-center gap-3">
@@ -565,578 +687,547 @@ const AdminUsers = () => {
                                                 </button>
                                             </td>
                                         </motion.tr>
-                                    ))}
-                                </AnimatePresence>
-                            </tbody>
-                        </table>
-                    )}
+                                    ))
+                                )}
+                            </AnimatePresence>
+                        </tbody>
+                    </table>
                 </div>
-
-                {!loading && totalPages > 1 && (
-                    <div className="p-4 border-t border-border/50 bg-background/40 backdrop-blur-md flex justify-between items-center text-xs font-semibold text-muted-foreground">
-                        <span className="tracking-widest uppercase">Page {page} of {totalPages}</span>
-                        <div className="space-x-2 flex">
-                            <button disabled={page === 1} onClick={() => setPage(p => p - 1)} className="p-2 bg-card/80 border border-border/50 rounded-xl hover:bg-muted disabled:opacity-50 transition-all shadow-sm"><ChevronLeft size={16} /></button>
-                            <button disabled={page === totalPages} onClick={() => setPage(p => p + 1)} className="p-2 bg-card/80 border border-border/50 rounded-xl hover:bg-muted disabled:opacity-50 transition-all shadow-sm"><ChevronRight size={16} /></button>
-                        </div>
-                    </div>
-                )}
             </div>
 
+            {/* Pagination Controls */}
+            {!loading && totalPages > 1 && (
+                <div className="p-4 border border-border/50 rounded-2xl md:rounded-b-2xl md:border-t-0 md:rounded-t-none bg-background/40 backdrop-blur-md flex justify-between items-center text-xs font-semibold text-muted-foreground shadow-sm mt-4 md:mt-0">
+                    <span className="tracking-widest uppercase">Page {page} of {totalPages}</span>
+                    <div className="space-x-2 flex">
+                        <button disabled={page === 1} onClick={() => setPage(p => p - 1)} className="p-2 bg-card/80 border border-border/50 rounded-xl hover:bg-muted disabled:opacity-50 transition-all shadow-sm"><ChevronLeft size={16} /></button>
+                        <button disabled={page === totalPages} onClick={() => setPage(p => p + 1)} className="p-2 bg-card/80 border border-border/50 rounded-xl hover:bg-muted disabled:opacity-50 transition-all shadow-sm"><ChevronRight size={16} /></button>
+                    </div>
+                </div>
+            )}
+
             {/* ========================================================= */}
-            {/* MODALS */}
+            {/* PORTAL MODALS (Rendered completely outside DOM flow) */}
             {/* ========================================================= */}
 
-            {/* 1. MAIN USER PROFILE MODAL */}
-            <AnimatePresence>
-                {isModalOpen && selectedUserDetails && (
-                    <div className="fixed inset-0 flex items-center justify-center p-2 sm:p-4 bg-black/60 backdrop-blur-sm animate-fade-in transition-all duration-300 ease-in-out" style={{ zIndex: modalZ.profile }}>
-                        <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="absolute inset-0" onClick={() => setIsModalOpen(false)} />
+            {isMounted && createPortal(
+                <>
+                    {/* 1. MAIN USER PROFILE MODAL */}
+                    <AnimatePresence>
+                        {isModalOpen && (
+                            <div className="fixed inset-0 flex items-center justify-center p-2 sm:p-4 bg-black/60 backdrop-blur-sm animate-fade-in transition-all duration-300 ease-in-out" style={{ zIndex: modalZ.profile }}>
+                                <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="absolute inset-0" onClick={() => setIsModalOpen(false)} />
 
-                        <motion.div
-                            initial={{ opacity: 0, x: 100 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: 100 }} transition={{ type: "spring", damping: 25, stiffness: 200 }}
-                            className="bg-card border border-border/50 rounded-3xl w-full max-w-5xl shadow-2xl flex flex-col relative overflow-hidden max-h-full"
-                        >
-                            <div className="p-4 md:p-6 border-b border-border/50 flex justify-between items-center bg-muted/10 shrink-0">
-                                <h3 className="text-lg md:text-xl font-black text-foreground flex items-center gap-2">
-                                    <UserIcon className="w-5 h-5 text-primary" /> User Profile & Audit
-                                </h3>
-                                <div className="flex items-center gap-3">
-                                    <button onClick={() => setIsModalOpen(false)} className="text-muted-foreground hover:bg-muted p-1.5 rounded-full transition-colors"><X className="w-5 h-5" /></button>
-                                </div>
-                            </div>
+                                <motion.div
+                                    initial={{ opacity: 0, x: 100 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: 100 }} transition={{ type: "spring", damping: 25, stiffness: 200 }}
+                                    className="bg-card border border-border/50 rounded-3xl w-full max-w-5xl shadow-2xl flex flex-col relative overflow-hidden max-h-full"
+                                >
+                                    <div className="p-4 md:p-6 border-b border-border/50 flex justify-between items-center bg-muted/10 shrink-0">
+                                        <h3 className="text-lg md:text-xl font-black text-foreground flex items-center gap-2">
+                                            <UserIcon className="w-5 h-5 text-primary" /> User Profile & Audit
+                                        </h3>
+                                        <div className="flex items-center gap-3">
+                                            <button onClick={() => setIsModalOpen(false)} className="text-muted-foreground hover:bg-muted p-1.5 rounded-full transition-colors"><X className="w-5 h-5" /></button>
+                                        </div>
+                                    </div>
 
-                            <div className="p-4 md:p-6 overflow-y-auto thin-scrollbar flex-1 min-h-0 bg-background/30">
-                                {modalLoading ? (
-                                    <div className="flex justify-center items-center py-12"><MiniLoader /></div>
-                                ) : !selectedUserDetails ? (
-                                    <div className="flex justify-center items-center py-12 text-muted-foreground font-medium">User details not found</div>
-                                ) : (
-                                    <div className="space-y-6">
-                                        <div className="flex flex-col sm:flex-row gap-4 sm:gap-6 items-center sm:items-start text-center sm:text-left relative bg-card border border-border/50 p-5 rounded-2xl shadow-sm">
-                                            <Avatar src={selectedUserDetails.user.profilePic} name={selectedUserDetails.user.name} size="w-20 h-20" iconSize="w-10 h-10" />
-                                            <div className="flex-1 space-y-1 w-full">
-                                                <div className="flex items-center justify-center sm:justify-start gap-2">
-                                                    <h4 className="text-2xl font-black text-foreground">{selectedUserDetails.user.name}</h4>
-                                                    {isAuthority && <span className="px-2 py-0.5 bg-primary/10 text-primary text-[10px] font-bold uppercase rounded-md border border-primary/20">{selectedUserDetails.user.role}</span>}
+                                    <div className="p-4 md:p-6 overflow-y-auto thin-scrollbar flex-1 min-h-0 bg-background/30">
+                                        {modalLoading ? (
+                                            <div className="space-y-6 animate-pulse">
+                                                <div className="flex flex-col sm:flex-row gap-4 sm:gap-6 items-center sm:items-start relative bg-card border border-border/50 p-5 rounded-2xl shadow-sm">
+                                                    <div className="w-20 h-20 rounded-full bg-muted shrink-0"></div>
+                                                    <div className="flex-1 space-y-3 w-full min-w-0">
+                                                        <div className="h-6 w-48 bg-muted rounded mx-auto sm:mx-0"></div>
+                                                        <div className="h-4 w-64 bg-muted/50 rounded mx-auto sm:mx-0"></div>
+                                                        <div className="h-8 w-32 bg-muted rounded-lg mx-auto sm:mx-0 mt-2"></div>
+                                                        <div className="flex gap-2 mt-4 pt-3 border-t border-border/50">
+                                                            <div className="h-3 w-32 bg-muted rounded"></div>
+                                                            <div className="h-3 w-32 bg-muted rounded"></div>
+                                                        </div>
+                                                    </div>
+                                                    <div className="w-full sm:w-40 h-14 bg-muted rounded-xl shrink-0"></div>
                                                 </div>
-                                                <p className="text-sm font-medium text-muted-foreground">@{selectedUserDetails.user.userName} • {selectedUserDetails.user.contact?.email}</p>
-
-                                                <button onClick={triggerEditProfile} className="text-[11px] font-bold uppercase tracking-widest text-primary flex items-center gap-1 justify-center sm:justify-start mt-2 hover:bg-primary/10 px-3 py-1.5 rounded-lg border border-primary/20 transition-colors w-max mx-auto sm:mx-0">
-                                                    <UserCog size={12} /> Edit Profile Data
-                                                </button>
-
-                                                <div className="flex flex-col sm:flex-row gap-2 mt-4 pt-3 border-t border-border/50 text-xs font-medium text-muted-foreground">
-                                                    <span><span className="font-bold text-foreground">Joined:</span> {new Date(selectedUserDetails.user.createdAt).toLocaleDateString()}</span>
-                                                    <span className="hidden sm:inline text-border">•</span>
-                                                    <span><span className="font-bold text-foreground">Last Login:</span> {selectedUserDetails.user.lastLoginAt ? new Date(selectedUserDetails.user.lastLoginAt).toLocaleString() : 'Never'}</span>
+                                                <div className="bg-card border border-border/50 rounded-2xl p-5 shadow-sm space-y-4">
+                                                    <div className="h-4 w-32 bg-muted rounded"></div>
+                                                    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+                                                        <div className="h-10 w-full bg-muted/50 rounded"></div>
+                                                        <div className="h-10 w-full bg-muted/50 rounded"></div>
+                                                        <div className="h-10 w-full bg-muted/50 rounded"></div>
+                                                        <div className="h-10 w-full bg-muted/50 rounded"></div>
+                                                    </div>
+                                                </div>
+                                                <div className="h-4 w-32 bg-muted rounded mt-6"></div>
+                                                <div className="grid grid-cols-2 md:grid-cols-4 gap-3 md:gap-4">
+                                                    <div className="h-24 bg-card rounded-2xl border border-border/50"></div>
+                                                    <div className="h-24 bg-card rounded-2xl border border-border/50"></div>
+                                                    <div className="h-24 bg-card rounded-2xl border border-border/50"></div>
+                                                    <div className="h-24 bg-card rounded-2xl border border-border/50"></div>
                                                 </div>
                                             </div>
-                                            <div className="w-full sm:w-40 bg-muted/20 p-3 rounded-xl border border-border/50 shrink-0">
-                                                <label className="block text-[10px] font-bold uppercase tracking-widest text-muted-foreground mb-1.5 sm:text-left text-center">Account Status</label>
-                                                <CustomSelect options={STATUS_OPTIONS} value={selectedUserDetails.user.accountStatus || 'ACTIVE'} onChange={(val) => handleStatusChange(selectedUserDetails.user._id, val)} />
-                                            </div>
-                                        </div>
+                                        ) : !selectedUserDetails ? (
+                                            <div className="flex justify-center items-center py-12 text-muted-foreground font-medium">User details not found</div>
+                                        ) : (
+                                            <div className="space-y-6">
+                                                <div className="flex flex-col sm:flex-row gap-4 sm:gap-6 items-center sm:items-start text-center sm:text-left relative bg-card border border-border/50 p-5 rounded-2xl shadow-sm">
+                                                    <Avatar src={selectedUserDetails.user.profilePic} name={selectedUserDetails.user.name} size="w-20 h-20" iconSize="w-10 h-10" />
+                                                    <div className="flex-1 space-y-1 w-full min-w-0">
+                                                        <div className="flex items-center justify-center sm:justify-start gap-2">
+                                                            <h4 className="text-2xl font-black text-foreground truncate">{selectedUserDetails.user.name}</h4>
+                                                            {isAuthority && <span className="px-2 py-0.5 bg-primary/10 text-primary text-[10px] font-bold uppercase rounded-md border border-primary/20 shrink-0">{selectedUserDetails.user.role}</span>}
+                                                        </div>
+                                                        <p className="text-sm font-medium text-muted-foreground truncate">@{selectedUserDetails.user.userName} • {selectedUserDetails.user.contact?.email}</p>
 
-                                        <div className="bg-card border border-border/50 rounded-2xl p-5 shadow-sm">
-                                            <h4 className="text-[10px] uppercase font-black tracking-widest text-primary mb-4 flex items-center gap-2"><Shield size={14} /> Profile Information</h4>
-                                            {isAuthority && selectedUserDetails.user.authorityProfile ? (
-                                                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-                                                    <div><p className="text-[10px] text-muted-foreground uppercase font-bold">Designation</p><p className="font-bold text-sm text-foreground">{selectedUserDetails.user.authorityProfile.designation || 'N/A'}</p></div>
-                                                    <div><p className="text-[10px] text-muted-foreground uppercase font-bold">Department/Org</p><p className="font-bold text-sm text-foreground">{selectedUserDetails.user.authorityProfile.departmentName || selectedUserDetails.user.authorityProfile.org || 'N/A'}</p></div>
-                                                    <div><p className="text-[10px] text-muted-foreground uppercase font-bold">Assigned Area</p><p className="font-bold text-sm text-foreground">{selectedUserDetails.user.authorityProfile.assignedDistrict || 'N/A'}</p></div>
-                                                    <div><p className="text-[10px] text-muted-foreground uppercase font-bold">Verification</p><p className={`font-bold text-xs w-max px-2 py-0.5 rounded uppercase mt-0.5 ${selectedUserDetails.user.authorityProfile.verificationStatus === 'APPROVED' ? 'text-green-500 bg-green-500/10 border border-green-500/20' : 'text-amber-500 bg-amber-500/10 border border-amber-500/20'}`}>{selectedUserDetails.user.authorityProfile.verificationStatus}</p></div>
-                                                </div>
-                                            ) : (
-                                                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-                                                    <div><p className="text-[10px] text-muted-foreground uppercase font-bold">Rank</p><p className="font-bold text-sm text-foreground">{selectedUserDetails.user.rank || 'Citizen'}</p></div>
-                                                    <div><p className="text-[10px] text-muted-foreground uppercase font-bold">Civil Score</p><p className="font-bold text-sm text-foreground flex items-center gap-1"><Zap size={14} className="text-yellow-500" /> {selectedUserDetails.user.civilScore || 10}</p></div>
-                                                    <div><p className="text-[10px] text-muted-foreground uppercase font-bold">Badges Earned</p><p className="font-bold text-sm text-amber-500">{selectedUserDetails.user.badges?.length || 0}</p></div>
-                                                    <div><p className="text-[10px] text-muted-foreground uppercase font-bold">Account Status</p><p className={`font-bold text-xs w-max px-2 py-0.5 rounded uppercase mt-0.5 ${selectedUserDetails.user.accountStatus === 'ACTIVE' ? 'text-green-500 bg-green-500/10 border border-green-500/20' : 'text-red-500 bg-red-500/10 border border-red-500/20'}`}>{selectedUserDetails.user.accountStatus || 'ACTIVE'}</p></div>
-                                                </div>
-                                            )}
-                                        </div>
+                                                        <button onClick={triggerEditProfile} className="text-[11px] font-bold uppercase tracking-widest text-primary flex items-center gap-1 justify-center sm:justify-start mt-2 hover:bg-primary/10 px-3 py-1.5 rounded-lg border border-primary/20 transition-colors w-max mx-auto sm:mx-0">
+                                                            <UserCog size={12} /> Edit Profile Data
+                                                        </button>
 
-                                        <div className="flex justify-between items-center pl-1">
-                                            <h4 className="text-[10px] uppercase font-black tracking-widest text-muted-foreground border-l-2 border-primary pl-2">Platform Metrics</h4>
-                                            <button onClick={() => setPointsModal({ isOpen: true, points: '', reason: '' })} className="text-[10px] font-bold bg-yellow-500/10 text-yellow-500 border border-yellow-500/30 px-2.5 py-1.5 rounded-lg flex items-center gap-1 hover:bg-yellow-500/20 transition-colors uppercase tracking-wider shadow-sm">
-                                                <Zap size={12} /> Adjust Points
-                                            </button>
-                                        </div>
-
-                                        <div className="grid grid-cols-2 md:grid-cols-4 gap-3 md:gap-4">
-                                            {isAuthority ? (
-                                                <>
-                                                    <StatBox icon={<Clock className="text-indigo-500" />} title="Jobs Active" count={selectedUserDetails.history?.ASSIGNED?.length || 0} color="border-indigo-500/30 bg-indigo-500/5 hover:bg-indigo-500/10 cursor-pointer hover:-translate-y-1 hover:shadow-md" onClick={() => openListModal('ASSIGNED')} />
-                                                    <StatBox icon={<CheckSquare className="text-emerald-500" />} title="Jobs Completed" count={selectedUserDetails.history?.COMPLETED?.length || 0} color="border-emerald-500/30 bg-emerald-500/5 hover:bg-emerald-500/10 cursor-pointer hover:-translate-y-1 hover:shadow-md" onClick={() => openListModal('COMPLETED')} />
-                                                    <StatBox icon={<Briefcase className="text-amber-500" />} title="Jobs Released" count={selectedUserDetails.history?.RELEASED?.length || 0} color="border-amber-500/30 bg-amber-500/5 hover:bg-amber-500/10 cursor-pointer hover:-translate-y-1 hover:shadow-md" onClick={() => openListModal('RELEASED')} />
-                                                    <StatBox icon={<AlertTriangle className="text-rose-500" />} title="Jobs Failed" count={selectedUserDetails.history?.FAILED?.length || 0} color="border-rose-500/30 bg-rose-500/5 hover:bg-rose-500/10 cursor-pointer hover:-translate-y-1 hover:shadow-md" onClick={() => openListModal('FAILED')} />
-                                                </>
-                                            ) : (
-                                                <>
-                                                    <StatBox icon={<AlertTriangle className="text-amber-500" />} title="Issues Reported" count={selectedUserDetails.history?.REPORTED?.length || 0} color="border-amber-500/30 bg-amber-500/5 hover:bg-amber-500/10 cursor-pointer hover:-translate-y-1 hover:shadow-md" onClick={() => openListModal('REPORTED')} />
-                                                    <StatBox icon={<CheckSquare className="text-emerald-500" />} title="Verifications" count={selectedUserDetails.history?.CONFIRMED?.length || 0} color="border-emerald-500/30 bg-emerald-500/5 hover:bg-emerald-500/10 cursor-pointer hover:-translate-y-1 hover:shadow-md" onClick={() => openListModal('CONFIRMED')} />
-                                                    <StatBox icon={<Shield className="text-indigo-500" />} title="Flags Cast" count={selectedUserDetails.history?.FLAGGED?.length || 0} color="border-indigo-500/30 bg-indigo-500/5 hover:bg-indigo-500/10 cursor-pointer hover:-translate-y-1 hover:shadow-md" onClick={() => openListModal('FLAGGED')} />
-                                                    <StatBox icon={<Zap className="text-yellow-500" />} title="Civil Score" count={selectedUserDetails.user.civilScore || 10} color="border-yellow-500/30 bg-yellow-500/5" />
-                                                </>
-                                            )}
-                                        </div>
-
-                                        {isAuthority && (
-                                            <>
-                                                <div className="flex justify-between items-center pl-1 mt-6">
-                                                    <h4 className="text-[10px] uppercase font-black tracking-widest text-muted-foreground border-l-2 border-primary pl-2">Authority Rating & Control</h4>
-                                                    <button onClick={() => setCsiModalOpen(true)} className="text-[10px] font-bold bg-primary/10 text-primary border border-primary/30 px-2.5 py-1.5 rounded-lg flex items-center gap-1 hover:bg-primary/20 transition-colors uppercase tracking-wider shadow-sm">
-                                                        <Target size={12} /> View CSI Ledger
-                                                    </button>
-                                                </div>
-                                                <div className="bg-primary/5 p-4 rounded-2xl border border-primary/20 text-center shadow-sm relative group hover:border-primary/50 transition-colors cursor-pointer" onClick={() => setCsiModalOpen(true)}>
-                                                    <Target className="w-6 h-6 mx-auto text-primary mb-2" />
-                                                    <p className="text-[10px] font-bold uppercase tracking-widest text-primary">CSI Score</p>
-                                                    <div className="flex items-center justify-center mt-1">
-                                                        <p className="text-2xl font-black text-primary">{selectedUserDetails.user.authorityProfile?.csiScore || 0}</p>
+                                                        <div className="flex flex-col sm:flex-row gap-2 mt-4 pt-3 border-t border-border/50 text-xs font-medium text-muted-foreground">
+                                                            <span><span className="font-bold text-foreground">Joined:</span> {new Date(selectedUserDetails.user.createdAt).toLocaleDateString()}</span>
+                                                            <span className="hidden sm:inline text-border">•</span>
+                                                            <span><span className="font-bold text-foreground">Last Login:</span> {selectedUserDetails.user.lastLoginAt ? new Date(selectedUserDetails.user.lastLoginAt).toLocaleString() : 'Never'}</span>
+                                                        </div>
+                                                    </div>
+                                                    <div className="w-full sm:w-40 bg-muted/20 p-3 rounded-xl border border-border/50 shrink-0">
+                                                        <label className="block text-[10px] font-bold uppercase tracking-widest text-muted-foreground mb-1.5 sm:text-left text-center">Account Status</label>
+                                                        <CustomSelect options={STATUS_OPTIONS} value={selectedUserDetails.user.accountStatus || 'ACTIVE'} onChange={(val) => handleStatusChange(selectedUserDetails.user._id, val)} />
                                                     </div>
                                                 </div>
 
-                                                <h4 className="text-[10px] uppercase font-black tracking-widest text-muted-foreground pl-1 border-l-2 border-primary mt-6 mb-4">Operations</h4>
-                                                <div className="flex flex-col sm:flex-row gap-3">
-                                                    <button onClick={() => setForceAssignModal({ isOpen: true, issues: [], selectedIssue: '', commitmentTimeHours: '' })} className="flex-1 px-5 py-3.5 bg-indigo-500/10 text-indigo-500 border border-indigo-500/30 font-bold text-xs rounded-xl shadow-sm hover:bg-indigo-500 hover:text-white transition-all flex items-center justify-center gap-2">
-                                                        <Briefcase size={16} /> Force Assign Job to Official
+                                                <div className="bg-card border border-border/50 rounded-2xl p-5 shadow-sm">
+                                                    <h4 className="text-[10px] uppercase font-black tracking-widest text-primary mb-4 flex items-center gap-2"><Shield size={14} /> Profile Information</h4>
+                                                    {isAuthority && selectedUserDetails.user.authorityProfile ? (
+                                                        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+                                                            <div><p className="text-[10px] text-muted-foreground uppercase font-bold">Designation</p><p className="font-bold text-sm text-foreground truncate">{selectedUserDetails.user.authorityProfile.designation || 'N/A'}</p></div>
+                                                            <div><p className="text-[10px] text-muted-foreground uppercase font-bold">Department/Org</p><p className="font-bold text-sm text-foreground truncate">{selectedUserDetails.user.authorityProfile.departmentName || selectedUserDetails.user.authorityProfile.org || 'N/A'}</p></div>
+                                                            <div><p className="text-[10px] text-muted-foreground uppercase font-bold">Assigned Area</p><p className="font-bold text-sm text-foreground truncate">{selectedUserDetails.user.authorityProfile.assignedDistrict || 'N/A'}</p></div>
+                                                            <div><p className="text-[10px] text-muted-foreground uppercase font-bold">Verification</p><p className={`font-bold text-xs w-max px-2 py-0.5 rounded uppercase mt-0.5 ${selectedUserDetails.user.authorityProfile.verificationStatus === 'APPROVED' ? 'text-green-500 bg-green-500/10 border border-green-500/20' : 'text-amber-500 bg-amber-500/10 border border-amber-500/20'}`}>{selectedUserDetails.user.authorityProfile.verificationStatus}</p></div>
+                                                        </div>
+                                                    ) : (
+                                                        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+                                                            <div><p className="text-[10px] text-muted-foreground uppercase font-bold">Rank</p><p className="font-bold text-sm text-foreground truncate">{selectedUserDetails.user.rank || 'Citizen'}</p></div>
+                                                            <div><p className="text-[10px] text-muted-foreground uppercase font-bold">Civil Score</p><p className="font-bold text-sm text-foreground flex items-center gap-1"><Zap size={14} className="text-yellow-500" /> {selectedUserDetails.user.civilScore || 10}</p></div>
+                                                            <div><p className="text-[10px] text-muted-foreground uppercase font-bold">Badges Earned</p><p className="font-bold text-sm text-amber-500">{selectedUserDetails.user.badges?.length || 0}</p></div>
+                                                            <div><p className="text-[10px] text-muted-foreground uppercase font-bold">Account Status</p><p className={`font-bold text-xs w-max px-2 py-0.5 rounded uppercase mt-0.5 ${selectedUserDetails.user.accountStatus === 'ACTIVE' ? 'text-green-500 bg-green-500/10 border border-green-500/20' : 'text-red-500 bg-red-500/10 border border-red-500/20'}`}>{selectedUserDetails.user.accountStatus || 'ACTIVE'}</p></div>
+                                                        </div>
+                                                    )}
+                                                </div>
+
+                                                <div className="flex justify-between items-center pl-1">
+                                                    <h4 className="text-[10px] uppercase font-black tracking-widest text-muted-foreground border-l-2 border-primary pl-2">Platform Metrics</h4>
+                                                    <button onClick={() => setPointsModal({ isOpen: true, points: '', reason: '' })} className="text-[10px] font-bold bg-yellow-500/10 text-yellow-500 border border-yellow-500/30 px-2.5 py-1.5 rounded-lg flex items-center gap-1 hover:bg-yellow-500/20 transition-colors uppercase tracking-wider shadow-sm">
+                                                        <Zap size={12} /> Adjust Points
                                                     </button>
                                                 </div>
-                                            </>
-                                        )}
 
-                                        <h4 className="text-[10px] uppercase font-black tracking-widest text-muted-foreground pl-1 border-l-2 border-primary mb-4 mt-8">Leaderboard History</h4>
-                                        <div className="bg-card border border-border/50 rounded-2xl p-5 shadow-sm">
-                                            {selectedUserDetails.history?.RANKINGS && selectedUserDetails.history.RANKINGS.length > 0 ? (
-                                                <div className="space-y-4">
-                                                    {selectedUserDetails.history.RANKINGS.map((rankEntry, idx) => (
-                                                        <div key={idx} className="flex items-center justify-between p-3 rounded-xl bg-muted/30 border border-border/40">
-                                                            <div className="flex items-center gap-3">
-                                                                <div className="w-10 h-10 rounded-full bg-background border flex items-center justify-center shadow-sm shrink-0">
-                                                                    {rankEntry.rank === 1 ? <Trophy size={18} className="text-yellow-500" /> :
-                                                                        rankEntry.rank === 2 ? <Medal size={18} className="text-slate-300" /> :
-                                                                            rankEntry.rank === 3 ? <Medal size={18} className="text-amber-600" /> :
-                                                                                <Star size={16} className="text-primary" />}
-                                                                </div>
-                                                                <div>
-                                                                    <p className="text-sm font-bold text-foreground">Rank #{rankEntry.rank}</p>
-                                                                    <p className="text-[10px] font-medium text-muted-foreground uppercase tracking-widest">{rankEntry.type || 'Weekly'} Leaderboard</p>
-                                                                </div>
+                                                <div className="grid grid-cols-2 md:grid-cols-4 gap-3 md:gap-4">
+                                                    {isAuthority ? (
+                                                        <>
+                                                            <StatBox icon={<Clock className="text-indigo-500" />} title="Jobs Active" count={selectedUserDetails.history?.ASSIGNED?.length || 0} color="border-indigo-500/30 bg-indigo-500/5 hover:bg-indigo-500/10 cursor-pointer hover:-translate-y-1 hover:shadow-md" onClick={() => openListModal('ASSIGNED')} />
+                                                            <StatBox icon={<CheckSquare className="text-emerald-500" />} title="Jobs Completed" count={selectedUserDetails.history?.COMPLETED?.length || 0} color="border-emerald-500/30 bg-emerald-500/5 hover:bg-emerald-500/10 cursor-pointer hover:-translate-y-1 hover:shadow-md" onClick={() => openListModal('COMPLETED')} />
+                                                            <StatBox icon={<Briefcase className="text-amber-500" />} title="Jobs Released" count={selectedUserDetails.history?.RELEASED?.length || 0} color="border-amber-500/30 bg-amber-500/5 hover:bg-amber-500/10 cursor-pointer hover:-translate-y-1 hover:shadow-md" onClick={() => openListModal('RELEASED')} />
+                                                            <StatBox icon={<AlertTriangle className="text-rose-500" />} title="Jobs Failed" count={selectedUserDetails.history?.FAILED?.length || 0} color="border-rose-500/30 bg-rose-500/5 hover:bg-rose-500/10 cursor-pointer hover:-translate-y-1 hover:shadow-md" onClick={() => openListModal('FAILED')} />
+                                                        </>
+                                                    ) : (
+                                                        <>
+                                                            <StatBox icon={<AlertTriangle className="text-amber-500" />} title="Issues Reported" count={selectedUserDetails.history?.REPORTED?.length || 0} color="border-amber-500/30 bg-amber-500/5 hover:bg-amber-500/10 cursor-pointer hover:-translate-y-1 hover:shadow-md" onClick={() => openListModal('REPORTED')} />
+                                                            <StatBox icon={<CheckSquare className="text-emerald-500" />} title="Verifications" count={selectedUserDetails.history?.CONFIRMED?.length || 0} color="border-emerald-500/30 bg-emerald-500/5 hover:bg-emerald-500/10 cursor-pointer hover:-translate-y-1 hover:shadow-md" onClick={() => openListModal('CONFIRMED')} />
+                                                            <StatBox icon={<Shield className="text-indigo-500" />} title="Flags Cast" count={selectedUserDetails.history?.FLAGGED?.length || 0} color="border-indigo-500/30 bg-indigo-500/5 hover:bg-indigo-500/10 cursor-pointer hover:-translate-y-1 hover:shadow-md" onClick={() => openListModal('FLAGGED')} />
+                                                            <StatBox icon={<Zap className="text-yellow-500" />} title="Civil Score" count={selectedUserDetails.user.civilScore || 10} color="border-yellow-500/30 bg-yellow-500/5" />
+                                                        </>
+                                                    )}
+                                                </div>
+
+                                                {isAuthority && (
+                                                    <>
+                                                        <div className="flex justify-between items-center pl-1 mt-6">
+                                                            <h4 className="text-[10px] uppercase font-black tracking-widest text-muted-foreground border-l-2 border-primary pl-2">Authority Rating & Control</h4>
+                                                            <button onClick={() => setCsiModalOpen(true)} className="text-[10px] font-bold bg-primary/10 text-primary border border-primary/30 px-2.5 py-1.5 rounded-lg flex items-center gap-1 hover:bg-primary/20 transition-colors uppercase tracking-wider shadow-sm">
+                                                                <Target size={12} /> View CSI Ledger
+                                                            </button>
+                                                        </div>
+                                                        <div className="bg-primary/5 p-4 rounded-2xl border border-primary/20 text-center shadow-sm relative group hover:border-primary/50 transition-colors cursor-pointer" onClick={() => setCsiModalOpen(true)}>
+                                                            <Target className="w-6 h-6 mx-auto text-primary mb-2" />
+                                                            <p className="text-[10px] font-bold uppercase tracking-widest text-primary">CSI Score</p>
+                                                            <div className="flex items-center justify-center mt-1">
+                                                                <p className="text-2xl font-black text-primary">{selectedUserDetails.user.authorityProfile?.csiScore || 0}</p>
                                                             </div>
-                                                            <div className="text-right">
-                                                                <p className="text-[11px] font-mono font-semibold text-muted-foreground">{new Date(rankEntry.date).toLocaleDateString()}</p>
+                                                        </div>
+
+                                                        <h4 className="text-[10px] uppercase font-black tracking-widest text-muted-foreground pl-1 border-l-2 border-primary mt-6 mb-4">Operations</h4>
+                                                        <div className="flex flex-col sm:flex-row gap-3">
+                                                            <button onClick={() => setForceAssignModal({ isOpen: true, issues: [], selectedIssue: '', commitmentTimeHours: '' })} className="flex-1 px-5 py-3.5 bg-indigo-500/10 text-indigo-500 border border-indigo-500/30 font-bold text-xs rounded-xl shadow-sm hover:bg-indigo-500 hover:text-white transition-all flex items-center justify-center gap-2">
+                                                                <Briefcase size={16} /> Force Assign Job to Official
+                                                            </button>
+                                                        </div>
+                                                    </>
+                                                )}
+
+                                                <h4 className="text-[10px] uppercase font-black tracking-widest text-muted-foreground pl-1 border-l-2 border-primary mb-4 mt-8">Leaderboard History</h4>
+                                                <div className="bg-card border border-border/50 rounded-2xl p-5 shadow-sm">
+                                                    {selectedUserDetails.history?.RANKINGS && selectedUserDetails.history.RANKINGS.length > 0 ? (
+                                                        <div className="space-y-4">
+                                                            {selectedUserDetails.history.RANKINGS.map((rankEntry, idx) => (
+                                                                <div key={idx} className="flex items-center justify-between p-3 rounded-xl bg-muted/30 border border-border/40">
+                                                                    <div className="flex items-center gap-3">
+                                                                        <div className="w-10 h-10 rounded-full bg-background border flex items-center justify-center shadow-sm shrink-0">
+                                                                            {rankEntry.rank === 1 ? <Trophy size={18} className="text-yellow-500" /> :
+                                                                                rankEntry.rank === 2 ? <Medal size={18} className="text-slate-300" /> :
+                                                                                    rankEntry.rank === 3 ? <Medal size={18} className="text-amber-600" /> :
+                                                                                        <Star size={16} className="text-primary" />}
+                                                                        </div>
+                                                                        <div>
+                                                                            <p className="text-sm font-bold text-foreground">Rank #{rankEntry.rank}</p>
+                                                                            <p className="text-[10px] font-medium text-muted-foreground uppercase tracking-widest">{rankEntry.type || 'Weekly'} Leaderboard</p>
+                                                                        </div>
+                                                                    </div>
+                                                                    <div className="text-right">
+                                                                        <p className="text-[11px] font-mono font-semibold text-muted-foreground">{new Date(rankEntry.date).toLocaleDateString()}</p>
+                                                                    </div>
+                                                                </div>
+                                                            ))}
+                                                        </div>
+                                                    ) : (
+                                                        <div className="text-center py-8">
+                                                            <Trophy className="w-12 h-12 text-muted-foreground/20 mx-auto mb-3" />
+                                                            <p className="text-sm font-medium text-muted-foreground">No leaderboard rankings achieved yet.</p>
+                                                        </div>
+                                                    )}
+                                                </div>
+
+                                            </div>
+                                        )}
+                                    </div>
+                                </motion.div>
+                            </div>
+                        )}
+                    </AnimatePresence>
+
+                    {/* 2. NESTED HISTORY LIST MODAL */}
+                    <AnimatePresence>
+                        {isListModalOpen && (
+                            <div className="fixed inset-0 flex items-center justify-center p-2 sm:p-4 bg-black/60 backdrop-blur-md animate-fade-in transition-all duration-300 ease-in-out" style={{ zIndex: modalZ.list }}>
+                                <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="absolute inset-0" onClick={() => setIsListModalOpen(false)} />
+
+                                <motion.div initial={{ opacity: 0, scale: 0.95, y: 20 }} animate={{ opacity: 1, scale: 1, y: 0 }} exit={{ opacity: 0, scale: 0.95, y: 20 }} className="bg-card w-full max-w-3xl border border-border/50 rounded-3xl shadow-2xl overflow-hidden flex flex-col max-h-full relative">
+                                    <div className="p-4 md:p-5 border-b border-border/50 flex justify-between items-center bg-muted/10 shrink-0">
+                                        <h3 className="text-lg font-black flex items-center gap-2"><FileSignature className="w-5 h-5 text-primary" /> {activeHistoryTab} History</h3>
+                                        <button onClick={() => setIsListModalOpen(false)} className="text-muted-foreground p-1.5 hover:bg-muted rounded-full transition-colors"><X size={20} /></button>
+                                    </div>
+                                    <div className="overflow-y-auto thin-scrollbar flex-1 p-4 md:p-6 space-y-3 bg-background/30">
+                                        {activeList.length === 0 ? (
+                                            <div className="text-center py-16 text-muted-foreground font-medium">
+                                                <Clock className="w-12 h-12 mx-auto mb-3 opacity-20" />
+                                                <p>No records found.</p>
+                                            </div>
+                                        ) : (
+                                            activeList.map((issue, i) => (
+                                                <motion.div initial={{ opacity: 0, x: -10 }} animate={{ opacity: 1, x: 0 }} transition={{ delay: i * 0.03 }} key={issue._id} onClick={() => fetchAndOpenIssue(issue._id)} className="bg-card border border-border/50 p-4 rounded-2xl flex flex-col sm:flex-row items-start justify-between gap-4 cursor-pointer hover:border-primary/50 hover:bg-primary/5 transition-all shadow-sm group">
+                                                    <div className="flex-1 min-w-0 pr-2">
+                                                        <h5 className="font-bold text-foreground truncate group-hover:text-primary transition-colors">{issue.title}</h5>
+                                                        <p className="text-[11px] text-muted-foreground mt-1 font-medium tracking-wide uppercase truncate"><MapPin size={10} className="inline mr-1 shrink-0" /> <span className="truncate">{issue.location?.city}</span> • {new Date(issue.createdAt).toLocaleDateString()}</p>
+                                                    </div>
+                                                    <div className="shrink-0 flex flex-col items-end gap-2">
+                                                        <span className={`text-[9px] font-bold px-2.5 py-1 rounded-md border uppercase tracking-widest ${statusColors[issue.status] || statusColors.OPEN}`}>{issue.status}</span>
+                                                    </div>
+                                                </motion.div>
+                                            ))
+                                        )}
+                                    </div>
+                                </motion.div>
+                            </div>
+                        )}
+                    </AnimatePresence>
+
+                    {/* 3. NESTED ISSUE DETAIL MODAL (FULL VIEWER) */}
+                    <AnimatePresence>
+                        {isIssueModalOpen && selectedIssue && (
+                            <div className="fixed inset-0 flex items-center justify-center p-2 sm:p-4 bg-black/80 backdrop-blur-md animate-fade-in" style={{ zIndex: modalZ.issue }}>
+                                <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="absolute inset-0" onClick={closeIssueModal} />
+
+                                <motion.div
+                                    initial={{ opacity: 0, scale: 0.95, y: 20 }} animate={{ opacity: 1, scale: 1, y: 0 }} exit={{ opacity: 0, scale: 0.95, y: 20 }}
+                                    className="relative bg-background border border-border/50 rounded-3xl w-full max-w-6xl shadow-2xl flex flex-col max-h-[85dvh] overflow-hidden z-10"
+                                    onClick={e => e.stopPropagation()}
+                                >
+                                    <div className="flex justify-between items-center p-4 md:p-5 border-b border-border/50 bg-muted/20 shrink-0">
+                                        <div className="flex items-center gap-3">
+                                            <span className={`px-3 py-1.5 rounded-xl text-[10px] font-black uppercase tracking-widest border shadow-sm ${statusColors[selectedIssue.status] || statusColors.OPEN}`}>
+                                                {selectedIssue.status}
+                                            </span>
+                                            <span className="text-xs font-mono text-muted-foreground hidden sm:block">ID: {selectedIssue._id}</span>
+                                        </div>
+                                        <div className="flex items-center gap-2">
+                                            <button onClick={() => setShowDeleteConfirm(true)} title="Delete Issue" className="p-2 rounded-full text-red-500 bg-red-500/10 hover:bg-red-500 hover:text-white transition-colors"><Trash2 size={18} /></button>
+                                            <button onClick={closeIssueModal} className="p-2 rounded-full bg-card border border-border/50 hover:bg-muted transition-colors"><X size={20} /></button>
+                                        </div>
+                                    </div>
+
+                                    <div className="flex flex-col lg:flex-row flex-1 min-h-0 overflow-y-auto lg:overflow-hidden thin-scrollbar">
+                                        {/* Left Side: Media and Core Data */}
+                                        <div className="w-full lg:w-1/2 p-4 md:p-6 lg:border-r border-border/50 flex flex-col gap-5 shrink-0 lg:shrink lg:overflow-y-auto thin-scrollbar bg-background/50">
+                                            <h3 className="text-2xl font-black text-foreground leading-tight">{selectedIssue.title}</h3>
+
+                                            <div className="w-full bg-black/40 rounded-2xl border border-border/50 overflow-hidden relative flex items-center justify-center h-[250px] sm:h-[350px] shrink-0 group shadow-inner">
+                                                {selectedIssue.media && selectedIssue.media.length > 0 ? (
+                                                    <>
+                                                        {selectedIssue.media[currentMediaIndex].url?.match(/\.(mp4|webm|ogg)$/i) ? (
+                                                            <video ref={videoRef} src={selectedIssue.media[currentMediaIndex].url} className="w-full h-full object-contain bg-black" controls autoPlay muted playsInline />
+                                                        ) : (
+                                                            <img src={selectedIssue.media[currentMediaIndex].url} alt="issue" className="w-full h-full object-contain" />
+                                                        )}
+                                                        {selectedIssue.media.length > 1 && (
+                                                            <>
+                                                                <button onClick={() => setCurrentMediaIndex((prev) => (prev - 1 + selectedIssue.media.length) % selectedIssue.media.length)} className="absolute left-3 p-2 bg-black/60 rounded-full text-white hover:bg-black/80 backdrop-blur-md opacity-0 group-hover:opacity-100 transition-opacity"><ChevronLeft size={20} /></button>
+                                                                <button onClick={() => setCurrentMediaIndex((prev) => (prev + 1) % selectedIssue.media.length)} className="absolute right-3 p-2 bg-black/60 rounded-full text-white hover:bg-black/80 backdrop-blur-md opacity-0 group-hover:opacity-100 transition-opacity"><ChevronRight size={20} /></button>
+                                                            </>
+                                                        )}
+                                                    </>
+                                                ) : (
+                                                    <div className="flex flex-col items-center opacity-40"><AlertTriangle size={36} className="mb-3" /><p className="text-sm font-bold">No Media Attached</p></div>
+                                                )}
+                                            </div>
+
+                                            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                                                <div className="bg-card border border-border/50 rounded-2xl p-4 shadow-sm">
+                                                    <p className="text-[10px] text-muted-foreground font-bold uppercase tracking-wider mb-1 flex items-center gap-1"><MapPin size={12} /> Location</p>
+                                                    <p className="text-sm font-bold text-foreground">{selectedIssue.location?.city}, {selectedIssue.location?.state}</p>
+                                                    <p className="text-[11px] text-muted-foreground mt-1 truncate">{selectedIssue.location?.address} • PIN: {selectedIssue.location?.pinCode}</p>
+                                                </div>
+                                                <div className="bg-card border border-border/50 rounded-2xl p-4 shadow-sm flex flex-col justify-center items-center text-center">
+                                                    <p className="text-[10px] text-muted-foreground font-bold uppercase tracking-wider mb-1">Impact Score</p>
+                                                    <p className="text-2xl font-black text-yellow-500 flex items-center gap-1 justify-center"><Zap size={20} className="fill-yellow-500" /> {selectedIssue.impactScore || 0}</p>
+                                                </div>
+                                            </div>
+
+                                            <div className="bg-muted/20 border border-border/50 rounded-2xl p-5 mb-4 lg:mb-0 shadow-inner">
+                                                <p className="text-[10px] text-muted-foreground font-bold uppercase tracking-wider mb-2">Description</p>
+                                                <p className="text-sm text-foreground/90 whitespace-pre-wrap leading-relaxed">{selectedIssue.description}</p>
+                                            </div>
+                                        </div>
+
+                                        {/* Right Side: Details and Timeline */}
+                                        <div className="w-full lg:w-1/2 flex flex-col bg-card/40 shrink-0 lg:shrink relative">
+                                            <div className="p-4 md:p-6 border-b border-border/50 shrink-0 bg-background/50">
+                                                <div className="grid grid-cols-2 gap-4">
+                                                    <div className="bg-card border border-border/50 p-4 rounded-2xl shadow-sm">
+                                                        <p className="text-[10px] text-muted-foreground font-bold uppercase tracking-wider mb-1">Reported By</p>
+                                                        <p className="text-sm font-bold truncate text-foreground">{selectedIssue.isAnonymous ? 'Anonymous Citizen' : selectedIssue.reportedBy?.name || 'Unknown'}</p>
+                                                    </div>
+                                                    {selectedIssue.bidding?.winningBid ? (
+                                                        <div className="bg-indigo-500/5 border border-indigo-500/20 p-4 rounded-2xl shadow-sm">
+                                                            <p className="text-[10px] text-indigo-500 font-bold uppercase tracking-wider mb-1">Assigned Official</p>
+                                                            <p className="text-sm font-black text-indigo-500 truncate">{selectedIssue.bidding.winningBid.authorityId?.name || 'ID Linked'}</p>
+                                                            <p className="text-[10px] text-indigo-500/80 font-bold mt-0.5">Comm. Time: {selectedIssue.bidding.winningBid.commitmentTimeHours} hrs</p>
+                                                        </div>
+                                                    ) : (
+                                                        <div className="bg-muted/30 border border-border/50 p-4 rounded-2xl shadow-sm flex items-center justify-center">
+                                                            <p className="text-xs font-bold text-muted-foreground">Unassigned</p>
+                                                        </div>
+                                                    )}
+                                                </div>
+                                            </div>
+
+                                            {/* Timeline */}
+                                            <div className="flex-1 p-4 md:p-6 lg:overflow-y-auto thin-scrollbar relative">
+                                                <h4 className="text-xs font-black uppercase tracking-widest text-muted-foreground mb-6 pl-2 border-l-2 border-primary">System Timeline & Audit Log</h4>
+                                                <div className="space-y-6 relative before:absolute before:inset-0 before:ml-5 before:-translate-x-px before:h-full before:w-0.5 before:bg-gradient-to-b before:from-primary/50 before:to-transparent pb-4">
+                                                    {generateTimeline(selectedIssue).map((event, i) => (
+                                                        <div key={i} className="relative flex items-start gap-4">
+                                                            <div className={`flex items-center justify-center w-10 h-10 rounded-full border-4 border-background shrink-0 shadow-sm ${event.color} z-10`}>
+                                                                {event.icon}
+                                                            </div>
+                                                            <div className="w-full p-4 rounded-2xl bg-card border border-border/50 shadow-sm mt-1">
+                                                                <h5 className="font-black text-[11px] md:text-xs uppercase tracking-wider">{event.label}</h5>
+                                                                <div className="text-[10px] font-bold text-muted-foreground font-mono mt-1 mb-2">{event.time.toLocaleString([], { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' })}</div>
+                                                                {event.detail && <p className="text-[11px] text-foreground/80 bg-muted/40 p-2.5 border border-border/40 rounded-xl leading-relaxed">{event.detail}</p>}
                                                             </div>
                                                         </div>
                                                     ))}
                                                 </div>
-                                            ) : (
-                                                <div className="text-center py-8">
-                                                    <Trophy className="w-12 h-12 text-muted-foreground/20 mx-auto mb-3" />
-                                                    <p className="text-sm font-medium text-muted-foreground">No leaderboard rankings achieved yet.</p>
-                                                </div>
-                                            )}
+                                            </div>
                                         </div>
-
                                     </div>
-                                )}
+                                </motion.div>
                             </div>
-                        </motion.div>
-                    </div>
-                )}
-            </AnimatePresence>
+                        )}
+                    </AnimatePresence>
 
-            {/* 2. NESTED HISTORY LIST MODAL */}
-            <AnimatePresence>
-                {isListModalOpen && (
-                    <div className="fixed inset-0 flex items-center justify-center p-2 sm:p-4 bg-black/60 backdrop-blur-md animate-fade-in transition-all duration-300 ease-in-out" style={{ zIndex: modalZ.list }}>
-                        <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="absolute inset-0" onClick={() => setIsListModalOpen(false)} />
-
-                        <motion.div initial={{ opacity: 0, scale: 0.95, y: 20 }} animate={{ opacity: 1, scale: 1, y: 0 }} exit={{ opacity: 0, scale: 0.95, y: 20 }} className="bg-card w-full max-w-3xl border border-border/50 rounded-3xl shadow-2xl overflow-hidden flex flex-col max-h-full relative">
-                            <div className="p-4 md:p-5 border-b border-border/50 flex justify-between items-center bg-muted/10 shrink-0">
-                                <h3 className="text-lg font-black flex items-center gap-2"><FileSignature className="w-5 h-5 text-primary" /> {activeHistoryTab} History</h3>
-                                <button onClick={() => setIsListModalOpen(false)} className="text-muted-foreground p-1.5 hover:bg-muted rounded-full transition-colors"><X size={20} /></button>
-                            </div>
-                            <div className="overflow-y-auto thin-scrollbar flex-1 p-4 md:p-6 space-y-3 bg-background/30">
-                                {activeList.length === 0 ? <div className="text-center py-16 text-muted-foreground font-medium"><Clock className="w-12 h-12 mx-auto mb-3 opacity-20" /><p>No records found.</p></div> :
-                                    activeList.map((issue, i) => (
-                                        <motion.div initial={{ opacity: 0, x: -10 }} animate={{ opacity: 1, x: 0 }} transition={{ delay: i * 0.03 }} key={issue._id} onClick={() => fetchAndOpenIssue(issue._id)} className="bg-card border border-border/50 p-4 rounded-2xl flex flex-col sm:flex-row items-start justify-between gap-4 cursor-pointer hover:border-primary/50 hover:bg-primary/5 transition-all shadow-sm group">
-                                            <div className="flex-1 min-w-0 pr-2">
-                                                <h5 className="font-bold text-foreground truncate group-hover:text-primary transition-colors">{issue.title}</h5>
-                                                <p className="text-[11px] text-muted-foreground mt-1 font-medium tracking-wide uppercase"><MapPin size={10} className="inline mr-1" /> {issue.location?.city} • {new Date(issue.createdAt).toLocaleDateString()}</p>
-                                            </div>
-                                            <div className="shrink-0 flex flex-col items-end gap-2">
-                                                <span className={`text-[9px] font-bold px-2.5 py-1 rounded-md border uppercase tracking-widest ${statusColors[issue.status] || statusColors.OPEN}`}>{issue.status}</span>
-                                            </div>
-                                        </motion.div>
-                                    ))
-                                }
-                            </div>
-                        </motion.div>
-                    </div>
-                )}
-            </AnimatePresence>
-
-            {/* 3. NESTED ISSUE DETAIL MODAL (FULL VIEWER) */}
-            <AnimatePresence>
-                {isIssueModalOpen && selectedIssue && (
-                    <div className="fixed inset-0 flex items-center justify-center p-2 sm:p-4 bg-black/80 backdrop-blur-md animate-fade-in" style={{ zIndex: modalZ.issue }}>
-                        <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="absolute inset-0" onClick={closeIssueModal} />
-
-                        <motion.div
-                            initial={{ opacity: 0, scale: 0.95, y: 20 }} animate={{ opacity: 1, scale: 1, y: 0 }} exit={{ opacity: 0, scale: 0.95, y: 20 }}
-                            className="relative bg-background border border-border/50 rounded-3xl w-full max-w-6xl shadow-2xl flex flex-col max-h-full overflow-hidden"
-                            onClick={e => e.stopPropagation()}
-                        >
-                            <div className="flex justify-between items-center p-4 md:p-5 border-b border-border/50 bg-muted/20 shrink-0">
-                                <div className="flex items-center gap-3">
-                                    <span className={`px-3 py-1.5 rounded-xl text-[10px] font-black uppercase tracking-widest border shadow-sm ${statusColors[selectedIssue.status] || statusColors.OPEN}`}>
-                                        {selectedIssue.status}
-                                    </span>
-                                    <span className="text-xs font-mono text-muted-foreground hidden sm:block">ID: {selectedIssue._id}</span>
-                                </div>
-                                <div className="flex items-center gap-2">
-                                    <button onClick={() => setShowDeleteConfirm(true)} title="Delete Issue" className="p-2 rounded-full text-red-500 bg-red-500/10 hover:bg-red-500 hover:text-white transition-colors"><Trash2 size={18} /></button>
-                                    <button onClick={closeIssueModal} className="p-2 rounded-full bg-card border border-border/50 hover:bg-muted transition-colors"><X size={20} /></button>
-                                </div>
-                            </div>
-
-                            <div className="flex flex-col lg:flex-row flex-1 min-h-0 overflow-y-auto lg:overflow-hidden thin-scrollbar">
-                                {/* Left Side: Media and Core Data */}
-                                <div className="w-full lg:w-1/2 p-4 md:p-6 lg:border-r border-border/50 flex flex-col gap-5 shrink-0 lg:shrink lg:overflow-y-auto thin-scrollbar bg-background/50">
-                                    <h3 className="text-2xl font-black text-foreground leading-tight">{selectedIssue.title}</h3>
-
-                                    <div className="w-full bg-black/40 rounded-2xl border border-border/50 overflow-hidden relative flex items-center justify-center h-[250px] sm:h-[350px] shrink-0 group shadow-inner">
-                                        {selectedIssue.media && selectedIssue.media.length > 0 ? (
-                                            <>
-                                                {selectedIssue.media[currentMediaIndex].url?.match(/\.(mp4|webm|ogg)$/i) ? (
-                                                    <video ref={videoRef} src={selectedIssue.media[currentMediaIndex].url} className="w-full h-full object-contain bg-black" controls autoPlay muted playsInline />
-                                                ) : (
-                                                    <img src={selectedIssue.media[currentMediaIndex].url} alt="issue" className="w-full h-full object-contain" />
-                                                )}
-                                                {selectedIssue.media.length > 1 && (
-                                                    <>
-                                                        <button onClick={() => setCurrentMediaIndex((prev) => (prev - 1 + selectedIssue.media.length) % selectedIssue.media.length)} className="absolute left-3 p-2 bg-black/60 rounded-full text-white hover:bg-black/80 backdrop-blur-md opacity-0 group-hover:opacity-100 transition-opacity"><ChevronLeft size={20} /></button>
-                                                        <button onClick={() => setCurrentMediaIndex((prev) => (prev + 1) % selectedIssue.media.length)} className="absolute right-3 p-2 bg-black/60 rounded-full text-white hover:bg-black/80 backdrop-blur-md opacity-0 group-hover:opacity-100 transition-opacity"><ChevronRight size={20} /></button>
-                                                    </>
-                                                )}
-                                            </>
+                    {/* 4. CSI HISTORY MODAL */}
+                    <AnimatePresence>
+                        {csiModalOpen && (
+                            <div className="fixed inset-0 flex items-center justify-center p-2 sm:p-4 bg-black/60 backdrop-blur-md animate-fade-in" style={{ zIndex: Math.max(modalZ.profile, modalZ.list, modalZ.issue) + 20 }}>
+                                <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="absolute inset-0" onClick={() => setCsiModalOpen(false)} />
+                                <motion.div initial={{ opacity: 0, scale: 0.95, y: 20 }} animate={{ opacity: 1, scale: 1, y: 0 }} exit={{ opacity: 0, scale: 0.95, y: 20 }} className="bg-card w-full max-w-2xl border border-border/50 rounded-3xl shadow-2xl overflow-hidden flex flex-col max-h-[85dvh] relative z-10">
+                                    <div className="p-4 md:p-5 border-b border-border/50 flex justify-between items-center bg-muted/10 shrink-0">
+                                        <h3 className="text-xl font-black text-primary flex items-center gap-2">
+                                            <Target size={20} /> CSI Ledger
+                                        </h3>
+                                        <button onClick={() => setCsiModalOpen(false)} className="p-2 bg-muted rounded-full hover:bg-muted/80 transition-colors"><X size={20} /></button>
+                                    </div>
+                                    <div className="overflow-y-auto thin-scrollbar flex-1 p-4 md:p-6 space-y-3 bg-background/30">
+                                        {getCsiLedger().length === 0 ? (
+                                            <div className="text-center py-20 text-muted-foreground font-medium"><Clock className="w-12 h-12 mx-auto mb-3 opacity-20" />No points history recorded yet.</div>
                                         ) : (
-                                            <div className="flex flex-col items-center opacity-40"><AlertTriangle size={36} className="mb-3" /><p className="text-sm font-bold">No Media Attached</p></div>
+                                            getCsiLedger().map((record, i) => (
+                                                <motion.div initial={{ opacity: 0, x: -10 }} animate={{ opacity: 1, x: 0 }} transition={{ delay: i * 0.05 }} key={record._id + i} className={`bg-card border p-4 rounded-2xl flex flex-col sm:flex-row items-start justify-between gap-4 shadow-sm relative overflow-hidden ${record.type === 'EARNED' ? 'border-green-500/20' : 'border-red-500/20'}`}>
+                                                    <div className={`absolute left-0 top-0 bottom-0 w-1 ${record.type === 'EARNED' ? 'bg-green-500' : 'bg-red-500'}`} />
+                                                    <div className="overflow-hidden w-full sm:flex-1 pl-2">
+                                                        <p className="text-sm font-bold text-foreground truncate">{record.title}</p>
+                                                        <p className="text-[10px] font-medium text-muted-foreground mt-1">{new Date(record.updatedAt || record.createdAt).toLocaleString()}</p>
+                                                        <p className="text-[9px] uppercase tracking-wider mt-2 font-bold text-muted-foreground">
+                                                            Reason: {record.type === 'EARNED' ? 'Successfully Resolved & Verified' : (record.points === -100 ? 'Ghost Abandonment Protocol' : 'Missed Deadline / Handover')}
+                                                        </p>
+                                                    </div>
+                                                    <div className="flex items-center justify-end shrink-0">
+                                                        <div className={`flex items-center gap-1.5 px-3 py-1.5 rounded-xl border font-black text-sm ${record.type === 'EARNED' ? 'bg-green-500/10 text-green-500 border-green-500/30' : 'bg-red-500/10 text-red-500 border-red-500/30'}`}>
+                                                            {record.type === 'EARNED' ? '+' : ''}{record.points}
+                                                        </div>
+                                                    </div>
+                                                </motion.div>
+                                            ))
                                         )}
                                     </div>
-
-                                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                                        <div className="bg-card border border-border/50 rounded-2xl p-4 shadow-sm">
-                                            <p className="text-[10px] text-muted-foreground font-bold uppercase tracking-wider mb-1 flex items-center gap-1"><MapPin size={12} /> Location</p>
-                                            <p className="text-sm font-bold text-foreground">{selectedIssue.location?.city}, {selectedIssue.location?.state}</p>
-                                            <p className="text-[11px] text-muted-foreground mt-1 truncate">{selectedIssue.location?.address} • PIN: {selectedIssue.location?.pinCode}</p>
-                                        </div>
-                                        <div className="bg-card border border-border/50 rounded-2xl p-4 shadow-sm flex flex-col justify-center items-center text-center">
-                                            <p className="text-[10px] text-muted-foreground font-bold uppercase tracking-wider mb-1">Impact Score</p>
-                                            <p className="text-2xl font-black text-yellow-500 flex items-center gap-1 justify-center"><Zap size={20} className="fill-yellow-500" /> {selectedIssue.impactScore || 0}</p>
-                                        </div>
-                                    </div>
-
-                                    <div className="bg-muted/20 border border-border/50 rounded-2xl p-5 mb-4 shadow-inner">
-                                        <p className="text-[10px] text-muted-foreground font-bold uppercase tracking-wider mb-2">Description</p>
-                                        <p className="text-sm text-foreground/90 whitespace-pre-wrap leading-relaxed">{selectedIssue.description}</p>
-                                    </div>
-                                </div>
-
-                                {/* Right Side: Details and Timeline */}
-                                <div className="w-full lg:w-1/2 flex flex-col bg-muted/5 shrink-0 lg:shrink relative">
-                                    <div className="p-4 md:p-5 border-b border-border/50 shrink-0">
-                                        <div className="grid grid-cols-2 gap-3">
-                                            <div className="bg-card border border-border/50 p-3 rounded-xl flex justify-between items-center group transition-colors hover:border-primary/50 relative">
-                                                <div className="flex-1 cursor-pointer" onClick={() => !selectedIssue.isAnonymous && openCareerModal(selectedIssue.reportedBy?._id)}>
-                                                    <p className="text-[9px] text-muted-foreground font-bold uppercase mb-1">Reporter</p>
-                                                    <p className={`text-sm font-bold truncate ${selectedIssue.isAnonymous ? 'text-muted-foreground' : 'text-foreground group-hover:text-primary'}`}>
-                                                        {selectedIssue.isAnonymous ? 'Anonymous' : selectedIssue.reportedBy?.name || 'Unknown'}
-                                                    </p>
-                                                </div>
-                                                {!selectedIssue.isAnonymous && selectedIssue.reportedBy?._id && (
-                                                    <div className="relative shrink-0">
-                                                        <button onClick={() => setActionMenuOpen(!actionMenuOpen)} className="p-1.5 rounded-md hover:bg-muted text-muted-foreground transition-colors"><MoreVertical size={16} /></button>
-                                                        {actionMenuOpen && (
-                                                            <div className="absolute right-0 top-full mt-2 w-48 bg-card border border-border/60 rounded-xl shadow-xl z-[100] py-1 overflow-hidden animate-fade-in">
-                                                                <button onClick={handleQuickWarn} className="w-full text-left px-4 py-2.5 text-xs font-bold hover:bg-muted flex items-center gap-2 text-amber-500"><AlertOctagon size={14} /> Send Warning</button>
-                                                                <button onClick={() => handleQuickSuspend(selectedIssue.reportedBy._id)} className="w-full text-left px-4 py-2.5 text-xs font-bold hover:bg-red-500/10 flex items-center gap-2 text-red-500"><Ban size={14} /> Suspend (24h)</button>
-                                                            </div>
-                                                        )}
-                                                    </div>
-                                                )}
-                                            </div>
-                                            <div className={`p-3 rounded-xl border transition-colors ${selectedIssue.bidding?.winningBid?.authorityId ? 'bg-indigo-500/5 border-indigo-500/20 cursor-pointer hover:bg-indigo-500/10 hover:border-indigo-500/40 group' : 'bg-card border-border/50'}`} onClick={() => selectedIssue.bidding?.winningBid?.authorityId && openCareerModal(selectedIssue.bidding.winningBid.authorityId._id)}>
-                                                <p className={`text-[9px] font-bold uppercase mb-1 ${selectedIssue.bidding?.winningBid?.authorityId ? 'text-indigo-500' : 'text-muted-foreground'}`}>Assigned Official</p>
-                                                {selectedIssue.bidding?.winningBid?.authorityId ? (
-                                                    <div>
-                                                        <p className="text-sm font-bold text-indigo-600 dark:text-indigo-400 truncate group-hover:underline">{selectedIssue.bidding.winningBid.authorityId.name || 'ID Linked'}</p>
-                                                        <p className="text-[10px] text-indigo-500/80 font-bold mt-0.5">Commitment: {selectedIssue.bidding.winningBid.commitmentTimeHours}h</p>
-                                                    </div>
-                                                ) : (
-                                                    <p className="text-xs text-muted-foreground italic mt-1 font-medium">Unassigned</p>
-                                                )}
-                                            </div>
-                                        </div>
-                                    </div>
-
-                                    {/* ACTIONS SECTION */}
-                                    <div className="p-4 md:p-5 border-b border-border/50 shrink-0 bg-background relative z-40">
-                                        <div className="flex gap-4 mb-3 border-b border-border/50">
-                                            <button onClick={() => setActionTab('STATUS')} className={`pb-2 text-xs font-bold uppercase tracking-wider ${actionTab === 'STATUS' ? 'text-primary border-b-2 border-primary' : 'text-muted-foreground'}`}>Update Status</button>
-                                            {selectedIssue.bidding?.winningBid?.authorityId ? (
-                                                <button onClick={() => setActionTab('REVOKE')} className={`pb-2 text-xs font-bold uppercase tracking-wider ${actionTab === 'REVOKE' ? 'text-red-500 border-b-2 border-red-500' : 'text-muted-foreground'}`}>Revoke Assignment</button>
-                                            ) : (
-                                                <button onClick={() => setActionTab('ASSIGN')} className={`pb-2 text-xs font-bold uppercase tracking-wider ${actionTab === 'ASSIGN' ? 'text-indigo-500 border-b-2 border-indigo-500' : 'text-muted-foreground'}`}>Force Assign</button>
-                                            )}
-                                        </div>
-
-                                        {actionTab === 'STATUS' && (
-                                            <form onSubmit={handleUpdateStatus} className="flex flex-col gap-3 relative z-40">
-                                                <div className="flex gap-2 relative z-40">
-                                                    <div className="w-1/2 relative z-40">
-                                                        <CustomSelect options={UPDATE_STATUS_OPTIONS} value={updateData.status} onChange={(val) => setUpdateData({ ...updateData, status: val })} />
-                                                    </div>
-                                                    <div className="w-1/2 relative z-10">
-                                                        <input type="text" value={updateData.adminRemark} onChange={(e) => setUpdateData({ ...updateData, adminRemark: e.target.value })} placeholder={['DISPUTED', 'ORPHANED', 'RESOLVED'].includes(updateData.status) ? "Audit remark (Optional)..." : "Audit remark (Required)..."} className="w-full px-3 py-2 bg-muted border border-border/50 rounded-xl text-xs font-medium focus:border-primary outline-none transition-colors" required={!['DISPUTED', 'ORPHANED', 'RESOLVED'].includes(updateData.status)} />
-                                                    </div>
-                                                </div>
-                                                {updateData.status === 'DISPUTED' && (
-                                                    <div className="relative z-10 p-3 bg-red-500/5 border border-red-500/20 rounded-xl animate-fade-in">
-                                                        <label className="text-xs text-red-500 mb-2 block font-bold flex items-center gap-1"><ShieldAlert size={12} /> Attach Dispute Evidence (Optional)</label>
-                                                        <input type="file" accept="image/*" onChange={(e) => setDisputeMedia(e.target.files[0])} className="w-full text-xs file:mr-3 file:py-1.5 file:px-3 file:rounded-lg file:border-0 file:text-xs file:font-bold file:bg-red-500/10 file:text-red-500 hover:file:bg-red-500/20 text-muted-foreground cursor-pointer transition-colors" />
-                                                    </div>
-                                                )}
-                                                <button type="submit" disabled={isUpdating} className="w-full py-2.5 mt-1 bg-primary text-primary-foreground font-bold text-xs rounded-xl shadow-md flex items-center justify-center gap-1.5 hover:scale-[1.01] transition-transform">
-                                                    {isUpdating ? <MiniLoader className="w-3.5 h-3.5" /> : <>Log Action <CheckCircle size={14} /></>}
-                                                </button>
-                                            </form>
-                                        )}
-                                        {actionTab === 'ASSIGN' && (
-                                            <form onSubmit={handleForceAssign} className="flex flex-col gap-2 relative z-50">
-                                                <div className="flex gap-2 relative">
-                                                    <div className="w-1/2 relative z-50">
-                                                        <CustomSelect options={authorities} value={assignData.authorityId} onChange={(val) => setAssignData({ ...assignData, authorityId: val })} placeholder="Select Official..." />
-                                                    </div>
-                                                    <input type="number" min="1" value={assignData.commitmentTimeHours} onChange={(e) => setAssignData({ ...assignData, commitmentTimeHours: e.target.value })} placeholder="Hrs (e.g. 24)" className="w-1/2 px-3 py-2 bg-muted border border-border/50 rounded-xl text-xs font-medium focus:border-indigo-500 outline-none relative z-10 transition-colors" required />
-                                                </div>
-                                                <button type="submit" disabled={isUpdating || !assignData.authorityId || !assignData.commitmentTimeHours} className="w-full mt-1 py-2.5 bg-indigo-500 text-white disabled:bg-indigo-500/50 font-bold text-xs rounded-xl shadow-md flex items-center justify-center gap-1.5 relative z-10 hover:scale-[1.01] transition-transform">
-                                                    {isUpdating ? <MiniLoader className="w-3.5 h-3.5" /> : <>Lock Job <ArrowRight size={14} /></>}
-                                                </button>
-                                            </form>
-                                        )}
-                                        {actionTab === 'REVOKE' && (
-                                            <form onSubmit={handleRevokeAssign} className="flex flex-col gap-2 relative z-10">
-                                                <div className="flex gap-2 relative">
-                                                    <input type="number" min="0" value={revokeData.penaltyPoints} onChange={(e) => setRevokeData({ ...revokeData, penaltyPoints: e.target.value })} placeholder="Penalty Points" className="w-1/3 px-3 py-2 bg-muted border border-border/50 rounded-xl text-xs font-medium focus:border-red-500 outline-none transition-colors" required />
-                                                    <input type="text" value={revokeData.reason} onChange={(e) => setRevokeData({ ...revokeData, reason: e.target.value })} placeholder="Reason for revocation..." className="w-2/3 px-3 py-2 bg-muted border border-border/50 rounded-xl text-xs font-medium focus:border-red-500 outline-none transition-colors" required />
-                                                </div>
-                                                <button type="submit" disabled={isUpdating || !revokeData.reason} className="w-full py-2.5 mt-1 bg-red-500 text-white disabled:bg-red-500/50 font-bold text-xs rounded-xl shadow-md flex items-center justify-center gap-1.5 hover:scale-[1.01] transition-transform">
-                                                    {isUpdating ? <MiniLoader className="w-3.5 h-3.5" /> : <>Revoke <RotateCcw size={14} /></>}
-                                                </button>
-                                            </form>
-                                        )}
-                                    </div>
-
-                                    <div className="p-4 md:p-6 lg:overflow-y-auto thin-scrollbar relative z-10 bg-card/40">
-                                        <h4 className="text-xs font-black uppercase tracking-widest text-muted-foreground mb-6 pl-2 border-l-2 border-primary">System Timeline</h4>
-                                        <div className="space-y-6 relative before:absolute before:inset-0 before:ml-5 before:-translate-x-px before:h-full before:w-0.5 before:bg-gradient-to-b before:from-primary/50 before:via-border/50 before:to-transparent pb-4">
-                                            {generateTimeline(selectedIssue).map((event, i) => (
-                                                <div key={i} className="relative flex items-start gap-4 group">
-                                                    <div className={`flex items-center justify-center w-10 h-10 rounded-full border-4 border-background shrink-0 shadow-sm ${event.color} z-10 transition-transform group-hover:scale-110`}>
-                                                        {event.icon}
-                                                    </div>
-                                                    <div className="w-full p-4 rounded-2xl bg-card border border-border/50 shadow-sm mt-1 group-hover:border-primary/30 transition-colors">
-                                                        <h5 className="font-bold text-[11px] md:text-xs uppercase tracking-wider">{event.label}</h5>
-                                                        <div className="text-[10px] text-muted-foreground font-mono mt-1 mb-2 font-medium">{event.time.toLocaleString([], { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' })}</div>
-                                                        {event.detail && <p className="text-[11px] text-foreground/80 bg-muted/40 p-2.5 rounded-xl border border-border/40 leading-relaxed font-medium">{event.detail}</p>}
-                                                    </div>
-                                                </div>
-                                            ))}
-                                        </div>
-                                    </div>
-                                </div>
+                                </motion.div>
                             </div>
-                        </motion.div>
-                    </div>
-                )}
-            </AnimatePresence>
+                        )}
+                    </AnimatePresence>
 
-            {/* 4. CSI HISTORY MODAL */}
-            <AnimatePresence>
-                {csiModalOpen && (
-                    <div className="fixed inset-0 flex items-center justify-center p-2 sm:p-4 bg-black/60 backdrop-blur-md animate-fade-in" style={{ zIndex: Math.max(modalZ.profile, modalZ.list, modalZ.issue) + 20 }}>
-                        <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="absolute inset-0" onClick={() => setCsiModalOpen(false)} />
-                        <motion.div initial={{ opacity: 0, scale: 0.95, y: 20 }} animate={{ opacity: 1, scale: 1, y: 0 }} exit={{ opacity: 0, scale: 0.95, y: 20 }} className="bg-card w-full max-w-2xl border border-border/50 rounded-3xl shadow-2xl overflow-hidden flex flex-col max-h-[85dvh] relative z-10">
-                            <div className="p-4 md:p-5 border-b border-border/50 flex justify-between items-center bg-muted/10 shrink-0">
-                                <h3 className="text-xl font-black text-primary flex items-center gap-2">
-                                    <Target size={20} /> CSI Ledger
+                    {/* ACTION MODALS */}
+                    {pointsModal.isOpen && (
+                        <div className="fixed inset-0 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4 sm:p-6 md:p-12 animate-fade-in transition-all duration-300" style={{ zIndex: Math.max(modalZ.profile, modalZ.list, modalZ.issue) + 50 }}>
+                            <form onSubmit={handlePointAdjustment} className="bg-card p-6 md:p-8 rounded-3xl border border-yellow-500/30 shadow-[0_0_50px_rgba(234,179,8,0.15)] w-full max-w-sm flex flex-col max-h-full overflow-hidden">
+                                <div className="flex items-center gap-3 mb-6 text-yellow-500 shrink-0"><Zap size={28} /><h3 className="font-black text-2xl">Adjust Points</h3></div>
+                                <div className="overflow-y-auto thin-scrollbar flex-1 space-y-4 pr-1">
+                                    <input type="number" placeholder="Points (+50 or -20)" required value={pointsModal.points} onChange={e => setPointsModal({ ...pointsModal, points: e.target.value })} className="w-full p-4 bg-background border border-border/60 rounded-xl text-sm font-bold focus:border-yellow-500 outline-none shadow-inner transition-colors" />
+                                    <textarea placeholder="Mandatory Audit Reason" required value={pointsModal.reason} onChange={e => setPointsModal({ ...pointsModal, reason: e.target.value })} className="w-full p-4 bg-background border border-border/60 rounded-xl text-sm font-medium resize-none focus:border-yellow-500 outline-none shadow-inner transition-colors" rows="4"></textarea>
+                                </div>
+                                <div className="flex gap-3 justify-end pt-6 shrink-0 border-t border-border/50 mt-4">
+                                    <button type="button" onClick={() => setPointsModal({ isOpen: false, points: '', reason: '' })} className="px-5 py-2.5 text-sm font-bold text-muted-foreground hover:bg-muted rounded-xl transition-colors">Cancel</button>
+                                    <button type="submit" className="px-5 py-2.5 text-sm bg-yellow-500 text-black font-black rounded-xl shadow-[0_0_15px_rgba(234,179,8,0.4)] hover:bg-yellow-400 transition-all hover:scale-[1.02] active:scale-[0.98]">Apply Points</button>
+                                </div>
+                            </form>
+                        </div>
+                    )}
+
+                    {/* EDIT PROFILE MODAL */}
+                    {editProfileModal.isOpen && (
+                        <div className="fixed inset-0 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4 sm:p-6 md:p-12 animate-fade-in transition-all" style={{ zIndex: Math.max(modalZ.profile, modalZ.list, modalZ.issue) + 50 }}>
+                            <form onSubmit={handleEditProfileSubmit} className="bg-card p-6 md:p-8 rounded-3xl border border-border/50 shadow-2xl w-full max-w-md flex flex-col max-h-full">
+                                <h3 className="font-black text-2xl mb-6 flex items-center gap-3 text-primary shrink-0"><UserCog size={28} /> Edit Profile Data</h3>
+                                <div className="space-y-6 overflow-y-auto thin-scrollbar pr-2 pb-4 flex-1 bg-background/20 rounded-xl p-2">
+
+                                    <div className="space-y-3 relative z-50">
+                                        <label className="text-[10px] font-black text-muted-foreground uppercase tracking-widest pl-1">Basic Information</label>
+                                        <input type="text" placeholder="Full Name" value={editProfileModal.formData.name || ''} onChange={e => setEditProfileModal({ ...editProfileModal, formData: { ...editProfileModal.formData, name: e.target.value } })} className="w-full p-3.5 bg-background border border-border/60 rounded-xl text-sm font-medium focus:border-primary outline-none shadow-inner transition-colors" />
+                                        <input type="text" placeholder="Username (Unique)" value={editProfileModal.formData.userName || ''} onChange={e => setEditProfileModal({ ...editProfileModal, formData: { ...editProfileModal.formData, userName: e.target.value } })} className="w-full p-3.5 bg-background border border-border/60 rounded-xl text-sm font-medium focus:border-primary outline-none shadow-inner transition-colors" />
+                                        <input type="email" placeholder="Email Address" value={editProfileModal.formData.email || ''} onChange={e => setEditProfileModal({ ...editProfileModal, formData: { ...editProfileModal.formData, email: e.target.value } })} className="w-full p-3.5 bg-background border border-border/60 rounded-xl text-sm font-medium focus:border-primary outline-none shadow-inner transition-colors" />
+                                        <input type="text" placeholder="New Password (Leave blank to keep)" value={editProfileModal.formData.password || ''} onChange={e => setEditProfileModal({ ...editProfileModal, formData: { ...editProfileModal.formData, password: e.target.value } })} className="w-full p-3.5 bg-background border border-border/60 rounded-xl text-sm font-medium focus:border-primary outline-none shadow-inner placeholder:text-muted-foreground/50 transition-colors" />
+                                    </div>
+
+                                    <div className="space-y-3 pt-4 border-t border-border/50 relative z-40">
+                                        <label className="text-[10px] font-black text-muted-foreground uppercase tracking-widest pl-1">Location (Contact)</label>
+                                        <div className="relative z-40">
+                                            <CustomSelect options={modalStateOptions} value={editProfileModal.formData.state || ''} onChange={v => setEditProfileModal({ ...editProfileModal, formData: { ...editProfileModal.formData, state: v, city: '' } })} placeholder="Select State" />
+                                        </div>
+                                        <div className="relative z-30">
+                                            <CustomSelect options={modalDistrictOptions} value={editProfileModal.formData.city || ''} onChange={v => setEditProfileModal({ ...editProfileModal, formData: { ...editProfileModal.formData, city: v } })} placeholder="Select District/City" />
+                                        </div>
+                                        <input type="text" placeholder="Pincode" value={editProfileModal.formData['contact.pinCode'] || ''} onChange={e => setEditProfileModal({ ...editProfileModal, formData: { ...editProfileModal.formData, 'contact.pinCode': e.target.value } })} className="w-full p-3.5 bg-background border border-border/60 rounded-xl text-sm font-medium focus:border-primary outline-none shadow-inner transition-colors" />
+                                    </div>
+
+                                    {['official', 'ngo'].includes(selectedUserDetails?.user?.role) && (
+                                        <div className="space-y-3 pt-4 border-t border-border/50 relative z-20">
+                                            <label className="text-[10px] font-black text-muted-foreground uppercase tracking-widest pl-1">Authority Profile</label>
+                                            <input type="text" placeholder="Department / NGO Name" value={editProfileModal.formData.departmentName || ''} onChange={e => setEditProfileModal({ ...editProfileModal, formData: { ...editProfileModal.formData, departmentName: e.target.value } })} className="w-full p-3.5 bg-background border border-border/60 rounded-xl text-sm font-medium focus:border-primary outline-none shadow-inner transition-colors" />
+                                            <div className="relative z-20">
+                                                <CustomSelect options={modalStateOptions} value={editProfileModal.formData.assignedState || ''} onChange={v => setEditProfileModal({ ...editProfileModal, formData: { ...editProfileModal.formData, assignedState: v, assignedDistrict: '' } })} placeholder="Select Assigned State" />
+                                            </div>
+                                            <div className="relative z-10">
+                                                <CustomSelect options={modalAssignedDistrictOptions} value={editProfileModal.formData.assignedDistrict || ''} onChange={v => setEditProfileModal({ ...editProfileModal, formData: { ...editProfileModal.formData, assignedDistrict: v } })} placeholder="Select Assigned District" />
+                                            </div>
+                                        </div>
+                                    )}
+                                </div>
+                                <div className="flex gap-3 justify-end pt-6 border-t border-border/50 shrink-0 mt-2">
+                                    <button type="button" onClick={() => setEditProfileModal({ isOpen: false, formData: {} })} className="px-5 py-2.5 text-sm font-bold text-muted-foreground hover:bg-muted rounded-xl transition-colors">Cancel</button>
+                                    <button type="submit" className="px-5 py-2.5 text-sm bg-primary text-primary-foreground font-black rounded-xl shadow-[0_0_15px_rgba(var(--primary),0.3)] hover:bg-primary/90 transition-all hover:scale-[1.02] active:scale-[0.98]">Save Changes</button>
+                                </div>
+                            </form>
+                        </div>
+                    )}
+
+                    {forceAssignModal.isOpen && (
+                        <div className="fixed inset-0 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4 sm:p-6 md:p-12 animate-fade-in transition-all" style={{ zIndex: Math.max(modalZ.profile, modalZ.list, modalZ.issue) + 50 }}>
+                            <form onSubmit={handleForceAssign} className="bg-card p-6 md:p-8 rounded-3xl border border-indigo-500/30 shadow-[0_0_50px_rgba(99,102,241,0.15)] w-full max-w-md flex flex-col max-h-full">
+                                <h3 className="font-black text-2xl mb-2 text-indigo-500 flex items-center gap-3 shrink-0"><Briefcase size={28} /> Force Assign Issue</h3>
+                                <p className="text-xs font-medium text-muted-foreground mb-6 shrink-0">Lock a stagnant issue directly to this official.</p>
+
+                                <div className="overflow-y-auto thin-scrollbar flex-1 space-y-4 pr-1">
+                                    <div className="relative z-50">
+                                        <CustomSelect options={forceAssignModal.issues.map(issue => ({ value: issue._id, label: `${issue.title} - ${issue.location?.city || 'Unknown'}` }))} value={forceAssignModal.selectedIssue} onChange={(val) => setForceAssignModal({ ...forceAssignModal, selectedIssue: val })} placeholder="Select an Issue to lock..." />
+                                    </div>
+                                    <input type="number" min="1" placeholder="Mandatory Hrs (e.g. 24)" required value={forceAssignModal.commitmentTimeHours} onChange={e => setForceAssignModal({ ...forceAssignModal, commitmentTimeHours: e.target.value })} className="w-full p-4 bg-background border border-border/60 rounded-xl text-sm font-bold focus:border-indigo-500 outline-none shadow-inner relative z-10 transition-colors" />
+                                </div>
+
+                                <div className="flex gap-3 justify-end relative z-10 pt-6 border-t border-border/50 shrink-0 mt-4">
+                                    <button type="button" onClick={() => setForceAssignModal({ isOpen: false, issues: [], selectedIssue: '', commitmentTimeHours: '' })} className="px-5 py-2.5 text-sm font-bold text-muted-foreground hover:bg-muted rounded-xl transition-colors">Cancel</button>
+                                    <button type="submit" disabled={isUpdating || !forceAssignModal.selectedIssue || !forceAssignModal.commitmentTimeHours} className="px-5 py-2.5 text-sm bg-indigo-500 text-white font-black rounded-xl shadow-[0_0_15px_rgba(99,102,241,0.4)] hover:bg-indigo-600 flex items-center justify-center min-w-[120px] disabled:opacity-50 transition-all hover:scale-[1.02] active:scale-[0.98]">
+                                        {isUpdating ? <MiniLoader className="border-white border-t-transparent" /> : <>Lock Job <ArrowRight size={16} className="ml-1" /></>}
+                                    </button>
+                                </div>
+                            </form>
+                        </div>
+                    )}
+
+                    {forceUnassignModal.isOpen && (
+                        <div className="fixed inset-0 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4 sm:p-6 md:p-12 animate-fade-in transition-all" style={{ zIndex: Math.max(modalZ.profile, modalZ.list, modalZ.issue) + 50 }}>
+                            <form onSubmit={handleRevokeAssign} className="bg-card p-6 md:p-8 rounded-3xl border border-red-500/30 shadow-[0_0_50px_rgba(239,68,68,0.15)] w-full max-w-md flex flex-col max-h-full">
+                                <h3 className="font-black text-2xl mb-6 text-red-500 flex items-center gap-3 shrink-0"><Ban size={28} /> Revoke Assignment</h3>
+                                <div className="overflow-y-auto thin-scrollbar flex-1 space-y-4 pr-1">
+                                    <input type="number" placeholder="Penalty Points (e.g. 50)" required min="0" value={forceUnassignModal.penalty || ''} onChange={e => setForceUnassignModal({ ...forceUnassignModal, penalty: e.target.value })} className="w-full p-4 bg-background border border-border/60 rounded-xl text-sm font-bold focus:border-red-500 outline-none shadow-inner transition-colors" />
+                                    <textarea placeholder="Reason for revocation" required value={forceUnassignModal.reason} onChange={e => setForceUnassignModal({ ...forceUnassignModal, reason: e.target.value })} className="w-full p-4 bg-background border border-border/60 rounded-xl text-sm font-medium focus:border-red-500 outline-none resize-none shadow-inner transition-colors" rows="4"></textarea>
+                                </div>
+                                <div className="flex gap-3 justify-end pt-6 border-t border-border/50 shrink-0 mt-4">
+                                    <button type="button" onClick={() => setForceUnassignModal({ isOpen: false, issueId: '', reason: '', penalty: 0 })} className="px-5 py-2.5 text-sm font-bold text-muted-foreground hover:bg-muted rounded-xl transition-colors">Cancel</button>
+                                    <button type="submit" disabled={isUpdating} className="px-5 py-2.5 text-sm bg-red-500 text-white font-black rounded-xl shadow-[0_0_15px_rgba(239,68,68,0.4)] hover:bg-red-600 transition-all hover:scale-[1.02] active:scale-[0.98] flex items-center justify-center min-w-[100px]">
+                                        {isUpdating ? <MiniLoader className="border-white border-t-transparent" /> : 'Revoke'}
+                                    </button>
+                                </div>
+                            </form>
+                        </div>
+                    )}
+
+                    {/* 🟢 Delete Confirmation Overlay (Placed Last, absolute top) */}
+                    {showDeleteConfirm && (
+                        <div className="fixed inset-0 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm animate-fade-in" style={{ zIndex: Math.max(modalZ.issue, modalZ.profile, modalZ.list) + 100 }}>
+                            <div className="bg-card border border-red-500/30 rounded-2xl p-5 md:p-6 max-w-sm w-full shadow-2xl" onClick={e => e.stopPropagation()}>
+                                <h3 className="text-lg font-bold text-red-500 mb-2 flex items-center gap-2">
+                                    <AlertTriangle className="w-5 h-5" /> Nuclear Delete
                                 </h3>
-                                <button onClick={() => setCsiModalOpen(false)} className="p-2 bg-muted rounded-full hover:bg-muted/80 transition-colors"><X size={20} /></button>
-                            </div>
-                            <div className="overflow-y-auto thin-scrollbar flex-1 p-4 md:p-6 space-y-3 bg-background/30">
-                                {getCsiLedger().length === 0 ? (
-                                    <div className="text-center py-20 text-muted-foreground font-medium"><Clock className="w-12 h-12 mx-auto mb-3 opacity-20" />No points history recorded yet.</div>
-                                ) : (
-                                    getCsiLedger().map((record, i) => (
-                                        <motion.div initial={{ opacity: 0, x: -10 }} animate={{ opacity: 1, x: 0 }} transition={{ delay: i * 0.05 }} key={record._id + i} className={`bg-card border p-4 rounded-2xl flex flex-col sm:flex-row items-start justify-between gap-4 shadow-sm relative overflow-hidden ${record.type === 'EARNED' ? 'border-green-500/20' : 'border-red-500/20'}`}>
-                                            <div className={`absolute left-0 top-0 bottom-0 w-1 ${record.type === 'EARNED' ? 'bg-green-500' : 'bg-red-500'}`} />
-                                            <div className="overflow-hidden w-full sm:flex-1 pl-2">
-                                                <p className="text-sm font-bold text-foreground truncate">{record.title}</p>
-                                                <p className="text-[10px] font-medium text-muted-foreground mt-1">{new Date(record.updatedAt || record.createdAt).toLocaleString()}</p>
-                                                <p className="text-[9px] uppercase tracking-wider mt-2 font-bold text-muted-foreground">
-                                                    Reason: {record.type === 'EARNED' ? 'Successfully Resolved & Verified' : (record.points === -100 ? 'Ghost Abandonment Protocol' : 'Missed Deadline / Handover')}
-                                                </p>
-                                            </div>
-                                            <div className="flex items-center justify-end shrink-0">
-                                                <div className={`flex items-center gap-1.5 px-3 py-1.5 rounded-xl border font-black text-sm ${record.type === 'EARNED' ? 'bg-green-500/10 text-green-500 border-green-500/30' : 'bg-red-500/10 text-red-500 border-red-500/30'}`}>
-                                                    {record.type === 'EARNED' ? '+' : ''}{record.points}
-                                                </div>
-                                            </div>
-                                        </motion.div>
-                                    ))
-                                )}
-                            </div>
-                        </motion.div>
-                    </div>
-                )}
-            </AnimatePresence>
-
-            {/* ACTION MODALS */}
-            {pointsModal.isOpen && (
-                <div className="fixed inset-0 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4 sm:p-6 md:p-12 animate-fade-in transition-all duration-300" style={{ zIndex: Math.max(modalZ.profile, modalZ.list, modalZ.issue) + 50 }}>
-                    <form onSubmit={handlePointAdjustment} className="bg-card p-6 md:p-8 rounded-3xl border border-yellow-500/30 shadow-[0_0_50px_rgba(234,179,8,0.15)] w-full max-w-sm flex flex-col max-h-full overflow-hidden">
-                        <div className="flex items-center gap-3 mb-6 text-yellow-500 shrink-0"><Zap size={28} /><h3 className="font-black text-2xl">Adjust Points</h3></div>
-                        <div className="overflow-y-auto thin-scrollbar flex-1 space-y-4 pr-1">
-                            <input type="number" placeholder="Points (+50 or -20)" required value={pointsModal.points} onChange={e => setPointsModal({ ...pointsModal, points: e.target.value })} className="w-full p-4 bg-background border border-border/60 rounded-xl text-sm font-bold focus:border-yellow-500 outline-none shadow-inner transition-colors" />
-                            <textarea placeholder="Mandatory Audit Reason" required value={pointsModal.reason} onChange={e => setPointsModal({ ...pointsModal, reason: e.target.value })} className="w-full p-4 bg-background border border-border/60 rounded-xl text-sm font-medium resize-none focus:border-yellow-500 outline-none shadow-inner transition-colors" rows="4"></textarea>
-                        </div>
-                        <div className="flex gap-3 justify-end pt-6 shrink-0 border-t border-border/50 mt-4">
-                            <button type="button" onClick={() => setPointsModal({ isOpen: false, points: '', reason: '' })} className="px-5 py-2.5 text-sm font-bold text-muted-foreground hover:bg-muted rounded-xl transition-colors">Cancel</button>
-                            <button type="submit" className="px-5 py-2.5 text-sm bg-yellow-500 text-black font-black rounded-xl shadow-[0_0_15px_rgba(234,179,8,0.4)] hover:bg-yellow-400 transition-all hover:scale-[1.02] active:scale-[0.98]">Apply Points</button>
-                        </div>
-                    </form>
-                </div>
-            )}
-
-            {/* EDIT PROFILE MODAL */}
-            {editProfileModal.isOpen && (
-                <div className="fixed inset-0 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4 sm:p-6 md:p-12 animate-fade-in transition-all" style={{ zIndex: Math.max(modalZ.profile, modalZ.list, modalZ.issue) + 50 }}>
-                    <form onSubmit={handleEditProfileSubmit} className="bg-card p-6 md:p-8 rounded-3xl border border-border/50 shadow-2xl w-full max-w-md flex flex-col max-h-full">
-                        <h3 className="font-black text-2xl mb-6 flex items-center gap-3 text-primary shrink-0"><UserCog size={28} /> Edit Profile Data</h3>
-                        <div className="space-y-6 overflow-y-auto thin-scrollbar pr-2 pb-4 flex-1 bg-background/20 rounded-xl p-2">
-
-                            <div className="space-y-3 relative z-50">
-                                <label className="text-[10px] font-black text-muted-foreground uppercase tracking-widest pl-1">Basic Information</label>
-                                <input type="text" placeholder="Full Name" value={editProfileModal.formData.name || ''} onChange={e => setEditProfileModal({ ...editProfileModal, formData: { ...editProfileModal.formData, name: e.target.value } })} className="w-full p-3.5 bg-background border border-border/60 rounded-xl text-sm font-medium focus:border-primary outline-none shadow-inner transition-colors" />
-                                <input type="text" placeholder="Username (Unique)" value={editProfileModal.formData.userName || ''} onChange={e => setEditProfileModal({ ...editProfileModal, formData: { ...editProfileModal.formData, userName: e.target.value } })} className="w-full p-3.5 bg-background border border-border/60 rounded-xl text-sm font-medium focus:border-primary outline-none shadow-inner transition-colors" />
-                                <input type="email" placeholder="Email Address" value={editProfileModal.formData.email || ''} onChange={e => setEditProfileModal({ ...editProfileModal, formData: { ...editProfileModal.formData, email: e.target.value } })} className="w-full p-3.5 bg-background border border-border/60 rounded-xl text-sm font-medium focus:border-primary outline-none shadow-inner transition-colors" />
-                                <input type="text" placeholder="New Password (Leave blank to keep)" value={editProfileModal.formData.password || ''} onChange={e => setEditProfileModal({ ...editProfileModal, formData: { ...editProfileModal.formData, password: e.target.value } })} className="w-full p-3.5 bg-background border border-border/60 rounded-xl text-sm font-medium focus:border-primary outline-none shadow-inner placeholder:text-muted-foreground/50 transition-colors" />
-                            </div>
-
-                            <div className="space-y-3 pt-4 border-t border-border/50 relative z-40">
-                                <label className="text-[10px] font-black text-muted-foreground uppercase tracking-widest pl-1">Location (Contact)</label>
-                                <div className="relative z-40">
-                                    <CustomSelect options={modalStateOptions} value={editProfileModal.formData.state || ''} onChange={v => setEditProfileModal({ ...editProfileModal, formData: { ...editProfileModal.formData, state: v, city: '' } })} placeholder="Select State" />
+                                <p className="text-xs text-muted-foreground mb-6 leading-relaxed">
+                                    This will permanently wipe this issue, all associated bids, and scrub all related notifications from existence. This cannot be undone.
+                                </p>
+                                <div className="flex justify-end gap-3">
+                                    <button onClick={() => setShowDeleteConfirm(false)} disabled={isDeleting} className="px-4 py-2 rounded-xl text-sm font-bold bg-muted/50 hover:bg-muted transition-colors">Cancel</button>
+                                    <button onClick={handleDeleteIssue} disabled={isDeleting} className="px-4 py-2 rounded-xl text-sm font-black bg-red-500 text-white hover:bg-red-600 transition-colors flex items-center justify-center min-w-[80px]">
+                                        {isDeleting ? <MiniLoader className="w-4 h-4 text-white" /> : 'Delete'}
+                                    </button>
                                 </div>
-                                <div className="relative z-30">
-                                    <CustomSelect options={modalDistrictOptions} value={editProfileModal.formData.city || ''} onChange={v => setEditProfileModal({ ...editProfileModal, formData: { ...editProfileModal.formData, city: v } })} placeholder="Select District/City" />
-                                </div>
-                                <input type="text" placeholder="Pincode" value={editProfileModal.formData['contact.pinCode'] || ''} onChange={e => setEditProfileModal({ ...editProfileModal, formData: { ...editProfileModal.formData, 'contact.pinCode': e.target.value } })} className="w-full p-3.5 bg-background border border-border/60 rounded-xl text-sm font-medium focus:border-primary outline-none shadow-inner transition-colors" />
                             </div>
-
-                            {['official', 'ngo'].includes(selectedUserDetails?.user?.role) && (
-                                <div className="space-y-3 pt-4 border-t border-border/50 relative z-20">
-                                    <label className="text-[10px] font-black text-muted-foreground uppercase tracking-widest pl-1">Authority Profile</label>
-                                    <input type="text" placeholder="Department / NGO Name" value={editProfileModal.formData.departmentName || ''} onChange={e => setEditProfileModal({ ...editProfileModal, formData: { ...editProfileModal.formData, departmentName: e.target.value } })} className="w-full p-3.5 bg-background border border-border/60 rounded-xl text-sm font-medium focus:border-primary outline-none shadow-inner transition-colors" />
-                                    <div className="relative z-20">
-                                        <CustomSelect options={modalStateOptions} value={editProfileModal.formData.assignedState || ''} onChange={v => setEditProfileModal({ ...editProfileModal, formData: { ...editProfileModal.formData, assignedState: v, assignedDistrict: '' } })} placeholder="Select Assigned State" />
-                                    </div>
-                                    <div className="relative z-10">
-                                        <CustomSelect options={modalAssignedDistrictOptions} value={editProfileModal.formData.assignedDistrict || ''} onChange={v => setEditProfileModal({ ...editProfileModal, formData: { ...editProfileModal.formData, assignedDistrict: v } })} placeholder="Select Assigned District" />
-                                    </div>
-                                </div>
-                            )}
                         </div>
-                        <div className="flex gap-3 justify-end pt-6 border-t border-border/50 shrink-0 mt-2">
-                            <button type="button" onClick={() => setEditProfileModal({ isOpen: false, formData: {} })} className="px-5 py-2.5 text-sm font-bold text-muted-foreground hover:bg-muted rounded-xl transition-colors">Cancel</button>
-                            <button type="submit" className="px-5 py-2.5 text-sm bg-primary text-primary-foreground font-black rounded-xl shadow-[0_0_15px_rgba(var(--primary),0.3)] hover:bg-primary/90 transition-all hover:scale-[1.02] active:scale-[0.98]">Save Changes</button>
-                        </div>
-                    </form>
-                </div>
-            )}
-
-            {forceAssignModal.isOpen && (
-                <div className="fixed inset-0 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4 sm:p-6 md:p-12 animate-fade-in transition-all" style={{ zIndex: Math.max(modalZ.profile, modalZ.list, modalZ.issue) + 50 }}>
-                    <form onSubmit={handleForceAssign} className="bg-card p-6 md:p-8 rounded-3xl border border-indigo-500/30 shadow-[0_0_50px_rgba(99,102,241,0.15)] w-full max-w-md flex flex-col max-h-full">
-                        <h3 className="font-black text-2xl mb-2 text-indigo-500 flex items-center gap-3 shrink-0"><Briefcase size={28} /> Force Assign Issue</h3>
-                        <p className="text-xs font-medium text-muted-foreground mb-6 shrink-0">Lock a stagnant issue directly to this official.</p>
-
-                        <div className="overflow-y-auto thin-scrollbar flex-1 space-y-4 pr-1">
-                            <div className="relative z-50">
-                                <CustomSelect options={forceAssignModal.issues.map(issue => ({ value: issue._id, label: `${issue.title} - ${issue.location?.city || 'Unknown'}` }))} value={forceAssignModal.selectedIssue} onChange={(val) => setForceAssignModal({ ...forceAssignModal, selectedIssue: val })} placeholder="Select an Issue to lock..." />
-                            </div>
-                            <input type="number" min="1" placeholder="Mandatory Hrs (e.g. 24)" required value={forceAssignModal.commitmentTimeHours} onChange={e => setForceAssignModal({ ...forceAssignModal, commitmentTimeHours: e.target.value })} className="w-full p-4 bg-background border border-border/60 rounded-xl text-sm font-bold focus:border-indigo-500 outline-none shadow-inner relative z-10 transition-colors" />
-                        </div>
-
-                        <div className="flex gap-3 justify-end relative z-10 pt-6 border-t border-border/50 shrink-0 mt-4">
-                            <button type="button" onClick={() => setForceAssignModal({ isOpen: false, issues: [], selectedIssue: '', commitmentTimeHours: '' })} className="px-5 py-2.5 text-sm font-bold text-muted-foreground hover:bg-muted rounded-xl transition-colors">Cancel</button>
-                            <button type="submit" disabled={isUpdating || !forceAssignModal.selectedIssue || !forceAssignModal.commitmentTimeHours} className="px-5 py-2.5 text-sm bg-indigo-500 text-white font-black rounded-xl shadow-[0_0_15px_rgba(99,102,241,0.4)] hover:bg-indigo-600 flex items-center justify-center min-w-[120px] disabled:opacity-50 transition-all hover:scale-[1.02] active:scale-[0.98]">
-                                {isUpdating ? <MiniLoader className="border-white border-t-transparent" /> : <>Lock Job <ArrowRight size={16} className="ml-1" /></>}
-                            </button>
-                        </div>
-                    </form>
-                </div>
-            )}
-
-            {forceUnassignModal.isOpen && (
-                <div className="fixed inset-0 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4 sm:p-6 md:p-12 animate-fade-in transition-all" style={{ zIndex: Math.max(modalZ.profile, modalZ.list, modalZ.issue) + 50 }}>
-                    <form onSubmit={handleForceUnassign} className="bg-card p-6 md:p-8 rounded-3xl border border-red-500/30 shadow-[0_0_50px_rgba(239,68,68,0.15)] w-full max-w-md flex flex-col max-h-full">
-                        <h3 className="font-black text-2xl mb-6 text-red-500 flex items-center gap-3 shrink-0"><Ban size={28} /> Revoke Assignment</h3>
-                        <div className="overflow-y-auto thin-scrollbar flex-1 space-y-4 pr-1">
-                            <input type="number" placeholder="Penalty Points (e.g. 50)" required min="0" value={forceUnassignModal.penalty || ''} onChange={e => setForceUnassignModal({ ...forceUnassignModal, penalty: e.target.value })} className="w-full p-4 bg-background border border-border/60 rounded-xl text-sm font-bold focus:border-red-500 outline-none shadow-inner transition-colors" />
-                            <textarea placeholder="Reason for revocation" required value={forceUnassignModal.reason} onChange={e => setForceUnassignModal({ ...forceUnassignModal, reason: e.target.value })} className="w-full p-4 bg-background border border-border/60 rounded-xl text-sm font-medium focus:border-red-500 outline-none resize-none shadow-inner transition-colors" rows="4"></textarea>
-                        </div>
-                        <div className="flex gap-3 justify-end pt-6 border-t border-border/50 shrink-0 mt-4">
-                            <button type="button" onClick={() => setForceUnassignModal({ isOpen: false, issueId: '', reason: '', penalty: 0 })} className="px-5 py-2.5 text-sm font-bold text-muted-foreground hover:bg-muted rounded-xl transition-colors">Cancel</button>
-                            <button type="submit" disabled={isUpdating} className="px-5 py-2.5 text-sm bg-red-500 text-white font-black rounded-xl shadow-[0_0_15px_rgba(239,68,68,0.4)] hover:bg-red-600 transition-all hover:scale-[1.02] active:scale-[0.98] flex items-center justify-center min-w-[100px]">
-                                {isUpdating ? <MiniLoader className="border-white border-t-transparent" /> : 'Revoke'}
-                            </button>
-                        </div>
-                    </form>
-                </div>
-            )}
-
-            {/* 🟢 Delete Confirmation Overlay (Placed Last, absolute top) */}
-            {showDeleteConfirm && (
-                <div className="fixed inset-0 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm animate-fade-in" style={{ zIndex: Math.max(modalZ.issue, modalZ.career, modalZ.list) + 100 }}>
-                    <div className="bg-card border border-red-500/30 rounded-2xl p-5 md:p-6 max-w-sm w-full shadow-2xl" onClick={e => e.stopPropagation()}>
-                        <h3 className="text-lg font-bold text-red-500 mb-2 flex items-center gap-2">
-                            <AlertTriangle className="w-5 h-5" /> Nuclear Delete
-                        </h3>
-                        <p className="text-xs text-muted-foreground mb-6 leading-relaxed">
-                            This will permanently wipe this issue, all associated bids, and scrub all related notifications from existence. This cannot be undone.
-                        </p>
-                        <div className="flex justify-end gap-3">
-                            <button onClick={() => setShowDeleteConfirm(false)} disabled={isDeleting} className="px-4 py-2 rounded-xl text-sm font-bold bg-muted/50 hover:bg-muted transition-colors">Cancel</button>
-                            <button onClick={handleDeleteIssue} disabled={isDeleting} className="px-4 py-2 rounded-xl text-sm font-black bg-red-500 text-white hover:bg-red-600 transition-colors flex items-center justify-center min-w-[80px]">
-                                {isDeleting ? <MiniLoader className="w-4 h-4 text-white" /> : 'Delete'}
-                            </button>
-                        </div>
-                    </div>
-                </div>
+                    )}
+                </>,
+                document.body
             )}
         </motion.div>
     );
 };
 
 const StatBox = ({ icon, title, count, color, onClick }) => (
-    <div onClick={onClick} className={`p-4 border rounded-2xl flex flex-col items-start gap-3 shadow-sm transition-all ${onClick ? 'cursor-pointer hover:-translate-y-1 hover:shadow-md' : 'cursor-default'} ${color}`}>
-        <div className="p-2 bg-background/80 rounded-xl shadow-inner border border-border/50">{icon}</div>
-        <div className="text-left w-full">
-            <h4 className="text-2xl font-black text-foreground">{count}</h4>
+    <div onClick={onClick} className={`p-4 border rounded-2xl flex flex-col items-start gap-3 shadow-sm transition-all min-w-0 ${onClick ? 'cursor-pointer hover:-translate-y-1 hover:shadow-md' : 'cursor-default'} ${color}`}>
+        <div className="p-2 bg-background/80 rounded-xl shadow-inner border border-border/50 shrink-0">{icon}</div>
+        <div className="text-left w-full min-w-0">
+            <h4 className="text-2xl font-black text-foreground truncate">{count}</h4>
             <p className="text-[9px] font-bold uppercase tracking-widest text-muted-foreground mt-1 truncate">{title}</p>
         </div>
     </div>

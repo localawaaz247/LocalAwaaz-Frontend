@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
+import { createPortal } from 'react-dom';
 import axiosInstance from '../../utils/axios';
 import { showToast } from '../../utils/toast';
 import { motion, AnimatePresence } from 'framer-motion';
@@ -7,7 +8,7 @@ import {
     CheckCircle, AlertTriangle, Trash2, Search, Shield,
     Leaf, Flame, Clock, History, Briefcase, Download, ArrowRight, RotateCcw,
     ShieldAlert, Zap, MoreVertical, Ban, AlertOctagon, Trophy, Medal, Star, CheckSquare,
-    ListIcon
+    ListIcon, Filter
 } from 'lucide-react';
 import MiniLoader from '../MiniLoader';
 import CustomSelect from '../../components/CustomSelect';
@@ -40,6 +41,9 @@ const timeAgo = (dateInput) => {
 };
 
 const AdminIssues = () => {
+    // Portal hydration state
+    const [isMounted, setIsMounted] = useState(false);
+
     const [issues, setIssues] = useState([]);
     const [authorities, setAuthorities] = useState([]);
     const [loading, setLoading] = useState(true);
@@ -49,6 +53,9 @@ const AdminIssues = () => {
     const [filters, setFilters] = useState({ search: '', status: '', state: '', city: '', reporterRole: '' });
     const [statesList, setStatesList] = useState([]);
     const [districtsList, setDistrictsList] = useState([]);
+
+    // Mobile Filter State
+    const [isMobileFilterOpen, setIsMobileFilterOpen] = useState(false);
 
     const [selectedIssue, setSelectedIssue] = useState(null);
     const [isModalVisible, setIsModalVisible] = useState(false);
@@ -102,6 +109,7 @@ const AdminIssues = () => {
     ];
 
     useEffect(() => {
+        setIsMounted(true);
         cscApi.get("/countries/IN/states").then(res => setStatesList(res.data)).catch(console.error);
         fetchAuthorities();
     }, []);
@@ -367,7 +375,7 @@ const AdminIssues = () => {
     return (
         <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} className="space-y-4 md:space-y-6 flex flex-col h-full pb-10">
 
-            {/* Control Deck */}
+            {/* Control Deck Header */}
             <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 relative z-[50]">
                 <div className="flex flex-col gap-1">
                     <h2 className="text-3xl md:text-4xl font-black bg-clip-text text-transparent bg-gradient-to-r from-foreground to-foreground/60 drop-shadow-sm flex items-center gap-3">
@@ -384,10 +392,23 @@ const AdminIssues = () => {
                 </motion.button>
             </div>
 
+            {/* Mobile Filter Toggle Header */}
+            <div className="flex md:hidden justify-between items-center mt-2">
+                <h3 className="text-lg font-black text-foreground flex items-center gap-2">
+                    <Search className="text-primary" size={20} /> Browse Issues
+                </h3>
+                <button
+                    onClick={() => setIsMobileFilterOpen(!isMobileFilterOpen)}
+                    className={`p-2.5 rounded-xl border transition-colors ${isMobileFilterOpen ? 'bg-primary/10 border-primary/30 text-primary' : 'bg-card border-border/50 text-muted-foreground'}`}
+                >
+                    <Filter size={18} />
+                </button>
+            </div>
+
             {/* Filters Section */}
-            <div className="bg-card/60 backdrop-blur-xl border border-border/60 rounded-2xl p-4 shadow-lg relative z-[40]">
+            <div className={`${isMobileFilterOpen ? 'block' : 'hidden'} md:block bg-card/60 backdrop-blur-xl border border-border/60 rounded-2xl p-4 shadow-lg relative z-[40]`}>
                 <div className="flex flex-col gap-4">
-                    <div className="relative w-full">
+                    <div className="relative w-full group">
                         <Search className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground group-focus-within:text-primary transition-colors" />
                         <input
                             type="text"
@@ -407,9 +428,90 @@ const AdminIssues = () => {
                 </div>
             </div>
 
-            {/* Main Table Content */}
-            <div className="bg-card/40 backdrop-blur-2xl border border-border/60 rounded-2xl overflow-hidden shadow-xl flex-1 flex flex-col min-h-[400px] relative z-10">
-                <div className="overflow-x-auto thin-scrollbar bg-background/20 flex-1">
+            {/* 🟢 Mobile Card View Wrapper (Hidden on md+) */}
+            <div className="md:hidden flex flex-col gap-3 relative z-[10]">
+                <AnimatePresence>
+                    {loading ? (
+                        [...Array(4)].map((_, i) => (
+                            <div key={i} className="bg-card/60 border border-border/60 rounded-xl p-4 flex flex-col gap-3 animate-pulse">
+                                <div className="flex justify-between items-start gap-3">
+                                    <div className="flex-1 space-y-2">
+                                        <div className="h-4 w-3/4 bg-muted rounded"></div>
+                                        <div className="h-3 w-1/4 bg-muted/50 rounded"></div>
+                                    </div>
+                                    <div className="h-5 w-16 bg-muted rounded"></div>
+                                </div>
+                                <div className="flex justify-between items-end mt-1 pt-3 border-t border-border/30">
+                                    <div className="space-y-2">
+                                        <div className="h-3 w-24 bg-muted rounded"></div>
+                                        <div className="h-2 w-16 bg-muted/50 rounded"></div>
+                                    </div>
+                                    <div className="h-4 w-12 bg-muted rounded"></div>
+                                </div>
+                            </div>
+                        ))
+                    ) : issues.length === 0 ? (
+                        <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="p-10 text-center bg-card/40 border border-border/50 rounded-2xl">
+                            <Search className="w-8 h-8 opacity-20 mx-auto mb-2 text-muted-foreground" />
+                            <p className="text-sm font-medium text-muted-foreground">No issues found matching parameters.</p>
+                        </motion.div>
+                    ) : (
+                        issues.map((issue) => (
+                            <motion.div
+                                layout
+                                initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }}
+                                key={issue._id}
+                                onClick={() => openModal(issue)}
+                                className="bg-card/60 backdrop-blur-md border border-border/60 rounded-xl p-4 flex flex-col gap-3 shadow-sm hover:border-primary/50 transition-all cursor-pointer group"
+                            >
+                                <div className="flex justify-between items-start gap-3">
+                                    <div className="flex-1 min-w-0">
+                                        <div className="flex items-center gap-2">
+                                            {issue.priority === 'CRITICAL' && <Flame className="w-3.5 h-3.5 text-red-500 shrink-0" />}
+                                            <h4 className="font-bold text-sm text-foreground truncate">{issue.title}</h4>
+                                        </div>
+                                        <p className="text-[10px] text-muted-foreground mt-1.5 uppercase tracking-wider font-semibold">{issue.category}</p>
+                                    </div>
+                                    <span className={`shrink-0 text-[9px] border px-2 py-1 rounded-md font-bold uppercase tracking-widest shadow-sm ${statusColors[issue.status] || statusColors.OPEN}`}>
+                                        {issue.status}
+                                    </span>
+                                </div>
+
+                                <div className="flex items-center justify-between mt-1">
+                                    <div className="flex items-center gap-1.5 text-[10px] text-muted-foreground bg-muted/50 w-max px-2 py-0.5 rounded border border-border/50">
+                                        {issue.isAnonymous ? <User size={10} className="opacity-50" /> : issue.reportedBy?.role === 'official' ? <Shield size={10} className="text-emerald-500" /> : issue.reportedBy?.role === 'ngo' ? <Leaf size={10} className="text-indigo-500" /> : <User size={10} className="text-foreground" />}
+                                        <span className="capitalize font-bold">{issue.isAnonymous ? 'Anonymous' : issue.reportedBy?.role || 'Citizen'}</span>
+                                    </div>
+                                    <span className="text-[10px] text-muted-foreground flex items-center gap-1 font-medium"><Clock size={10} /> {timeAgo(issue.createdAt)}</span>
+                                </div>
+
+                                <div className="flex justify-between items-end mt-1 pt-3 border-t border-border/30">
+                                    <div className="min-w-0 pr-2">
+                                        <p className="text-xs font-semibold text-foreground flex items-center gap-1 truncate"><MapPin size={12} className="opacity-50 shrink-0" /><span className="truncate">{issue.location?.city || issue.location?.district || 'Unknown'}</span></p>
+                                        {issue.bidding?.winningBid?.authorityId && (
+                                            <p className="text-[10px] text-indigo-500 font-bold mt-1 truncate max-w-[150px]">
+                                                {issue.bidding.winningBid.authorityId.name || 'Assigned'} • {issue.bidding.winningBid.commitmentTimeHours}h
+                                            </p>
+                                        )}
+                                    </div>
+                                    <div className="flex flex-col items-end gap-2 shrink-0">
+                                        <span className="inline-flex items-center justify-end gap-1 text-xs font-black text-yellow-500">
+                                            <Zap size={12} className="fill-yellow-500/20" /> {issue.impactScore || 0}
+                                        </span>
+                                        <button onClick={(e) => { e.stopPropagation(); openModal(issue); }} className="text-[10px] px-3 py-1.5 bg-primary/10 text-primary hover:bg-primary hover:text-white border border-primary/20 rounded-md shadow-sm transition-all font-bold">
+                                            Triage
+                                        </button>
+                                    </div>
+                                </div>
+                            </motion.div>
+                        ))
+                    )}
+                </AnimatePresence>
+            </div>
+
+            {/* 🟢 Desktop Table Wrapper (Hidden on mobile) */}
+            <div className="hidden md:flex bg-card/40 backdrop-blur-2xl border border-border/60 rounded-2xl overflow-hidden shadow-xl flex-1 flex-col min-h-[400px] relative z-10">
+                <div className="overflow-x-auto thin-scrollbar flex-1 bg-background/20">
                     <table className="w-full text-left whitespace-nowrap">
                         <thead className="bg-muted/40 backdrop-blur-md border-b border-border/50 sticky top-0 z-20 shadow-sm">
                             <tr className="text-muted-foreground text-[10px] md:text-sm uppercase tracking-widest">
@@ -423,11 +525,15 @@ const AdminIssues = () => {
                         <tbody className="divide-y divide-border/30">
                             <AnimatePresence>
                                 {loading ? (
-                                    <motion.tr initial={{ opacity: 0 }} animate={{ opacity: 1 }}>
-                                        <td colSpan="5" className="p-12 text-center text-sm font-medium text-muted-foreground">
-                                            <div className="flex justify-center"><MiniLoader /></div>
-                                        </td>
-                                    </motion.tr>
+                                    [...Array(5)].map((_, i) => (
+                                        <tr key={i} className="animate-pulse border-b border-border/30">
+                                            <td className="py-4 px-6"><div className="h-4 w-48 bg-muted rounded mb-2"></div><div className="h-3 w-24 bg-muted/50 rounded"></div></td>
+                                            <td className="py-4 px-6"><div className="h-6 w-24 bg-muted rounded-md"></div></td>
+                                            <td className="py-4 px-6"><div className="h-5 w-20 bg-muted rounded-md mb-2"></div><div className="h-3 w-16 bg-muted/50 rounded"></div></td>
+                                            <td className="py-4 px-6"><div className="h-4 w-32 bg-muted rounded mb-2"></div><div className="h-3 w-20 bg-muted/50 rounded"></div></td>
+                                            <td className="py-4 px-6 flex justify-end"><div className="h-8 w-20 bg-muted rounded-lg"></div></td>
+                                        </tr>
+                                    ))
                                 ) : issues.length === 0 ? (
                                     <motion.tr initial={{ opacity: 0 }} animate={{ opacity: 1 }}>
                                         <td colSpan="5" className="p-12 text-center text-sm font-medium text-muted-foreground">
@@ -495,420 +601,426 @@ const AdminIssues = () => {
                         </tbody>
                     </table>
                 </div>
-
-                {/* Pagination Controls */}
-                {!loading && totalPages > 1 && (
-                    <div className="p-4 border-t border-border/50 bg-background/40 backdrop-blur-md flex justify-between items-center text-xs font-semibold text-muted-foreground">
-                        <span className="tracking-widest uppercase">Page {page} of {totalPages}</span>
-                        <div className="space-x-2 flex">
-                            <button disabled={page === 1} onClick={() => setPage(p => p - 1)} className="p-2 bg-card/80 border border-border/50 rounded-xl hover:bg-muted disabled:opacity-50 transition-all shadow-sm"><ChevronLeft size={16} /></button>
-                            <button disabled={page === totalPages} onClick={() => setPage(p => p + 1)} className="p-2 bg-card/80 border border-border/50 rounded-xl hover:bg-muted disabled:opacity-50 transition-all shadow-sm"><ChevronRight size={16} /></button>
-                        </div>
-                    </div>
-                )}
             </div>
 
-            {/* ========================================================= */}
-            {/* MODALS */}
-            {/* ========================================================= */}
-
-            {/* 1. LIST MODAL (Drill-down from Metric Cards - Not typically used in this component but keeping structure safe) */}
-
-            {/* 2. CAREER PAGE MODAL (Re-used for clicking users inside Issue Viewer) */}
-            <AnimatePresence>
-                {careerModal.isOpen && careerModal.profile && (
-                    <div className="fixed inset-0 flex items-center justify-center p-4 sm:p-8 md:p-12 bg-black/60 backdrop-blur-sm" style={{ zIndex: modalZ.career }}>
-                        <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="absolute inset-0" onClick={() => setCareerModal({ ...careerModal, isOpen: false })} />
-
-                        <motion.div
-                            initial={{ opacity: 0, x: 100 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: 100 }} transition={{ type: "spring", damping: 25, stiffness: 200 }}
-                            className="bg-card border border-border/50 rounded-3xl w-full max-w-5xl shadow-2xl flex flex-col relative z-10 overflow-hidden max-h-full"
-                        >
-                            <div className="p-4 md:p-5 border-b border-border/50 bg-background/80 backdrop-blur-md flex items-center gap-4 shrink-0">
-                                {careerModal.view === 'ISSUE_LIST' && (
-                                    <button onClick={() => setCareerModal({ ...careerModal, view: 'OVERVIEW' })} className="p-2 bg-muted rounded-full hover:bg-muted/80 transition-colors">
-                                        <ChevronLeft size={20} />
-                                    </button>
-                                )}
-                                <img src={getCorsSafeUrl(careerModal.profile.profilePic) || getAvatar(careerModal.profile.name)} alt="pfp" className="w-12 h-12 rounded-full border border-border/50 object-cover bg-muted shrink-0" />
-                                <div className="flex-1 min-w-0">
-                                    <h3 className="text-xl font-black text-foreground truncate">{careerModal.profile.name}</h3>
-                                    <p className="text-[10px] sm:text-xs text-muted-foreground uppercase tracking-widest font-bold mt-0.5 truncate">
-                                        {['official', 'ngo'].includes(careerModal.profile.role) ? 'Verified Authority Profile' : 'Citizen Civic Profile'}
-                                    </p>
-                                </div>
-                                <button onClick={() => setCareerModal({ ...careerModal, isOpen: false })} className="p-2 bg-muted border border-border/50 rounded-full hover:bg-muted/80 transition-colors"><X size={20} /></button>
-                            </div>
-
-                            {careerModal.view === 'OVERVIEW' ? (
-                                <div className="flex-1 overflow-y-auto thin-scrollbar p-4 md:p-6 bg-background/30">
-                                    <div className="bg-card border border-border/50 rounded-2xl p-5 shadow-sm mb-6">
-                                        <h4 className="text-[10px] uppercase font-black tracking-widest text-primary mb-4 flex items-center gap-2"><Shield size={14} /> Profile Information</h4>
-                                        {['official', 'ngo'].includes(careerModal.profile.role) && careerModal.profile.authorityProfile ? (
-                                            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-                                                <div><p className="text-[10px] text-muted-foreground uppercase font-bold">Designation</p><p className="font-bold text-sm text-foreground">{careerModal.profile.authorityProfile.designation || 'N/A'}</p></div>
-                                                <div><p className="text-[10px] text-muted-foreground uppercase font-bold">Department/Org</p><p className="font-bold text-sm text-foreground">{careerModal.profile.authorityProfile.departmentName || careerModal.profile.authorityProfile.org || 'N/A'}</p></div>
-                                                <div><p className="text-[10px] text-muted-foreground uppercase font-bold">Assigned Area</p><p className="font-bold text-sm text-foreground">{careerModal.profile.authorityProfile.assignedDistrict || 'N/A'}</p></div>
-                                                <div><p className="text-[10px] text-muted-foreground uppercase font-bold">Status</p><p className={`font-bold text-xs w-max px-2 py-0.5 rounded uppercase mt-0.5 ${careerModal.profile.authorityProfile.verificationStatus === 'APPROVED' ? 'text-green-500 bg-green-500/10 border border-green-500/20' : 'text-amber-500 bg-amber-500/10 border border-amber-500/20'}`}>{careerModal.profile.authorityProfile.verificationStatus}</p></div>
-                                            </div>
-                                        ) : (
-                                            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-                                                <div><p className="text-[10px] text-muted-foreground uppercase font-bold">Rank</p><p className="font-bold text-sm text-foreground">{careerModal.profile.rank || 'Citizen'}</p></div>
-                                                <div><p className="text-[10px] text-muted-foreground uppercase font-bold">Civil Score</p><p className="font-bold text-sm text-foreground flex items-center gap-1"><Zap size={14} className="text-yellow-500" /> {careerModal.profile.civilScore || 10}</p></div>
-                                                <div><p className="text-[10px] text-muted-foreground uppercase font-bold">Badges Earned</p><p className="font-bold text-sm text-amber-500">{careerModal.profile.badges?.length || 0}</p></div>
-                                                <div><p className="text-[10px] text-muted-foreground uppercase font-bold">Account Status</p><p className={`font-bold text-xs w-max px-2 py-0.5 rounded uppercase mt-0.5 ${careerModal.profile.accountStatus === 'ACTIVE' ? 'text-green-500 bg-green-500/10 border border-green-500/20' : 'text-red-500 bg-red-500/10 border border-red-500/20'}`}>{careerModal.profile.accountStatus || 'ACTIVE'}</p></div>
-                                            </div>
-                                        )}
-                                    </div>
-
-                                    <h4 className="text-[10px] uppercase font-black tracking-widest text-muted-foreground pl-1 border-l-2 border-primary mb-4">Platform History</h4>
-                                    <div className="grid grid-cols-2 md:grid-cols-4 gap-3 md:gap-4 mb-8">
-                                        {['official', 'ngo'].includes(careerModal.profile.role) ? (
-                                            <>
-                                                <StatBox icon={<Clock className="text-indigo-500" />} title="Jobs Active" count={careerModal.history?.ASSIGNED?.length || 0} color="border-indigo-500/30 bg-indigo-500/5 hover:bg-indigo-500/10" onClick={() => setCareerModal({ ...careerModal, view: 'ISSUE_LIST', selectedCategory: 'Active Jobs', issueList: careerModal.history?.ASSIGNED || [] })} />
-                                                <StatBox icon={<CheckSquare className="text-emerald-500" />} title="Jobs Completed" count={careerModal.history?.COMPLETED?.length || 0} color="border-emerald-500/30 bg-emerald-500/5 hover:bg-emerald-500/10" onClick={() => setCareerModal({ ...careerModal, view: 'ISSUE_LIST', selectedCategory: 'Completed Jobs', issueList: careerModal.history?.COMPLETED || [] })} />
-                                                <StatBox icon={<Briefcase className="text-amber-500" />} title="Jobs Released" count={careerModal.history?.RELEASED?.length || 0} color="border-amber-500/30 bg-amber-500/5 hover:bg-amber-500/10" onClick={() => setCareerModal({ ...careerModal, view: 'ISSUE_LIST', selectedCategory: 'Released Jobs', issueList: careerModal.history?.RELEASED || [] })} />
-                                                <StatBox icon={<AlertTriangle className="text-rose-500" />} title="Jobs Failed" count={careerModal.history?.FAILED?.length || careerModal.profile.authorityProfile?.jobsFailed || 0} color="border-rose-500/30 bg-rose-500/5 hover:bg-rose-500/10" onClick={() => setCareerModal({ ...careerModal, view: 'ISSUE_LIST', selectedCategory: 'Failed Jobs', issueList: careerModal.history?.FAILED || [] })} />
-                                            </>
-                                        ) : (
-                                            <>
-                                                <StatBox icon={<AlertTriangle className="text-amber-500" />} title="Issues Reported" count={careerModal.history?.REPORTED?.length || 0} color="border-amber-500/30 bg-amber-500/5 hover:bg-amber-500/10" onClick={() => setCareerModal({ ...careerModal, view: 'ISSUE_LIST', selectedCategory: 'Reported Issues', issueList: careerModal.history?.REPORTED || [] })} />
-                                                <StatBox icon={<CheckSquare className="text-emerald-500" />} title="Verifications" count={careerModal.history?.CONFIRMED?.length || 0} color="border-emerald-500/30 bg-emerald-500/5 hover:bg-emerald-500/10" onClick={() => setCareerModal({ ...careerModal, view: 'ISSUE_LIST', selectedCategory: 'Confirmed Verifications', issueList: careerModal.history?.CONFIRMED || [] })} />
-                                                <StatBox icon={<Shield className="text-indigo-500" />} title="Flags Cast" count={careerModal.history?.FLAGGED?.length || 0} color="border-indigo-500/30 bg-indigo-500/5 hover:bg-indigo-500/10" onClick={() => setCareerModal({ ...careerModal, view: 'ISSUE_LIST', selectedCategory: 'Flagged Issues', issueList: careerModal.history?.FLAGGED || [] })} />
-                                                <StatBox icon={<Zap className="text-yellow-500" />} title="Impact Score" count={careerModal.profile.civilScore || 10} color="border-yellow-500/30 bg-yellow-500/5 cursor-default" />
-                                            </>
-                                        )}
-                                    </div>
-
-                                    <h4 className="text-[10px] uppercase font-black tracking-widest text-muted-foreground pl-1 border-l-2 border-primary mb-4 mt-8">Leaderboard History</h4>
-                                    <div className="bg-card border border-border/50 rounded-2xl p-5 shadow-sm">
-                                        {careerModal.history?.RANKINGS && careerModal.history.RANKINGS.length > 0 ? (
-                                            <div className="space-y-4">
-                                                {careerModal.history.RANKINGS.map((rankEntry, idx) => (
-                                                    <div key={idx} className="flex items-center justify-between p-3 rounded-xl bg-muted/30 border border-border/40">
-                                                        <div className="flex items-center gap-3">
-                                                            <div className="w-10 h-10 rounded-full bg-background border flex items-center justify-center shadow-sm shrink-0">
-                                                                {rankEntry.rank === 1 ? <Trophy size={18} className="text-yellow-500" /> :
-                                                                    rankEntry.rank === 2 ? <Medal size={18} className="text-slate-300" /> :
-                                                                        rankEntry.rank === 3 ? <Medal size={18} className="text-amber-600" /> :
-                                                                            <Star size={16} className="text-primary" />}
-                                                            </div>
-                                                            <div>
-                                                                <p className="text-sm font-bold text-foreground">Rank #{rankEntry.rank}</p>
-                                                                <p className="text-[10px] font-medium text-muted-foreground uppercase tracking-widest">{rankEntry.type || 'Weekly'} Leaderboard</p>
-                                                            </div>
-                                                        </div>
-                                                        <div className="text-right">
-                                                            <p className="text-[11px] font-mono font-semibold text-muted-foreground">{new Date(rankEntry.date).toLocaleDateString()}</p>
-                                                        </div>
-                                                    </div>
-                                                ))}
-                                            </div>
-                                        ) : (
-                                            <div className="text-center py-8">
-                                                <Trophy className="w-12 h-12 text-muted-foreground/20 mx-auto mb-3" />
-                                                <p className="text-sm font-medium text-muted-foreground">No leaderboard rankings achieved yet.</p>
-                                            </div>
-                                        )}
-                                    </div>
-                                </div>
-                            ) : (
-                                <div className="flex-1 overflow-y-auto thin-scrollbar p-4 md:p-6 bg-background/30">
-                                    <div className="p-4 bg-primary/10 border border-primary/20 rounded-xl text-sm font-bold text-primary mb-6 flex items-center gap-2">
-                                        <ListIcon size={18} /> Showing {careerModal.selectedCategory} for {careerModal.profile.name}
-                                    </div>
-                                    <div className="space-y-3">
-                                        {careerModal.issueList.length === 0 ? (
-                                            <div className="text-center py-20 text-muted-foreground font-medium">No records found.</div>
-                                        ) : (
-                                            careerModal.issueList.map((issue, i) => (
-                                                <motion.div
-                                                    initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: i * 0.03 }}
-                                                    key={issue._id}
-                                                    onClick={() => fetchAndOpenIssue(issue._id)}
-                                                    className="bg-card border border-border/50 p-4 rounded-xl flex flex-col sm:flex-row items-start justify-between gap-4 cursor-pointer hover:border-primary/50 hover:bg-primary/5 transition-all group shadow-sm"
-                                                >
-                                                    <div className="flex-1 min-w-0 pr-2">
-                                                        <h5 className="font-bold text-foreground truncate group-hover:text-primary transition-colors">{issue.title}</h5>
-                                                        <p className="text-[11px] text-muted-foreground mt-1 font-medium"><MapPin size={10} className="inline mr-1" /> {issue.location?.city || 'Unknown'}</p>
-                                                    </div>
-                                                    <div className="shrink-0 flex items-center gap-3">
-                                                        <span className={`text-[9px] uppercase font-bold tracking-widest px-2 py-1 rounded border ${statusColors[issue.status] || statusColors.OPEN}`}>{issue.status}</span>
-                                                        <ChevronRight size={18} className="text-muted-foreground group-hover:text-primary transition-colors hidden sm:block" />
-                                                    </div>
-                                                </motion.div>
-                                            ))
-                                        )}
-                                    </div>
-                                </div>
-                            )}
-                        </motion.div>
+            {/* Pagination Controls */}
+            {!loading && totalPages > 1 && (
+                <div className="p-4 border-t border-border/50 bg-background/40 backdrop-blur-md flex justify-between items-center text-xs font-semibold text-muted-foreground">
+                    <span className="tracking-widest uppercase">Page {page} of {totalPages}</span>
+                    <div className="space-x-2 flex">
+                        <button disabled={page === 1} onClick={() => setPage(p => p - 1)} className="p-2 bg-card/80 border border-border/50 rounded-xl hover:bg-muted disabled:opacity-50 transition-all shadow-sm"><ChevronLeft size={16} /></button>
+                        <button disabled={page === totalPages} onClick={() => setPage(p => p + 1)} className="p-2 bg-card/80 border border-border/50 rounded-xl hover:bg-muted disabled:opacity-50 transition-all shadow-sm"><ChevronRight size={16} /></button>
                     </div>
-                )}
-            </AnimatePresence>
+                </div>
+            )}
 
-            {/* 3. ISSUE VIEWER MODAL (Deep Dive, Opens on top of everything) */}
-            <AnimatePresence>
-                {isModalVisible && selectedIssue && (
-                    <div className="fixed inset-0 flex items-center justify-center p-4 sm:p-8 md:p-12 bg-black/60 backdrop-blur-sm" style={{ zIndex: modalZ.issue }}>
-                        <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="absolute inset-0" onClick={closeModal} />
+            {/* ========================================================= */}
+            {/* PORTAL MODALS (Rendered completely outside DOM flow to prevent sidebar overlap) */}
+            {/* ========================================================= */}
 
-                        <motion.div
-                            initial={{ opacity: 0, scale: 0.95, y: 20 }} animate={{ opacity: 1, scale: 1, y: 0 }} exit={{ opacity: 0, scale: 0.95, y: 20 }}
-                            className="relative bg-background border border-border/50 rounded-3xl w-full max-w-6xl shadow-2xl flex flex-col max-h-full overflow-hidden z-10"
-                            onClick={e => e.stopPropagation()}
-                        >
-                            {/* Header */}
-                            <div className="flex justify-between items-center p-4 md:p-5 border-b border-border/50 bg-muted/20 shrink-0">
-                                <div className="flex items-center gap-3">
-                                    <span className={`px-3 py-1.5 rounded-xl text-[10px] font-black uppercase tracking-widest border shadow-sm ${statusColors[selectedIssue.status] || statusColors.OPEN}`}>
-                                        {selectedIssue.status}
-                                    </span>
-                                    <span className="text-xs font-mono text-muted-foreground hidden sm:block">ID: {selectedIssue._id}</span>
-                                </div>
-                                <div className="flex items-center gap-2">
-                                    <button onClick={() => setShowDeleteConfirm(true)} title="Delete Issue" className="p-2 rounded-full text-red-500 bg-red-500/10 hover:bg-red-500 hover:text-white transition-colors"><Trash2 size={18} /></button>
-                                    <button onClick={closeModal} className="p-2 rounded-full bg-card border border-border/50 hover:bg-muted transition-colors"><X size={20} /></button>
-                                </div>
-                            </div>
+            {isMounted && createPortal(
+                <>
+                    {/* 2. CAREER PAGE MODAL (Re-used for clicking users inside Issue Viewer) */}
+                    <AnimatePresence>
+                        {careerModal.isOpen && careerModal.profile && (
+                            <div className="fixed inset-0 flex items-center justify-center p-4 sm:p-8 md:p-12 bg-black/60 backdrop-blur-sm" style={{ zIndex: modalZ.career }}>
+                                <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="absolute inset-0" onClick={() => setCareerModal({ ...careerModal, isOpen: false })} />
 
-                            <div className="flex flex-col lg:flex-row flex-1 min-h-0 overflow-y-auto lg:overflow-hidden thin-scrollbar">
+                                <motion.div
+                                    initial={{ opacity: 0, x: 100 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: 100 }} transition={{ type: "spring", damping: 25, stiffness: 200 }}
+                                    className="bg-card border border-border/50 rounded-3xl w-full max-w-5xl shadow-2xl flex flex-col relative z-10 overflow-hidden max-h-full"
+                                >
+                                    <div className="p-4 md:p-5 border-b border-border/50 bg-background/80 backdrop-blur-md flex items-center gap-4 shrink-0">
+                                        {careerModal.view === 'ISSUE_LIST' && (
+                                            <button onClick={() => setCareerModal({ ...careerModal, view: 'OVERVIEW' })} className="p-2 bg-muted rounded-full hover:bg-muted/80 transition-colors shrink-0">
+                                                <ChevronLeft size={20} />
+                                            </button>
+                                        )}
+                                        <img src={getCorsSafeUrl(careerModal.profile.profilePic) || getAvatar(careerModal.profile.name)} alt="pfp" className="w-12 h-12 rounded-full border border-border/50 object-cover bg-muted shrink-0" />
+                                        <div className="flex-1 min-w-0">
+                                            <h3 className="text-xl font-black text-foreground truncate">{careerModal.profile.name}</h3>
+                                            <p className="text-[10px] sm:text-xs text-muted-foreground uppercase tracking-widest font-bold mt-0.5 truncate">
+                                                {['official', 'ngo'].includes(careerModal.profile.role) ? 'Verified Authority Profile' : 'Citizen Civic Profile'}
+                                            </p>
+                                        </div>
+                                        <button onClick={() => setCareerModal({ ...careerModal, isOpen: false })} className="p-2 bg-muted border border-border/50 rounded-full hover:bg-muted/80 transition-colors shrink-0"><X size={20} /></button>
+                                    </div>
 
-                                {/* LEFT COLUMN: Media & Core Data */}
-                                <div className="w-full lg:w-1/2 p-4 md:p-6 lg:border-r border-border/50 flex flex-col gap-5 shrink-0 lg:shrink lg:overflow-y-auto thin-scrollbar bg-background/50">
-                                    <h3 className="text-2xl font-black text-foreground leading-tight">{selectedIssue.title}</h3>
+                                    {careerModal.view === 'OVERVIEW' ? (
+                                        <div className="flex-1 overflow-y-auto thin-scrollbar p-4 md:p-6 bg-background/30">
 
-                                    <div className="w-full bg-black/40 rounded-2xl border border-border/50 overflow-hidden relative flex items-center justify-center h-[250px] sm:h-[350px] shrink-0 group shadow-inner">
-                                        {selectedIssue.media && selectedIssue.media.length > 0 ? (
-                                            <>
-                                                {selectedIssue.media[currentMediaIndex].url?.match(/\.(mp4|webm|ogg)$/i) ? (
-                                                    <video ref={videoRef} src={selectedIssue.media[currentMediaIndex].url} className="w-full h-full object-contain bg-black" controls autoPlay muted playsInline />
+                                            {/* Core Details Box */}
+                                            <div className="bg-card border border-border/50 rounded-2xl p-5 shadow-sm mb-6">
+                                                <h4 className="text-[10px] uppercase font-black tracking-widest text-primary mb-4 flex items-center gap-2"><Shield size={14} /> Profile Information</h4>
+                                                {['official', 'ngo'].includes(careerModal.profile.role) && careerModal.profile.authorityProfile ? (
+                                                    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+                                                        <div><p className="text-[10px] text-muted-foreground uppercase font-bold">Designation</p><p className="font-bold text-sm text-foreground">{careerModal.profile.authorityProfile.designation || 'N/A'}</p></div>
+                                                        <div><p className="text-[10px] text-muted-foreground uppercase font-bold">Department/Org</p><p className="font-bold text-sm text-foreground">{careerModal.profile.authorityProfile.departmentName || careerModal.profile.authorityProfile.org || 'N/A'}</p></div>
+                                                        <div><p className="text-[10px] text-muted-foreground uppercase font-bold">Assigned Area</p><p className="font-bold text-sm text-foreground">{careerModal.profile.authorityProfile.assignedDistrict || 'N/A'}</p></div>
+                                                        <div><p className="text-[10px] text-muted-foreground uppercase font-bold">Status</p><p className={`font-bold text-xs w-max px-2 py-0.5 rounded uppercase mt-0.5 ${careerModal.profile.authorityProfile.verificationStatus === 'APPROVED' ? 'text-green-500 bg-green-500/10 border border-green-500/20' : 'text-amber-500 bg-amber-500/10 border border-amber-500/20'}`}>{careerModal.profile.authorityProfile.verificationStatus}</p></div>
+                                                    </div>
                                                 ) : (
-                                                    <img src={selectedIssue.media[currentMediaIndex].url} alt="issue" className="w-full h-full object-contain" />
+                                                    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+                                                        <div><p className="text-[10px] text-muted-foreground uppercase font-bold">Rank</p><p className="font-bold text-sm text-foreground">{careerModal.profile.rank || 'Citizen'}</p></div>
+                                                        <div><p className="text-[10px] text-muted-foreground uppercase font-bold">Civil Score</p><p className="font-bold text-sm text-foreground flex items-center gap-1"><Zap size={14} className="text-yellow-500" /> {careerModal.profile.civilScore || 10}</p></div>
+                                                        <div><p className="text-[10px] text-muted-foreground uppercase font-bold">Badges Earned</p><p className="font-bold text-sm text-amber-500">{careerModal.profile.badges?.length || 0}</p></div>
+                                                        <div><p className="text-[10px] text-muted-foreground uppercase font-bold">Account Status</p><p className={`font-bold text-xs w-max px-2 py-0.5 rounded uppercase mt-0.5 ${careerModal.profile.accountStatus === 'ACTIVE' ? 'text-green-500 bg-green-500/10 border border-green-500/20' : 'text-red-500 bg-red-500/10 border border-red-500/20'}`}>{careerModal.profile.accountStatus || 'ACTIVE'}</p></div>
+                                                    </div>
                                                 )}
-                                                {selectedIssue.media.length > 1 && (
+                                            </div>
+
+                                            {/* Clickable Platform History Metrics */}
+                                            <h4 className="text-[10px] uppercase font-black tracking-widest text-muted-foreground pl-1 border-l-2 border-primary mb-4">Platform History (Click to View)</h4>
+                                            <div className="grid grid-cols-2 md:grid-cols-4 gap-3 md:gap-4 mb-8">
+                                                {['official', 'ngo'].includes(careerModal.profile.role) ? (
                                                     <>
-                                                        <button onClick={() => setCurrentMediaIndex((prev) => (prev - 1 + selectedIssue.media.length) % selectedIssue.media.length)} className="absolute left-3 p-2 bg-black/60 rounded-full text-white hover:bg-black/80 backdrop-blur-md opacity-0 group-hover:opacity-100 transition-opacity"><ChevronLeft size={20} /></button>
-                                                        <button onClick={() => setCurrentMediaIndex((prev) => (prev + 1) % selectedIssue.media.length)} className="absolute right-3 p-2 bg-black/60 rounded-full text-white hover:bg-black/80 backdrop-blur-md opacity-0 group-hover:opacity-100 transition-opacity"><ChevronRight size={20} /></button>
+                                                        <StatBox icon={<Clock className="text-indigo-500" />} title="Jobs Active" count={careerModal.history?.ASSIGNED?.length || 0} color="border-indigo-500/30 bg-indigo-500/5 hover:bg-indigo-500/10" onClick={() => setCareerModal({ ...careerModal, view: 'ISSUE_LIST', selectedCategory: 'Active Jobs', issueList: careerModal.history?.ASSIGNED || [] })} />
+                                                        <StatBox icon={<CheckSquare className="text-emerald-500" />} title="Jobs Completed" count={careerModal.history?.COMPLETED?.length || 0} color="border-emerald-500/30 bg-emerald-500/5 hover:bg-emerald-500/10" onClick={() => setCareerModal({ ...careerModal, view: 'ISSUE_LIST', selectedCategory: 'Completed Jobs', issueList: careerModal.history?.COMPLETED || [] })} />
+                                                        <StatBox icon={<Briefcase className="text-amber-500" />} title="Jobs Released" count={careerModal.history?.RELEASED?.length || 0} color="border-amber-500/30 bg-amber-500/5 hover:bg-amber-500/10" onClick={() => setCareerModal({ ...careerModal, view: 'ISSUE_LIST', selectedCategory: 'Released Jobs', issueList: careerModal.history?.RELEASED || [] })} />
+                                                        <StatBox icon={<AlertTriangle className="text-rose-500" />} title="Jobs Failed" count={careerModal.history?.FAILED?.length || careerModal.profile.authorityProfile?.jobsFailed || 0} color="border-rose-500/30 bg-rose-500/5 hover:bg-rose-500/10" onClick={() => setCareerModal({ ...careerModal, view: 'ISSUE_LIST', selectedCategory: 'Failed Jobs', issueList: careerModal.history?.FAILED || [] })} />
+                                                    </>
+                                                ) : (
+                                                    <>
+                                                        <StatBox icon={<AlertTriangle className="text-amber-500" />} title="Issues Reported" count={careerModal.history?.REPORTED?.length || 0} color="border-amber-500/30 bg-amber-500/5 hover:bg-amber-500/10" onClick={() => setCareerModal({ ...careerModal, view: 'ISSUE_LIST', selectedCategory: 'Reported Issues', issueList: careerModal.history?.REPORTED || [] })} />
+                                                        <StatBox icon={<CheckSquare className="text-emerald-500" />} title="Verifications" count={careerModal.history?.CONFIRMED?.length || 0} color="border-emerald-500/30 bg-emerald-500/5 hover:bg-emerald-500/10" onClick={() => setCareerModal({ ...careerModal, view: 'ISSUE_LIST', selectedCategory: 'Confirmed Verifications', issueList: careerModal.history?.CONFIRMED || [] })} />
+                                                        <StatBox icon={<Shield className="text-indigo-500" />} title="Flags Cast" count={careerModal.history?.FLAGGED?.length || 0} color="border-indigo-500/30 bg-indigo-500/5 hover:bg-indigo-500/10" onClick={() => setCareerModal({ ...careerModal, view: 'ISSUE_LIST', selectedCategory: 'Flagged Issues', issueList: careerModal.history?.FLAGGED || [] })} />
+                                                        <StatBox icon={<Zap className="text-yellow-500" />} title="Impact Score" count={careerModal.profile.civilScore || 10} color="border-yellow-500/30 bg-yellow-500/5 cursor-default" />
                                                     </>
                                                 )}
-                                            </>
-                                        ) : (
-                                            <div className="flex flex-col items-center opacity-40"><AlertTriangle size={36} className="mb-3" /><p className="text-sm font-bold">No Media Attached</p></div>
-                                        )}
-                                    </div>
+                                            </div>
 
-                                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                                        <div className="bg-card border border-border/50 rounded-2xl p-4 shadow-sm">
-                                            <p className="text-[10px] text-muted-foreground font-bold uppercase tracking-wider mb-1 flex items-center gap-1"><MapPin size={12} /> Location</p>
-                                            <p className="text-sm font-bold text-foreground">{selectedIssue.location?.city}, {selectedIssue.location?.state}</p>
-                                            <p className="text-[11px] text-muted-foreground mt-1 truncate">{selectedIssue.location?.address} • PIN: {selectedIssue.location?.pinCode}</p>
+                                            <h4 className="text-[10px] uppercase font-black tracking-widest text-muted-foreground pl-1 border-l-2 border-primary mb-4 mt-8">Leaderboard History</h4>
+                                            <div className="bg-card border border-border/50 rounded-2xl p-5 shadow-sm">
+                                                {careerModal.history?.RANKINGS && careerModal.history.RANKINGS.length > 0 ? (
+                                                    <div className="space-y-4">
+                                                        {careerModal.history.RANKINGS.map((rankEntry, idx) => (
+                                                            <div key={idx} className="flex items-center justify-between p-3 rounded-xl bg-muted/30 border border-border/40">
+                                                                <div className="flex items-center gap-3">
+                                                                    <div className="w-10 h-10 rounded-full bg-background border flex items-center justify-center shadow-sm shrink-0">
+                                                                        {rankEntry.rank === 1 ? <Trophy size={18} className="text-yellow-500" /> :
+                                                                            rankEntry.rank === 2 ? <Medal size={18} className="text-slate-300" /> :
+                                                                                rankEntry.rank === 3 ? <Medal size={18} className="text-amber-600" /> :
+                                                                                    <Star size={16} className="text-primary" />}
+                                                                    </div>
+                                                                    <div>
+                                                                        <p className="text-sm font-bold text-foreground">Rank #{rankEntry.rank}</p>
+                                                                        <p className="text-[10px] font-medium text-muted-foreground uppercase tracking-widest">{rankEntry.type || 'Weekly'} Leaderboard</p>
+                                                                    </div>
+                                                                </div>
+                                                                <div className="text-right">
+                                                                    <p className="text-[11px] font-mono font-semibold text-muted-foreground">{new Date(rankEntry.date).toLocaleDateString()}</p>
+                                                                </div>
+                                                            </div>
+                                                        ))}
+                                                    </div>
+                                                ) : (
+                                                    <div className="text-center py-8">
+                                                        <Trophy className="w-12 h-12 text-muted-foreground/20 mx-auto mb-3" />
+                                                        <p className="text-sm font-medium text-muted-foreground">No leaderboard rankings achieved yet.</p>
+                                                    </div>
+                                                )}
+                                            </div>
                                         </div>
-                                        <div className="bg-card border border-border/50 rounded-2xl p-4 shadow-sm flex flex-col justify-center items-center text-center">
-                                            <p className="text-[10px] text-muted-foreground font-bold uppercase tracking-wider mb-1">Impact Score</p>
-                                            <p className="text-2xl font-black text-yellow-500 flex items-center gap-1 justify-center"><Zap size={20} className="fill-yellow-500" /> {selectedIssue.impactScore || 0}</p>
+                                    ) : (
+                                        <div className="flex-1 overflow-y-auto thin-scrollbar p-4 md:p-6 bg-background/30">
+                                            <div className="p-4 bg-primary/10 border border-primary/20 rounded-xl text-sm font-bold text-primary mb-6 flex items-center gap-2">
+                                                <ListIcon size={18} /> Showing {careerModal.selectedCategory} for {careerModal.profile.name}
+                                            </div>
+                                            <div className="space-y-3">
+                                                {careerModal.issueList.length === 0 ? (
+                                                    <div className="text-center py-20 text-muted-foreground font-medium">No records found.</div>
+                                                ) : (
+                                                    careerModal.issueList.map((issue, i) => (
+                                                        <motion.div
+                                                            initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: i * 0.03 }}
+                                                            key={issue._id}
+                                                            onClick={() => fetchAndOpenIssue(issue._id)}
+                                                            className="bg-card border border-border/50 p-4 rounded-xl flex flex-col sm:flex-row items-start justify-between gap-4 cursor-pointer hover:border-primary/50 hover:bg-primary/5 transition-all group shadow-sm"
+                                                        >
+                                                            <div className="flex-1 min-w-0 pr-2">
+                                                                <h5 className="font-bold text-foreground truncate group-hover:text-primary transition-colors">{issue.title}</h5>
+                                                                <p className="text-[11px] text-muted-foreground mt-1 font-medium"><MapPin size={10} className="inline mr-1" /> {issue.location?.city || 'Unknown'}</p>
+                                                            </div>
+                                                            <div className="shrink-0 flex items-center gap-3 w-full sm:w-auto justify-end">
+                                                                <span className={`text-[9px] uppercase font-bold tracking-widest px-2 py-1 rounded border ${statusColors[issue.status] || statusColors.OPEN}`}>{issue.status}</span>
+                                                                <ChevronRight size={18} className="text-muted-foreground group-hover:text-primary transition-colors hidden sm:block" />
+                                                            </div>
+                                                        </motion.div>
+                                                    ))
+                                                )}
+                                            </div>
+                                        </div>
+                                    )}
+                                </motion.div>
+                            </div>
+                        )}
+                    </AnimatePresence>
+
+                    {/* 3. ISSUE VIEWER MODAL (Deep Dive, Opens on top of everything) */}
+                    <AnimatePresence>
+                        {isModalVisible && selectedIssue && (
+                            <div className="fixed inset-0 flex items-center justify-center p-4 sm:p-8 md:p-12 bg-black/80 backdrop-blur-md" style={{ zIndex: modalZ.issue }}>
+                                <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="absolute inset-0" onClick={closeModal} />
+
+                                <motion.div
+                                    initial={{ opacity: 0, scale: 0.95, y: 20 }} animate={{ opacity: 1, scale: 1, y: 0 }} exit={{ opacity: 0, scale: 0.95, y: 20 }}
+                                    className="relative bg-background border border-border/50 rounded-3xl w-full max-w-6xl shadow-2xl flex flex-col max-h-[85dvh] overflow-hidden z-10"
+                                    onClick={e => e.stopPropagation()}
+                                >
+                                    {/* Header */}
+                                    <div className="flex justify-between items-center p-4 md:p-5 border-b border-border/50 bg-muted/20 shrink-0">
+                                        <div className="flex items-center gap-3">
+                                            <span className={`px-3 py-1.5 rounded-xl text-[10px] font-black uppercase tracking-widest border shadow-sm ${statusColors[selectedIssue.status] || statusColors.OPEN}`}>
+                                                {selectedIssue.status}
+                                            </span>
+                                            <span className="text-xs font-mono text-muted-foreground hidden sm:block">ID: {selectedIssue._id}</span>
+                                        </div>
+                                        <div className="flex items-center gap-2">
+                                            <button onClick={() => setShowDeleteConfirm(true)} title="Delete Issue" className="p-2 rounded-full text-red-500 bg-red-500/10 hover:bg-red-500 hover:text-white transition-colors"><Trash2 size={18} /></button>
+                                            <button onClick={closeModal} className="p-2 rounded-full bg-card border border-border/50 hover:bg-muted transition-colors"><X size={20} /></button>
                                         </div>
                                     </div>
 
-                                    <div className="bg-muted/20 border border-border/50 rounded-2xl p-5 mb-4 shadow-inner">
-                                        <p className="text-[10px] text-muted-foreground font-bold uppercase tracking-wider mb-2">Description</p>
-                                        <p className="text-sm text-foreground/90 whitespace-pre-wrap leading-relaxed">{selectedIssue.description}</p>
-                                    </div>
-                                </div>
+                                    <div className="flex flex-col lg:flex-row flex-1 min-h-0 overflow-y-auto lg:overflow-hidden thin-scrollbar">
 
-                                {/* RIGHT COLUMN: The Players, ACTION ZONE & Timeline */}
-                                <div className="w-full lg:w-1/2 flex flex-col bg-muted/5 shrink-0 lg:shrink relative z-30">
+                                        {/* LEFT COLUMN: Media & Core Data */}
+                                        <div className="w-full lg:w-1/2 p-4 md:p-6 lg:border-r border-border/50 flex flex-col gap-5 shrink-0 lg:shrink lg:overflow-y-auto thin-scrollbar bg-background/50">
+                                            <h3 className="text-2xl font-black text-foreground leading-tight">{selectedIssue.title}</h3>
 
-                                    {/* --- PLAYERS SECTION (Now Clickable) --- */}
-                                    <div className="p-4 md:p-5 border-b border-border/50 shrink-0">
-                                        <div className="grid grid-cols-2 gap-3">
+                                            <div className="w-full bg-black/40 rounded-2xl border border-border/50 overflow-hidden relative flex items-center justify-center h-[250px] sm:h-[350px] shrink-0 group shadow-inner">
+                                                {selectedIssue.media && selectedIssue.media.length > 0 ? (
+                                                    <>
+                                                        {selectedIssue.media[currentMediaIndex].url?.match(/\.(mp4|webm|ogg)$/i) ? (
+                                                            <video ref={videoRef} src={selectedIssue.media[currentMediaIndex].url} className="w-full h-full object-contain bg-black" controls autoPlay muted playsInline />
+                                                        ) : (
+                                                            <img src={selectedIssue.media[currentMediaIndex].url} alt="issue" className="w-full h-full object-contain" />
+                                                        )}
+                                                        {selectedIssue.media.length > 1 && (
+                                                            <>
+                                                                <button onClick={() => setCurrentMediaIndex((prev) => (prev - 1 + selectedIssue.media.length) % selectedIssue.media.length)} className="absolute left-3 p-2 bg-black/60 rounded-full text-white hover:bg-black/80 backdrop-blur-md opacity-0 group-hover:opacity-100 transition-opacity"><ChevronLeft size={20} /></button>
+                                                                <button onClick={() => setCurrentMediaIndex((prev) => (prev + 1) % selectedIssue.media.length)} className="absolute right-3 p-2 bg-black/60 rounded-full text-white hover:bg-black/80 backdrop-blur-md opacity-0 group-hover:opacity-100 transition-opacity"><ChevronRight size={20} /></button>
+                                                            </>
+                                                        )}
+                                                    </>
+                                                ) : (
+                                                    <div className="flex flex-col items-center opacity-40"><AlertTriangle size={36} className="mb-3" /><p className="text-sm font-bold">No Media Attached</p></div>
+                                                )}
+                                            </div>
 
-                                            {/* Reporter Card */}
-                                            <div className="bg-card border border-border/50 p-3 rounded-xl flex justify-between items-center group transition-colors hover:border-primary/50 relative">
-                                                <div
-                                                    className="flex-1 cursor-pointer"
-                                                    onClick={() => !selectedIssue.isAnonymous && openCareerModal(selectedIssue.reportedBy?._id)}
-                                                >
-                                                    <p className="text-[9px] text-muted-foreground font-bold uppercase mb-1">Reporter</p>
-                                                    <p className={`text-sm font-bold truncate ${selectedIssue.isAnonymous ? 'text-muted-foreground' : 'text-foreground group-hover:text-primary'}`}>
-                                                        {selectedIssue.isAnonymous ? 'Anonymous' : selectedIssue.reportedBy?.name || 'Unknown'}
-                                                    </p>
+                                            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                                                <div className="bg-card border border-border/50 rounded-2xl p-4 shadow-sm">
+                                                    <p className="text-[10px] text-muted-foreground font-bold uppercase tracking-wider mb-1 flex items-center gap-1"><MapPin size={12} /> Location</p>
+                                                    <p className="text-sm font-bold text-foreground">{selectedIssue.location?.city}, {selectedIssue.location?.state}</p>
+                                                    <p className="text-[11px] text-muted-foreground mt-1 truncate">{selectedIssue.location?.address} • PIN: {selectedIssue.location?.pinCode}</p>
                                                 </div>
+                                                <div className="bg-card border border-border/50 rounded-2xl p-4 shadow-sm flex flex-col justify-center items-center text-center">
+                                                    <p className="text-[10px] text-muted-foreground font-bold uppercase tracking-wider mb-1">Impact Score</p>
+                                                    <p className="text-2xl font-black text-yellow-500 flex items-center gap-1 justify-center"><Zap size={20} className="fill-yellow-500" /> {selectedIssue.impactScore || 0}</p>
+                                                </div>
+                                            </div>
 
-                                                {/* Action Menu (Warn/Suspend) */}
-                                                {!selectedIssue.isAnonymous && selectedIssue.reportedBy?._id && (
-                                                    <div className="relative shrink-0">
-                                                        <button onClick={() => setActionMenuOpen(!actionMenuOpen)} className="p-1.5 rounded-md hover:bg-muted text-muted-foreground transition-colors">
-                                                            <MoreVertical size={16} />
-                                                        </button>
-                                                        {actionMenuOpen && (
-                                                            <div className="absolute right-0 top-full mt-2 w-48 bg-card border border-border/60 rounded-xl shadow-xl z-[100] py-1 overflow-hidden animate-fade-in">
-                                                                <button onClick={handleQuickWarn} className="w-full text-left px-4 py-2.5 text-xs font-bold hover:bg-muted flex items-center gap-2 text-amber-500">
-                                                                    <AlertOctagon size={14} /> Send Warning
+                                            <div className="bg-muted/20 border border-border/50 rounded-2xl p-5 mb-4 shadow-inner">
+                                                <p className="text-[10px] text-muted-foreground font-bold uppercase tracking-wider mb-2">Description</p>
+                                                <p className="text-sm text-foreground/90 whitespace-pre-wrap leading-relaxed">{selectedIssue.description}</p>
+                                            </div>
+                                        </div>
+
+                                        {/* RIGHT COLUMN: The Players, ACTION ZONE & Timeline */}
+                                        <div className="w-full lg:w-1/2 flex flex-col bg-muted/5 shrink-0 lg:shrink relative z-30">
+
+                                            {/* --- PLAYERS SECTION (Now Clickable) --- */}
+                                            <div className="p-4 md:p-5 border-b border-border/50 shrink-0">
+                                                <div className="grid grid-cols-2 gap-3">
+
+                                                    {/* Reporter Card */}
+                                                    <div className="bg-card border border-border/50 p-3 rounded-xl flex justify-between items-center group transition-colors hover:border-primary/50 relative">
+                                                        <div
+                                                            className="flex-1 cursor-pointer min-w-0 pr-2"
+                                                            onClick={() => !selectedIssue.isAnonymous && openCareerModal(selectedIssue.reportedBy?._id)}
+                                                        >
+                                                            <p className="text-[9px] text-muted-foreground font-bold uppercase mb-1">Reporter</p>
+                                                            <p className={`text-sm font-bold truncate ${selectedIssue.isAnonymous ? 'text-muted-foreground' : 'text-foreground group-hover:text-primary'}`}>
+                                                                {selectedIssue.isAnonymous ? 'Anonymous' : selectedIssue.reportedBy?.name || 'Unknown'}
+                                                            </p>
+                                                        </div>
+
+                                                        {/* Action Menu (Warn/Suspend) */}
+                                                        {!selectedIssue.isAnonymous && selectedIssue.reportedBy?._id && (
+                                                            <div className="relative shrink-0">
+                                                                <button onClick={() => setActionMenuOpen(!actionMenuOpen)} className="p-1.5 rounded-md hover:bg-muted text-muted-foreground transition-colors">
+                                                                    <MoreVertical size={16} />
                                                                 </button>
-                                                                <button onClick={() => handleQuickSuspend(selectedIssue.reportedBy._id)} className="w-full text-left px-4 py-2.5 text-xs font-bold hover:bg-red-500/10 flex items-center gap-2 text-red-500">
-                                                                    <Ban size={14} /> Suspend (24h)
-                                                                </button>
+                                                                {actionMenuOpen && (
+                                                                    <div className="absolute right-0 top-full mt-2 w-48 bg-card border border-border/60 rounded-xl shadow-xl z-[100] py-1 overflow-hidden animate-fade-in">
+                                                                        <button onClick={handleQuickWarn} className="w-full text-left px-4 py-2.5 text-xs font-bold hover:bg-muted flex items-center gap-2 text-amber-500">
+                                                                            <AlertOctagon size={14} /> Send Warning
+                                                                        </button>
+                                                                        <button onClick={() => handleQuickSuspend(selectedIssue.reportedBy._id)} className="w-full text-left px-4 py-2.5 text-xs font-bold hover:bg-red-500/10 flex items-center gap-2 text-red-500">
+                                                                            <Ban size={14} /> Suspend (24h)
+                                                                        </button>
+                                                                    </div>
+                                                                )}
                                                             </div>
                                                         )}
                                                     </div>
+
+                                                    {/* Authority Card */}
+                                                    <div
+                                                        className={`p-3 rounded-xl border transition-colors min-w-0 ${selectedIssue.bidding?.winningBid?.authorityId ? 'bg-indigo-500/5 border-indigo-500/20 cursor-pointer hover:bg-indigo-500/10 hover:border-indigo-500/40 group' : 'bg-card border-border/50'}`}
+                                                        onClick={() => selectedIssue.bidding?.winningBid?.authorityId && openCareerModal(selectedIssue.bidding.winningBid.authorityId._id)}
+                                                    >
+                                                        <p className={`text-[9px] font-bold uppercase mb-1 ${selectedIssue.bidding?.winningBid?.authorityId ? 'text-indigo-500' : 'text-muted-foreground'}`}>Assigned Official</p>
+                                                        {selectedIssue.bidding?.winningBid?.authorityId ? (
+                                                            <div>
+                                                                <p className="text-sm font-bold text-indigo-600 dark:text-indigo-400 truncate group-hover:underline">{selectedIssue.bidding.winningBid.authorityId.name || 'ID Linked'}</p>
+                                                                <p className="text-[10px] text-indigo-500/80 font-bold mt-0.5 truncate">Commitment: {selectedIssue.bidding.winningBid.commitmentTimeHours}h</p>
+                                                            </div>
+                                                        ) : (
+                                                            <p className="text-xs text-muted-foreground italic mt-1 font-medium truncate">Unassigned</p>
+                                                        )}
+                                                    </div>
+                                                </div>
+                                            </div>
+
+                                            {/* --- ACTIONS SECTION --- */}
+                                            <div className="p-4 md:p-5 border-b border-border/50 shrink-0 bg-background relative z-40">
+                                                <div className="flex gap-4 mb-3 border-b border-border/50">
+                                                    <button onClick={() => setActionTab('STATUS')} className={`pb-2 text-xs font-bold uppercase tracking-wider ${actionTab === 'STATUS' ? 'text-primary border-b-2 border-primary' : 'text-muted-foreground'}`}>Update Status</button>
+                                                    {selectedIssue.bidding?.winningBid?.authorityId ? (
+                                                        <button onClick={() => setActionTab('REVOKE')} className={`pb-2 text-xs font-bold uppercase tracking-wider ${actionTab === 'REVOKE' ? 'text-red-500 border-b-2 border-red-500' : 'text-muted-foreground'}`}>Revoke Assignment</button>
+                                                    ) : (
+                                                        <button onClick={() => setActionTab('ASSIGN')} className={`pb-2 text-xs font-bold uppercase tracking-wider ${actionTab === 'ASSIGN' ? 'text-indigo-500 border-b-2 border-indigo-500' : 'text-muted-foreground'}`}>Force Assign</button>
+                                                    )}
+                                                </div>
+
+                                                {actionTab === 'STATUS' && (
+                                                    <form onSubmit={handleUpdateStatus} className="flex flex-col gap-3 relative z-40">
+                                                        <div className="flex gap-2 relative z-40">
+                                                            <div className="w-1/2 relative z-40">
+                                                                <label className="text-[10px] text-muted-foreground mb-1 block font-semibold uppercase">Change Status</label>
+                                                                <CustomSelect options={UPDATE_STATUS_OPTIONS} value={updateData.status} onChange={(val) => setUpdateData({ ...updateData, status: val })} />
+                                                            </div>
+                                                            <div className="w-1/2 relative z-10">
+                                                                <label className="text-[10px] text-muted-foreground mb-1 block font-semibold uppercase truncate">
+                                                                    {['DISPUTED', 'ORPHANED', 'RESOLVED'].includes(updateData.status) ? 'Audit Remark (Optional)' : 'Audit Remark (Required)'}
+                                                                </label>
+                                                                <input
+                                                                    type="text"
+                                                                    value={updateData.adminRemark}
+                                                                    onChange={(e) => setUpdateData({ ...updateData, adminRemark: e.target.value })}
+                                                                    placeholder={['DISPUTED', 'ORPHANED', 'RESOLVED'].includes(updateData.status) ? "Optional context..." : "State reason..."}
+                                                                    className="w-full px-3 py-2 bg-muted border border-border/50 rounded-xl text-xs font-medium focus:border-primary outline-none transition-colors"
+                                                                    required={!['DISPUTED', 'ORPHANED', 'RESOLVED'].includes(updateData.status)}
+                                                                />
+                                                            </div>
+                                                        </div>
+
+                                                        {updateData.status === 'RESOLVED' && (
+                                                            <div className="relative z-30 mb-1 animate-fade-in">
+                                                                <label className="text-[10px] text-green-500 mb-1 block font-bold uppercase flex items-center gap-1">
+                                                                    <ShieldAlert size={12} /> Resolved By (Optional)
+                                                                </label>
+                                                                <CustomSelect
+                                                                    options={[{ value: '', label: 'Unknown / System Resolved' }, ...authorities]}
+                                                                    value={updateData.resolvedByAuthority || ''}
+                                                                    onChange={(val) => setUpdateData({ ...updateData, resolvedByAuthority: val })}
+                                                                />
+                                                            </div>
+                                                        )}
+
+                                                        {['DISPUTED', 'RESOLVED'].includes(updateData.status) && (
+                                                            <div className={`relative z-10 p-3 border rounded-xl animate-fade-in ${updateData.status === 'RESOLVED' ? 'bg-green-500/5 border-green-500/20' : 'bg-red-500/5 border-red-500/20'}`}>
+                                                                <label className={`text-xs mb-2 block font-bold flex items-center gap-1 ${updateData.status === 'RESOLVED' ? 'text-green-500' : 'text-red-500'}`}>
+                                                                    <ShieldAlert size={12} /> {updateData.status === 'RESOLVED' ? 'Attach Evidence (Optional)' : 'Dispute Evidence (Optional)'}
+                                                                </label>
+                                                                <input
+                                                                    type="file"
+                                                                    accept="image/*"
+                                                                    onChange={(e) => setActionMedia(e.target.files[0])}
+                                                                    className={`w-full text-xs file:mr-3 file:py-1.5 file:px-3 file:rounded-lg file:border-0 file:font-bold cursor-pointer text-muted-foreground ${updateData.status === 'RESOLVED' ? 'file:bg-green-500/10 file:text-green-500 hover:file:bg-green-500/20' : 'file:bg-red-500/10 file:text-red-500 hover:file:bg-red-500/20'}`}
+                                                                />
+                                                            </div>
+                                                        )}
+
+                                                        <button type="submit" disabled={isUpdating} className="w-full py-2.5 mt-1 bg-primary text-primary-foreground font-bold text-xs rounded-xl shadow-md flex items-center justify-center gap-1.5 relative z-10 hover:scale-[1.01] transition-transform">
+                                                            {isUpdating ? <MiniLoader className="w-3.5 h-3.5" /> : <>Log Action <CheckCircle size={14} /></>}
+                                                        </button>
+                                                    </form>
+                                                )}
+
+                                                {actionTab === 'ASSIGN' && (
+                                                    <form onSubmit={handleForceAssign} className="flex flex-col gap-2 relative z-50">
+                                                        <div className="flex gap-2 relative">
+                                                            <div className="w-1/2 relative z-50">
+                                                                <CustomSelect options={authorities} value={assignData.authorityId} onChange={(val) => setAssignData({ ...assignData, authorityId: val })} placeholder="Select Official..." />
+                                                            </div>
+                                                            <input type="number" min="1" value={assignData.commitmentTimeHours} onChange={(e) => setAssignData({ ...assignData, commitmentTimeHours: e.target.value })} placeholder="Hrs (e.g. 24)" className="w-1/2 px-3 py-2 bg-muted border border-border/50 rounded-xl text-xs font-medium focus:border-indigo-500 outline-none relative z-10 transition-colors" required />
+                                                        </div>
+                                                        <button type="submit" disabled={isUpdating || !assignData.authorityId || !assignData.commitmentTimeHours} className="w-full mt-1 py-2.5 bg-indigo-500 text-white disabled:bg-indigo-500/50 font-bold text-xs rounded-xl shadow-md flex items-center justify-center gap-1.5 relative z-10 hover:scale-[1.01] transition-transform">
+                                                            {isUpdating ? <MiniLoader className="w-3.5 h-3.5" /> : <>Lock Job <ArrowRight size={14} /></>}
+                                                        </button>
+                                                    </form>
+                                                )}
+
+                                                {actionTab === 'REVOKE' && (
+                                                    <form onSubmit={handleRevokeAssign} className="flex flex-col gap-2 relative z-10">
+                                                        <div className="flex gap-2 relative">
+                                                            <input type="number" min="0" value={revokeData.penaltyPoints} onChange={(e) => setRevokeData({ ...revokeData, penaltyPoints: e.target.value })} placeholder="Penalty Pts" className="w-1/3 px-3 py-2 bg-muted border border-border/50 rounded-xl text-xs font-medium focus:border-red-500 outline-none transition-colors" required />
+                                                            <input type="text" value={revokeData.reason} onChange={(e) => setRevokeData({ ...revokeData, reason: e.target.value })} placeholder="Reason for revocation..." className="w-2/3 px-3 py-2 bg-muted border border-border/50 rounded-xl text-xs font-medium focus:border-red-500 outline-none transition-colors" required />
+                                                        </div>
+                                                        <button type="submit" disabled={isUpdating || !revokeData.reason} className="w-full py-2.5 mt-1 bg-red-500 text-white disabled:bg-red-500/50 font-bold text-xs rounded-xl shadow-md flex items-center justify-center gap-1.5 hover:scale-[1.01] transition-transform">
+                                                            {isUpdating ? <MiniLoader className="w-3.5 h-3.5" /> : <>Revoke <RotateCcw size={14} /></>}
+                                                        </button>
+                                                    </form>
                                                 )}
                                             </div>
 
-                                            {/* Authority Card */}
-                                            <div
-                                                className={`p-3 rounded-xl border transition-colors ${selectedIssue.bidding?.winningBid?.authorityId ? 'bg-indigo-500/5 border-indigo-500/20 cursor-pointer hover:bg-indigo-500/10 hover:border-indigo-500/40 group' : 'bg-card border-border/50'}`}
-                                                onClick={() => selectedIssue.bidding?.winningBid?.authorityId && openCareerModal(selectedIssue.bidding.winningBid.authorityId._id)}
-                                            >
-                                                <p className={`text-[9px] font-bold uppercase mb-1 ${selectedIssue.bidding?.winningBid?.authorityId ? 'text-indigo-500' : 'text-muted-foreground'}`}>Assigned Official</p>
-                                                {selectedIssue.bidding?.winningBid?.authorityId ? (
-                                                    <div>
-                                                        <p className="text-sm font-bold text-indigo-600 dark:text-indigo-400 truncate group-hover:underline">{selectedIssue.bidding.winningBid.authorityId.name || 'ID Linked'}</p>
-                                                        <p className="text-[10px] text-indigo-500/80 font-bold mt-0.5">Commitment: {selectedIssue.bidding.winningBid.commitmentTimeHours}h</p>
-                                                    </div>
-                                                ) : (
-                                                    <p className="text-xs text-muted-foreground italic mt-1 font-medium">Unassigned</p>
-                                                )}
+                                            {/* --- TIMELINE SECTION --- */}
+                                            <div className="flex-1 p-4 md:p-6 lg:overflow-y-auto thin-scrollbar relative z-10 bg-card/40">
+                                                <h4 className="text-xs font-black uppercase tracking-widest text-muted-foreground mb-6 pl-2 border-l-2 border-primary">System Timeline</h4>
+                                                <div className="space-y-6 relative before:absolute before:inset-0 before:ml-5 before:-translate-x-px before:h-full before:w-0.5 before:bg-gradient-to-b before:from-primary/50 before:via-border/50 before:to-transparent pb-4">
+                                                    {generateTimeline(selectedIssue).map((event, i) => (
+                                                        <div key={i} className="relative flex items-start gap-4 group">
+                                                            <div className={`flex items-center justify-center w-10 h-10 rounded-full border-4 border-background shrink-0 shadow-sm ${event.color} z-10 transition-transform group-hover:scale-110`}>
+                                                                {event.icon}
+                                                            </div>
+                                                            <div className="w-full p-4 rounded-2xl bg-card border border-border/50 shadow-sm mt-1 group-hover:border-primary/30 transition-colors">
+                                                                <h5 className="font-bold text-[11px] md:text-xs uppercase tracking-wider">{event.label}</h5>
+                                                                <div className="text-[10px] text-muted-foreground font-mono mt-1 mb-2 font-medium">{event.time.toLocaleString([], { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' })}</div>
+                                                                {event.detail && <p className="text-[11px] text-foreground/80 bg-muted/40 p-2.5 rounded-xl border border-border/40 leading-relaxed font-medium">{event.detail}</p>}
+                                                            </div>
+                                                        </div>
+                                                    ))}
+                                                </div>
                                             </div>
                                         </div>
                                     </div>
+                                </motion.div>
+                            </div>
+                        )}
+                    </AnimatePresence>
 
-                                    {/* --- ACTIONS SECTION --- */}
-                                    <div className="p-4 md:p-5 border-b border-border/50 shrink-0 bg-background relative z-40">
-                                        <div className="flex gap-4 mb-3 border-b border-border/50">
-                                            <button onClick={() => setActionTab('STATUS')} className={`pb-2 text-xs font-bold uppercase tracking-wider ${actionTab === 'STATUS' ? 'text-primary border-b-2 border-primary' : 'text-muted-foreground'}`}>Update Status</button>
-                                            {selectedIssue.bidding?.winningBid?.authorityId ? (
-                                                <button onClick={() => setActionTab('REVOKE')} className={`pb-2 text-xs font-bold uppercase tracking-wider ${actionTab === 'REVOKE' ? 'text-red-500 border-b-2 border-red-500' : 'text-muted-foreground'}`}>Revoke Assignment</button>
-                                            ) : (
-                                                <button onClick={() => setActionTab('ASSIGN')} className={`pb-2 text-xs font-bold uppercase tracking-wider ${actionTab === 'ASSIGN' ? 'text-indigo-500 border-b-2 border-indigo-500' : 'text-muted-foreground'}`}>Force Assign</button>
-                                            )}
-                                        </div>
-
-                                        {actionTab === 'STATUS' && (
-                                            <form onSubmit={handleUpdateStatus} className="flex flex-col gap-3 relative z-40">
-                                                <div className="flex gap-2 relative z-40">
-                                                    <div className="w-1/2 relative z-40">
-                                                        <label className="text-[10px] text-muted-foreground mb-1 block font-semibold uppercase">Change Status</label>
-                                                        <CustomSelect options={UPDATE_STATUS_OPTIONS} value={updateData.status} onChange={(val) => setUpdateData({ ...updateData, status: val })} />
-                                                    </div>
-                                                    <div className="w-1/2 relative z-10">
-                                                        <label className="text-[10px] text-muted-foreground mb-1 block font-semibold uppercase">
-                                                            {['DISPUTED', 'ORPHANED', 'RESOLVED'].includes(updateData.status) ? 'Audit Remark (Optional)' : 'Audit Remark (Required)'}
-                                                        </label>
-                                                        <input
-                                                            type="text"
-                                                            value={updateData.adminRemark}
-                                                            onChange={(e) => setUpdateData({ ...updateData, adminRemark: e.target.value })}
-                                                            placeholder={['DISPUTED', 'ORPHANED', 'RESOLVED'].includes(updateData.status) ? "Optional context..." : "State reason..."}
-                                                            className="w-full px-3 py-2 bg-muted border border-border/50 rounded-xl text-xs font-medium focus:border-primary outline-none transition-colors"
-                                                            required={!['DISPUTED', 'ORPHANED', 'RESOLVED'].includes(updateData.status)}
-                                                        />
-                                                    </div>
-                                                </div>
-
-                                                {updateData.status === 'RESOLVED' && (
-                                                    <div className="relative z-30 mb-1 animate-fade-in">
-                                                        <label className="text-[10px] text-green-500 mb-1 block font-bold uppercase flex items-center gap-1">
-                                                            <ShieldAlert size={12} /> Resolved By (Optional Authority)
-                                                        </label>
-                                                        <CustomSelect
-                                                            options={[{ value: '', label: 'Unknown / System Resolved' }, ...authorities]}
-                                                            value={updateData.resolvedByAuthority || ''}
-                                                            onChange={(val) => setUpdateData({ ...updateData, resolvedByAuthority: val })}
-                                                        />
-                                                    </div>
-                                                )}
-
-                                                {['DISPUTED', 'RESOLVED'].includes(updateData.status) && (
-                                                    <div className={`relative z-10 p-3 border rounded-xl animate-fade-in ${updateData.status === 'RESOLVED' ? 'bg-green-500/5 border-green-500/20' : 'bg-red-500/5 border-red-500/20'}`}>
-                                                        <label className={`text-xs mb-2 block font-bold flex items-center gap-1 ${updateData.status === 'RESOLVED' ? 'text-green-500' : 'text-red-500'}`}>
-                                                            <ShieldAlert size={12} /> {updateData.status === 'RESOLVED' ? 'Attach Resolution Evidence (Optional)' : 'Attach Dispute Evidence (Optional)'}
-                                                        </label>
-                                                        <input
-                                                            type="file"
-                                                            accept="image/*"
-                                                            onChange={(e) => setActionMedia(e.target.files[0])}
-                                                            className={`w-full text-xs file:mr-3 file:py-1.5 file:px-3 file:rounded-lg file:border-0 file:font-bold cursor-pointer text-muted-foreground ${updateData.status === 'RESOLVED' ? 'file:bg-green-500/10 file:text-green-500 hover:file:bg-green-500/20' : 'file:bg-red-500/10 file:text-red-500 hover:file:bg-red-500/20'}`}
-                                                        />
-                                                    </div>
-                                                )}
-
-                                                <button type="submit" disabled={isUpdating} className="w-full py-2.5 mt-1 bg-primary text-primary-foreground font-bold text-xs rounded-xl shadow-md flex items-center justify-center gap-1.5 relative z-10 hover:scale-[1.01] transition-transform">
-                                                    {isUpdating ? <MiniLoader className="w-3.5 h-3.5" /> : <>Log Action <CheckCircle size={14} /></>}
-                                                </button>
-                                            </form>
-                                        )}
-
-                                        {actionTab === 'ASSIGN' && (
-                                            <form onSubmit={handleForceAssign} className="flex flex-col gap-2 relative z-50">
-                                                <div className="flex gap-2 relative">
-                                                    <div className="w-1/2 relative z-50">
-                                                        <CustomSelect options={authorities} value={assignData.authorityId} onChange={(val) => setAssignData({ ...assignData, authorityId: val })} placeholder="Select Official..." />
-                                                    </div>
-                                                    <input type="number" min="1" value={assignData.commitmentTimeHours} onChange={(e) => setAssignData({ ...assignData, commitmentTimeHours: e.target.value })} placeholder="Hrs (e.g. 24)" className="w-1/2 px-3 py-2 bg-muted border border-border/50 rounded-xl text-xs font-medium focus:border-indigo-500 outline-none relative z-10 transition-colors" required />
-                                                </div>
-                                                <button type="submit" disabled={isUpdating || !assignData.authorityId || !assignData.commitmentTimeHours} className="w-full mt-1 py-2.5 bg-indigo-500 text-white disabled:bg-indigo-500/50 font-bold text-xs rounded-xl shadow-md flex items-center justify-center gap-1.5 relative z-10 hover:scale-[1.01] transition-transform">
-                                                    {isUpdating ? <MiniLoader className="w-3.5 h-3.5" /> : <>Lock Job <ArrowRight size={14} /></>}
-                                                </button>
-                                            </form>
-                                        )}
-
-                                        {actionTab === 'REVOKE' && (
-                                            <form onSubmit={handleRevokeAssign} className="flex flex-col gap-2 relative z-10">
-                                                <div className="flex gap-2 relative">
-                                                    <input type="number" min="0" value={revokeData.penaltyPoints} onChange={(e) => setRevokeData({ ...revokeData, penaltyPoints: e.target.value })} placeholder="Penalty Points" className="w-1/3 px-3 py-2 bg-muted border border-border/50 rounded-xl text-xs font-medium focus:border-red-500 outline-none transition-colors" required />
-                                                    <input type="text" value={revokeData.reason} onChange={(e) => setRevokeData({ ...revokeData, reason: e.target.value })} placeholder="Reason for revocation..." className="w-2/3 px-3 py-2 bg-muted border border-border/50 rounded-xl text-xs font-medium focus:border-red-500 outline-none transition-colors" required />
-                                                </div>
-                                                <button type="submit" disabled={isUpdating || !revokeData.reason} className="w-full py-2.5 mt-1 bg-red-500 text-white disabled:bg-red-500/50 font-bold text-xs rounded-xl shadow-md flex items-center justify-center gap-1.5 hover:scale-[1.01] transition-transform">
-                                                    {isUpdating ? <MiniLoader className="w-3.5 h-3.5" /> : <>Revoke <RotateCcw size={14} /></>}
-                                                </button>
-                                            </form>
-                                        )}
-                                    </div>
-
-                                    {/* --- TIMELINE SECTION --- */}
-                                    <div className="flex-1 p-4 md:p-6 lg:overflow-y-auto thin-scrollbar relative z-10 bg-card/40">
-                                        <h4 className="text-xs font-black uppercase tracking-widest text-muted-foreground mb-6 pl-2 border-l-2 border-primary">System Timeline</h4>
-                                        <div className="space-y-6 relative before:absolute before:inset-0 before:ml-5 before:-translate-x-px before:h-full before:w-0.5 before:bg-gradient-to-b before:from-primary/50 before:via-border/50 before:to-transparent pb-4">
-                                            {generateTimeline(selectedIssue).map((event, i) => (
-                                                <div key={i} className="relative flex items-start gap-4 group">
-                                                    <div className={`flex items-center justify-center w-10 h-10 rounded-full border-4 border-background shrink-0 shadow-sm ${event.color} z-10 transition-transform group-hover:scale-110`}>
-                                                        {event.icon}
-                                                    </div>
-                                                    <div className="w-full p-4 rounded-2xl bg-card border border-border/50 shadow-sm mt-1 group-hover:border-primary/30 transition-colors">
-                                                        <h5 className="font-bold text-[11px] md:text-xs uppercase tracking-wider">{event.label}</h5>
-                                                        <div className="text-[10px] text-muted-foreground font-mono mt-1 mb-2 font-medium">{event.time.toLocaleString([], { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' })}</div>
-                                                        {event.detail && <p className="text-[11px] text-foreground/80 bg-muted/40 p-2.5 rounded-xl border border-border/40 leading-relaxed font-medium">{event.detail}</p>}
-                                                    </div>
-                                                </div>
-                                            ))}
-                                        </div>
-                                    </div>
+                    {/* 🟢 4. Delete Confirmation Overlay (Placed Last, absolute top) */}
+                    {showDeleteConfirm && (
+                        <div className="fixed inset-0 flex items-center justify-center p-4 sm:p-8 md:p-12 bg-black/60 backdrop-blur-sm animate-fade-in" style={{ zIndex: Math.max(modalZ.issue, modalZ.career) + 50 }}>
+                            <div className="bg-card border border-red-500/30 rounded-2xl p-5 md:p-6 max-w-sm w-full shadow-2xl flex flex-col max-h-full" onClick={e => e.stopPropagation()}>
+                                <h3 className="text-lg font-bold text-red-500 mb-2 flex items-center gap-2 shrink-0">
+                                    <AlertTriangle className="w-5 h-5" /> Nuclear Delete
+                                </h3>
+                                <p className="text-xs text-muted-foreground mb-6 leading-relaxed overflow-y-auto thin-scrollbar">
+                                    This will permanently wipe this issue, all associated bids, and scrub all related notifications from existence. This cannot be undone.
+                                </p>
+                                <div className="flex justify-end gap-3 shrink-0">
+                                    <button onClick={() => setShowDeleteConfirm(false)} disabled={isDeleting} className="px-4 py-2 rounded-xl text-sm font-bold bg-muted/50 hover:bg-muted transition-colors">Cancel</button>
+                                    <button onClick={handleDeleteIssue} disabled={isDeleting} className="px-4 py-2 rounded-xl text-sm font-black bg-red-500 text-white hover:bg-red-600 transition-colors flex items-center justify-center min-w-[80px]">
+                                        {isDeleting ? <MiniLoader className="w-4 h-4 text-white" /> : 'Delete'}
+                                    </button>
                                 </div>
                             </div>
-                        </motion.div>
-                    </div>
-                )}
-            </AnimatePresence>
-
-            {/* 🟢 4. Delete Confirmation Overlay (Placed Last, absolute top) */}
-            {showDeleteConfirm && (
-                <div className="fixed inset-0 flex items-center justify-center p-4 sm:p-8 md:p-12 bg-black/60 backdrop-blur-sm animate-fade-in" style={{ zIndex: Math.max(modalZ.issue, modalZ.career) + 50 }}>
-                    <div className="bg-card border border-red-500/30 rounded-2xl p-5 md:p-6 max-w-sm w-full shadow-2xl flex flex-col max-h-full" onClick={e => e.stopPropagation()}>
-                        <h3 className="text-lg font-bold text-red-500 mb-2 flex items-center gap-2 shrink-0">
-                            <AlertTriangle className="w-5 h-5" /> Nuclear Delete
-                        </h3>
-                        <p className="text-xs text-muted-foreground mb-6 leading-relaxed overflow-y-auto thin-scrollbar">
-                            This will permanently wipe this issue, all associated bids, and scrub all related notifications from existence. This cannot be undone.
-                        </p>
-                        <div className="flex justify-end gap-3 shrink-0">
-                            <button onClick={() => setShowDeleteConfirm(false)} disabled={isDeleting} className="px-4 py-2 rounded-xl text-sm font-bold bg-muted/50 hover:bg-muted transition-colors">Cancel</button>
-                            <button onClick={handleDeleteIssue} disabled={isDeleting} className="px-4 py-2 rounded-xl text-sm font-black bg-red-500 text-white hover:bg-red-600 transition-colors flex items-center justify-center min-w-[80px]">
-                                {isDeleting ? <MiniLoader className="w-4 h-4 text-white" /> : 'Delete'}
-                            </button>
                         </div>
-                    </div>
-                </div>
+                    )}
+                </>,
+                document.body
             )}
         </motion.div>
     );

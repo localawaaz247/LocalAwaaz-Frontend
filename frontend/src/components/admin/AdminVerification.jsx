@@ -1,22 +1,33 @@
 import React, { useState, useEffect } from 'react';
+import { createPortal } from 'react-dom';
 import axiosInstance from '../../utils/axios';
 import { showToast } from '../../utils/toast';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
     Building2, MapPin, Search, Clock, CheckCircle,
-    XCircle, ShieldCheck, Mail, ChevronRight
+    XCircle, ShieldCheck, Mail, ChevronRight, Filter
 } from 'lucide-react';
 import MiniLoader from '../MiniLoader';
 import AuthorityDetailModal from '../modals/AuthorityDetailModal';
 
 const AdminVerification = () => {
+    // Portal hydration state
+    const [isMounted, setIsMounted] = useState(false);
+
     const [authorities, setAuthorities] = useState([]);
     const [loading, setLoading] = useState(true);
     const [activeTab, setActiveTab] = useState('PENDING'); // 'PENDING', 'APPROVED', 'REJECTED'
     const [search, setSearch] = useState('');
 
+    // Mobile Filter State
+    const [isMobileFilterOpen, setIsMobileFilterOpen] = useState(false);
+
     const [selectedAuthority, setSelectedAuthority] = useState(null);
     const [isModalOpen, setIsModalOpen] = useState(false);
+
+    useEffect(() => {
+        setIsMounted(true);
+    }, []);
 
     useEffect(() => {
         fetchAuthorities();
@@ -74,9 +85,9 @@ const AdminVerification = () => {
         <motion.div
             initial={{ opacity: 0, y: 10 }}
             animate={{ opacity: 1, y: 0 }}
-            className="space-y-6 md:space-y-8 flex flex-col min-h-full pb-10"
+            className="space-y-6 md:space-y-8 flex flex-col min-h-full pb-10 relative"
         >
-            {/* --- HEADER (Aligned with Command Center style) --- */}
+            {/* --- HEADER --- */}
             <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 relative z-[50]">
                 <div className="flex flex-col gap-1">
                     <h2 className="text-3xl md:text-4xl font-black bg-clip-text text-transparent bg-gradient-to-r from-foreground to-foreground/60 drop-shadow-sm flex items-center gap-3">
@@ -88,11 +99,24 @@ const AdminVerification = () => {
                 </div>
             </div>
 
-            {/* --- FILTER & TABS BAR (Aligned with Analytics Filters) --- */}
+            {/* Mobile Filter Toggle Header */}
+            <div className="flex md:hidden justify-between items-center mt-2">
+                <h3 className="text-lg font-black text-foreground flex items-center gap-2">
+                    <Search className="text-primary" size={20} /> Search Profiles
+                </h3>
+                <button
+                    onClick={() => setIsMobileFilterOpen(!isMobileFilterOpen)}
+                    className={`p-2.5 rounded-xl border transition-colors ${isMobileFilterOpen ? 'bg-primary/10 border-primary/30 text-primary' : 'bg-card border-border/50 text-muted-foreground'}`}
+                >
+                    <Filter size={18} />
+                </button>
+            </div>
+
+            {/* --- FILTER & TABS BAR --- */}
             <div className="bg-card/60 backdrop-blur-xl border border-border/60 rounded-2xl p-4 shadow-lg relative z-[40]">
                 <div className="flex flex-col xl:flex-row gap-4">
-                    {/* Search Input */}
-                    <div className="relative flex-1 group">
+                    {/* Search Input (Hidden on mobile unless toggled) */}
+                    <div className={`${isMobileFilterOpen ? 'block' : 'hidden'} md:block relative flex-1 group`}>
                         <Search className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground group-focus-within:text-primary transition-colors" />
                         <input
                             type="text"
@@ -103,7 +127,7 @@ const AdminVerification = () => {
                         />
                     </div>
 
-                    {/* Tabs (Responsive) */}
+                    {/* Tabs (Always visible, responsive scroll) */}
                     <div className="flex gap-2 w-full xl:w-auto overflow-x-auto thin-scrollbar shrink-0">
                         {TABS.map((tab) => {
                             const Icon = tab.icon;
@@ -114,8 +138,8 @@ const AdminVerification = () => {
                                     onClick={() => setActiveTab(tab.id)}
                                     title={tab.label}
                                     className={`flex-1 xl:flex-none flex items-center justify-center gap-1.5 sm:gap-2 px-3 sm:px-6 py-2.5 text-sm font-bold rounded-xl transition-all border shadow-sm ${isActive
-                                            ? `${tab.activeBg} ${tab.color}`
-                                            : 'bg-background/50 border-border/60 text-muted-foreground hover:bg-muted/50 hover:text-foreground'
+                                        ? `${tab.activeBg} ${tab.color}`
+                                        : 'bg-background/50 border-border/60 text-muted-foreground hover:bg-muted/50 hover:text-foreground'
                                         }`}
                                 >
                                     <Icon className={`w-5 h-5 sm:w-4 sm:h-4 ${isActive ? tab.color : 'opacity-70'}`} />
@@ -132,7 +156,7 @@ const AdminVerification = () => {
                 </div>
             </div>
 
-            {/* --- MAIN GRID AREA (Aligned with Analytics Main Container) --- */}
+            {/* --- MAIN GRID AREA --- */}
             <div className="bg-card/40 backdrop-blur-2xl border border-border/60 rounded-2xl overflow-hidden shadow-xl flex-1 flex flex-col relative z-[10] p-4 md:p-6 min-h-[400px]">
                 {loading ? (
                     <div className="flex h-full items-center justify-center p-12">
@@ -166,9 +190,8 @@ const AdminVerification = () => {
                                         transition={{ delay: index * 0.03 }}
                                         key={auth._id}
                                         onClick={() => openModal(auth)}
-                                        className="relative overflow-hidden text-left p-5 rounded-2xl bg-card/40 backdrop-blur-xl border border-border/50 shadow-sm transition-all duration-300 hover:shadow-lg group flex flex-col h-full"
+                                        className="relative overflow-hidden text-left p-4 sm:p-5 rounded-2xl bg-card/40 backdrop-blur-xl border border-border/50 shadow-sm transition-all duration-300 hover:shadow-lg group flex flex-col h-full"
                                     >
-                                        {/* Hover Gradient Effect (Mirrors MetricCard) */}
                                         <div className={`absolute inset-0 bg-gradient-to-br ${activeTabData.bg} to-transparent opacity-0 group-hover:opacity-30 transition-opacity`} />
 
                                         <div className="relative z-10 flex flex-col h-full gap-4">
@@ -218,13 +241,18 @@ const AdminVerification = () => {
                 )}
             </div>
 
-            {/* --- DETAIL MODAL --- */}
-            <AuthorityDetailModal
-                authority={selectedAuthority}
-                isOpen={isModalOpen}
-                onClose={() => setIsModalOpen(false)}
-                onActionComplete={handleActionComplete}
-            />
+            {/* --- PORTAL MODAL --- */}
+            {isMounted && createPortal(
+                <div style={{ zIndex: 9999, position: 'relative' }}>
+                    <AuthorityDetailModal
+                        authority={selectedAuthority}
+                        isOpen={isModalOpen}
+                        onClose={() => setIsModalOpen(false)}
+                        onActionComplete={handleActionComplete}
+                    />
+                </div>,
+                document.body
+            )}
         </motion.div>
     );
 };

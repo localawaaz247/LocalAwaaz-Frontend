@@ -6,7 +6,7 @@ import {
     Target, CheckSquare, AlertTriangle, AlertCircle, Search,
     MapPin, Zap, Download, X, List, Eye, Briefcase, Clock,
     Star, ChevronLeft, ChevronRight, FileText, History, Shield,
-    TrendingUp, TrendingDown, Activity, Info
+    TrendingUp, TrendingDown, Activity, Info, Filter
 } from 'lucide-react';
 import CustomSelect from '../CustomSelect';
 import MiniLoader from '../MiniLoader';
@@ -43,6 +43,9 @@ const AuthorityAnalytics = () => {
     const [page, setPage] = useState(1);
     const [totalPages, setTotalPages] = useState(1);
     const [filters, setFilters] = useState({ status: '', category: '', search: '', state: '', city: '', highImpact: false });
+    
+    // Mobile Filter State
+    const [isMobileFilterOpen, setIsMobileFilterOpen] = useState(false);
 
     // Geographic Data
     const [statesList, setStatesList] = useState([]);
@@ -109,18 +112,16 @@ const AuthorityAnalytics = () => {
         return () => { document.body.style.overflow = 'unset'; };
     }, [isModalVisible, metricModal.isOpen, csiModal.isOpen]);
 
-    // 🟢 NEW: Real-Time Synchronization Listener
+    // 🟢 Real-Time Synchronization Listener
     useEffect(() => {
-        if (socket) { // Ensure your socket instance is available in this component
+        if (socket) {
             const handleRealTimeUpdate = (notification) => {
-                // If the system broadcasts an update, reward, or penalty, refresh the data!
                 const relevantTypes = ['UPDATE', 'URGENT', 'CRITICAL', 'SYSTEM_BROADCAST', 'REWARD'];
 
                 if (relevantTypes.includes(notification.type)) {
                     console.log("Real-time event received! Refreshing analytics data...");
-                    fetchData(); // Instantly update the top metric boxes and main table
+                    fetchData();
 
-                    // If the user happens to be looking at the CSI ledger right now, refresh that too!
                     if (csiModal.isOpen) {
                         fetchCsiHistory();
                     }
@@ -130,7 +131,7 @@ const AuthorityAnalytics = () => {
             socket.on('receive_notification', handleRealTimeUpdate);
 
             return () => {
-                socket.off('receive_notification', handleRealTimeUpdate); // Clean up on unmount
+                socket.off('receive_notification', handleRealTimeUpdate);
             };
         }
     }, [socket, csiModal.isOpen]);
@@ -266,7 +267,6 @@ const AuthorityAnalytics = () => {
         return combined.sort((a, b) => b.time - a.time);
     };
 
-    // 🟢 UPDATED: Metrics Data with new Order, Names, and Descriptions
     const metricsData = [
         { id: 'CSI', title: 'CSI Score', value: stats?.csiScore || 0, icon: Target, color: 'text-primary', bgGlow: 'from-primary/20', borderColor: 'border-primary/30', description: 'Your Civil Score Index. Increases upon resolving issues, drops heavily for missed deadlines or ghosting.' },
         { id: 'COMPLETED', title: 'Jobs Finished', value: stats?.jobsCompleted || 0, icon: CheckSquare, color: 'text-emerald-500', bgGlow: 'from-emerald-500/20', borderColor: 'border-emerald-500/30', description: 'Issues you have successfully resolved and submitted to Escrow for verification.' },
@@ -304,7 +304,7 @@ const AuthorityAnalytics = () => {
                 </motion.button>
             </div>
 
-            {/* 🟢 Glossy Metric Cards with Hover Tooltips */}
+            {/* 🟢 Glossy Metric Cards with Hover Tooltips & Mobile Responsive Text */}
             <div className="grid grid-cols-2 lg:grid-cols-3 xl:grid-cols-6 gap-4 shrink-0 relative z-[50]">
                 {metricsData.map((metric, index) => {
                     const Icon = metric.icon;
@@ -314,33 +314,30 @@ const AuthorityAnalytics = () => {
                             initial={{ opacity: 0, y: 20 }}
                             animate={{ opacity: 1, y: 0 }}
                             transition={{ delay: index * 0.05 }}
-                            className="relative group z-10 hover:z-[60]" // Elevates on hover so tooltip doesn't clip
+                            className="relative group z-10 hover:z-[60]"
                         >
-                            {/* The Floating Tooltip */}
                             <div className="absolute bottom-[calc(100%+8px)] left-1/2 -translate-x-1/2 w-[220px] p-3 rounded-xl bg-card/95 backdrop-blur-xl border border-border/60 shadow-2xl opacity-0 scale-95 group-hover:opacity-100 group-hover:scale-100 transition-all duration-300 pointer-events-none hidden md:block">
                                 <p className="text-[11px] text-muted-foreground leading-relaxed text-center font-medium">
                                     {metric.description}
                                 </p>
-                                {/* Pointer arrow */}
                                 <div className="absolute -bottom-1.5 left-1/2 -translate-x-1/2 w-3 h-3 bg-card/95 border-b border-r border-border/60 rotate-45" />
                             </div>
 
-                            {/* The Card Button */}
                             <button
                                 onClick={() => handleMetricClick(metric.id, metric.title)}
-                                className={`w-full relative overflow-hidden text-left p-5 rounded-2xl bg-card/40 backdrop-blur-xl border border-border/50 shadow-sm transition-all duration-300 hover:shadow-lg hover:-translate-y-1 hover:${metric.borderColor}`}
+                                className={`w-full relative overflow-hidden text-left p-4 sm:p-5 rounded-2xl bg-card/40 backdrop-blur-xl border border-border/50 shadow-sm transition-all duration-300 hover:shadow-lg hover:-translate-y-1 hover:${metric.borderColor}`}
                             >
                                 <div className={`absolute inset-0 bg-gradient-to-br ${metric.bgGlow} to-transparent opacity-20 group-hover:opacity-40 transition-opacity`} />
                                 <div className="absolute -inset-1 bg-gradient-to-b from-white/10 to-transparent opacity-0 group-hover:opacity-100 transition-opacity blur-sm pointer-events-none" />
 
                                 <div className="relative z-10 flex flex-col h-full justify-between gap-3">
-                                    <div className="flex items-center justify-between">
-                                        <p className="text-[11px] font-bold text-muted-foreground uppercase tracking-widest flex items-center gap-1.5">
-                                            <Icon size={14} className={metric.color} /> {metric.title}
+                                    <div className="flex items-center justify-between min-w-0">
+                                        <p className="text-[10px] sm:text-[11px] font-bold text-muted-foreground uppercase tracking-widest flex items-center gap-1 sm:gap-1.5 truncate">
+                                            <Icon size={14} className={`shrink-0 ${metric.color}`} /> 
+                                            <span className="truncate">{metric.title}</span>
                                         </p>
-                                        {/* Mobile Info Icon indicator */}
-                                        <div className="md:hidden opacity-50"><Info size={12} className={metric.color} /></div>
-                                        <div className="hidden md:block">
+                                        <div className="md:hidden opacity-50 shrink-0"><Info size={12} className={metric.color} /></div>
+                                        <div className="hidden md:block shrink-0">
                                             {metric.id === 'CSI' ? (
                                                 <Activity size={14} className={`opacity-0 group-hover:opacity-100 transition-opacity ${metric.color}`} />
                                             ) : (
@@ -348,7 +345,7 @@ const AuthorityAnalytics = () => {
                                             )}
                                         </div>
                                     </div>
-                                    <h3 className="text-3xl font-black text-foreground drop-shadow-sm">{metric.value}</h3>
+                                    <h3 className="text-2xl sm:text-3xl font-black text-foreground drop-shadow-sm truncate">{metric.value}</h3>
                                 </div>
                             </button>
                         </motion.div>
@@ -356,8 +353,22 @@ const AuthorityAnalytics = () => {
                 })}
             </div>
 
-            {/* Z-INDEX FIX: Filters outside the overflow-hidden wrapper */}
-            <div className="bg-card/60 backdrop-blur-xl border border-border/60 rounded-2xl p-4 shadow-lg relative z-[40]">
+            {/* Mobile Issue Browse Header + Funnel Button */}
+            <div className="flex md:hidden justify-between items-center mt-6">
+                <div className="flex items-center gap-2">
+                    <Search className="text-primary" size={20} />
+                    <h3 className="text-lg font-bold text-foreground">Browse All Issues</h3>
+                </div>
+                <button 
+                    onClick={() => setIsMobileFilterOpen(!isMobileFilterOpen)}
+                    className={`p-2.5 rounded-xl border transition-colors ${isMobileFilterOpen ? 'bg-primary/10 border-primary/30 text-primary' : 'bg-card border-border/50 text-muted-foreground'}`}
+                >
+                    <Filter size={18} />
+                </button>
+            </div>
+
+            {/* Filters */}
+            <div className={`${isMobileFilterOpen ? 'block' : 'hidden'} md:block bg-card/60 backdrop-blur-xl border border-border/60 rounded-2xl p-4 shadow-lg relative z-[40] transition-all`}>
                 <div className="flex flex-col xl:flex-row gap-4">
                     <div className="relative flex-1 group">
                         <Search className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground group-focus-within:text-primary transition-colors" />
@@ -369,7 +380,7 @@ const AuthorityAnalytics = () => {
                             className="w-full pl-11 pr-4 py-2.5 bg-background/50 border border-border/60 rounded-xl text-sm font-medium focus:border-primary focus:ring-2 focus:ring-primary/20 outline-none transition-all"
                         />
                     </div>
-                    <div className="flex gap-3 flex-wrap xl:flex-nowrap relative z-[70]">
+                    <div className="flex gap-3 flex-col sm:flex-row flex-wrap xl:flex-nowrap relative z-[70]">
                         <div className="w-full sm:w-36 relative z-[74]"><CustomSelect options={stateOptions} value={filters.state} onChange={v => { setFilters({ ...filters, state: v, city: '' }); setPage(1); }} /></div>
                         <div className="w-full sm:w-36 relative z-[73]"><CustomSelect options={districtOptions} value={filters.city} onChange={v => { setFilters({ ...filters, city: v }); setPage(1); }} /></div>
                         <div className="w-full sm:w-40 relative z-[72]"><CustomSelect options={CATEGORIES} value={filters.category} onChange={v => { setFilters({ ...filters, category: v }); setPage(1); }} /></div>
@@ -377,7 +388,6 @@ const AuthorityAnalytics = () => {
                     </div>
                 </div>
 
-                {/* ANIMATED TOGGLE SWITCH */}
                 <div className="mt-4 flex items-center gap-3 w-max cursor-pointer select-none" onClick={() => { setFilters(prev => ({ ...prev, highImpact: !prev.highImpact })); setPage(1); }}>
                     <div className={`w-12 h-6 flex items-center rounded-full p-1 transition-colors duration-300 shadow-inner ${filters.highImpact ? 'bg-yellow-500' : 'bg-muted/80 border border-border/50'}`}>
                         <motion.div
@@ -393,92 +403,147 @@ const AuthorityAnalytics = () => {
                 </div>
             </div>
 
-            {/* The Table Wrapper */}
-            <div className="bg-card/40 backdrop-blur-2xl border border-border/60 rounded-2xl overflow-hidden shadow-xl flex-1 flex flex-col min-h-[400px] md:min-h-0 relative z-[10] mb-8 md:mb-0">                <div className="overflow-x-auto thin-scrollbar flex-1 bg-background/20">
-                <table className="w-full text-left whitespace-nowrap">
-                    <thead className="bg-muted/40 backdrop-blur-md border-b border-border/50 sticky top-0 z-10 shadow-sm">
-                        <tr className="text-muted-foreground text-[11px] uppercase tracking-widest">
-                            <th className="py-4 px-6 font-bold">Issue Detail</th>
-                            <th className="py-4 px-6 font-bold">Location</th>
-                            <th className="py-4 px-6 font-bold">Status</th>
-                            <th className="py-4 px-6 font-bold text-right">Impact Score</th>
-                        </tr>
-                    </thead>
-                    <tbody className="divide-y divide-border/30">
-                        <AnimatePresence>
-                            {visibleIssues.length === 0 ? (
-                                <motion.tr initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}>
-                                    <td colSpan="4" className="p-12 text-center text-sm font-medium text-muted-foreground">
-                                        <Search className="w-8 h-8 opacity-20 mx-auto mb-2" />
-                                        <p>No issues found matching your filters.</p>
-                                    </td>
-                                </motion.tr>
-                            ) : (
-                                visibleIssues.map((issue) => {
-                                    const isMyJob = issue.bidding?.winningBid?.authorityId === user?._id;
-                                    return (
-                                        <motion.tr
-                                            layout
-                                            initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }}
-                                            key={issue._id}
-                                            onClick={() => openModal(issue._id)}
-                                            className="hover:bg-primary/5 transition-all cursor-pointer group"
-                                        >
-                                            <td className="py-4 px-6">
-                                                <div className="flex items-center gap-2">
-                                                    <span className="font-bold text-sm text-foreground group-hover:text-primary transition-colors">
-                                                        {fetchingIssueId === issue._id ? 'Loading Details...' : issue.title}
-                                                    </span>
-                                                </div>
-                                                <p className="text-[10px] text-muted-foreground mt-1 uppercase tracking-wider font-semibold">{issue.category}</p>
-                                            </td>
-                                            <td className="py-4 px-6">
-                                                <p className="text-sm font-semibold">{issue.location?.city || issue.location?.district}</p>
-                                                <p className="text-[11px] text-muted-foreground mt-0.5">{issue.location?.state}</p>
-                                            </td>
-                                            <td className="py-4 px-6 flex items-center gap-2">
-                                                <span className={`text-[10px] border px-2.5 py-1 rounded-md font-bold uppercase tracking-widest shadow-sm ${statusColors[issue.status] || statusColors.OPEN}`}>
-                                                    {issue.status}
+            {/* 🟢 Mobile Card View Wrapper (Hidden on md+) */}
+            <div className="md:hidden flex flex-col gap-3 relative z-[10] mb-6">
+                <AnimatePresence>
+                    {visibleIssues.length === 0 ? (
+                        <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="p-10 text-center bg-card/40 border border-border/50 rounded-2xl">
+                            <Search className="w-8 h-8 opacity-20 mx-auto mb-2 text-muted-foreground" />
+                            <p className="text-sm font-medium text-muted-foreground">No issues found matching your filters.</p>
+                        </motion.div>
+                    ) : (
+                        visibleIssues.map((issue) => {
+                            const isMyJob = issue.bidding?.winningBid?.authorityId === user?._id;
+                            return (
+                                <motion.div
+                                    layout
+                                    initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }}
+                                    key={issue._id}
+                                    onClick={() => openModal(issue._id)}
+                                    className="bg-card/60 backdrop-blur-md border border-border/60 rounded-xl p-4 flex flex-col gap-3 shadow-sm hover:border-primary/50 transition-all cursor-pointer"
+                                >
+                                    <div className="flex justify-between items-start gap-3">
+                                        <div className="flex-1">
+                                            <h4 className="font-bold text-sm text-foreground line-clamp-2 leading-snug">
+                                                {fetchingIssueId === issue._id ? 'Loading...' : issue.title}
+                                            </h4>
+                                            <p className="text-[10px] text-muted-foreground mt-1.5 uppercase tracking-wider font-semibold">{issue.category}</p>
+                                        </div>
+                                        <span className={`shrink-0 text-[9px] border px-2 py-1 rounded-md font-bold uppercase tracking-widest shadow-sm ${statusColors[issue.status] || statusColors.OPEN}`}>
+                                            {issue.status}
+                                        </span>
+                                    </div>
+
+                                    <div className="flex justify-between items-end mt-1 pt-3 border-t border-border/30">
+                                        <div>
+                                            <p className="text-xs font-semibold text-foreground flex items-center gap-1"><MapPin size={12} className="opacity-50"/>{issue.location?.city || issue.location?.district}</p>
+                                            <p className="text-[10px] text-muted-foreground mt-0.5 ml-4">{issue.location?.state}</p>
+                                        </div>
+                                        <div className="flex flex-col items-end gap-1.5">
+                                            {isMyJob && (
+                                                <span className="bg-yellow-500/10 text-yellow-500 border border-yellow-500/30 px-1.5 py-0.5 rounded flex items-center gap-1 text-[8px] font-black uppercase tracking-widest">
+                                                    <Star size={8} className="fill-yellow-500" /> My Job
                                                 </span>
-                                                {isMyJob && (
-                                                    <span className="bg-yellow-500/10 text-yellow-500 border border-yellow-500/30 px-2 py-1 rounded-md flex items-center gap-1.5 text-[9px] font-black uppercase tracking-widest">
-                                                        <Star size={10} className="fill-yellow-500" /> My Job
-                                                    </span>
-                                                )}
-                                            </td>
-                                            <td className="py-4 px-6 text-right">
-                                                <span className="inline-flex items-center justify-end gap-1.5 text-sm font-black text-yellow-500 bg-yellow-500/10 px-3 py-1 rounded-lg border border-yellow-500/20">
-                                                    <Zap size={14} className="fill-yellow-500/20" /> {issue.impactScore || 0}
-                                                </span>
-                                            </td>
-                                        </motion.tr>
-                                    );
-                                })
-                            )}
-                        </AnimatePresence>
-                    </tbody>
-                </table>
+                                            )}
+                                            <span className="inline-flex items-center justify-end gap-1 text-xs font-black text-yellow-500">
+                                                <Zap size={12} className="fill-yellow-500/20" /> {issue.impactScore || 0}
+                                            </span>
+                                        </div>
+                                    </div>
+                                </motion.div>
+                            )
+                        })
+                    )}
+                </AnimatePresence>
             </div>
 
-                {/* Pagination */}
-                {!loading && totalPages > 1 && (
-                    <div className="p-4 border-t border-border/50 bg-background/40 backdrop-blur-md flex justify-between items-center text-xs font-semibold text-muted-foreground">
-                        <span className="tracking-widest uppercase">Page {page} of {totalPages}</span>
-                        <div className="space-x-2 flex">
-                            <button disabled={page === 1} onClick={() => setPage(p => p - 1)} className="p-2 bg-card/80 border border-border/50 rounded-xl hover:bg-muted disabled:opacity-50 transition-all shadow-sm">
-                                <ChevronLeft size={16} />
-                            </button>
-                            <button disabled={page === totalPages} onClick={() => setPage(p => p + 1)} className="p-2 bg-card/80 border border-border/50 rounded-xl hover:bg-muted disabled:opacity-50 transition-all shadow-sm">
-                                <ChevronRight size={16} />
-                            </button>
-                        </div>
+            {/* 🟢 Desktop Table Wrapper (Hidden on mobile) */}
+            <div className="hidden md:flex bg-card/40 backdrop-blur-2xl border border-border/60 rounded-2xl overflow-hidden shadow-xl flex-1 flex-col min-h-[400px] relative z-[10] mb-0">                
+                <div className="overflow-x-auto thin-scrollbar flex-1 bg-background/20">
+                    <table className="w-full text-left whitespace-nowrap">
+                        <thead className="bg-muted/40 backdrop-blur-md border-b border-border/50 sticky top-0 z-10 shadow-sm">
+                            <tr className="text-muted-foreground text-[11px] uppercase tracking-widest">
+                                <th className="py-4 px-6 font-bold">Issue Detail</th>
+                                <th className="py-4 px-6 font-bold">Location</th>
+                                <th className="py-4 px-6 font-bold">Status</th>
+                                <th className="py-4 px-6 font-bold text-right">Impact Score</th>
+                            </tr>
+                        </thead>
+                        <tbody className="divide-y divide-border/30">
+                            <AnimatePresence>
+                                {visibleIssues.length === 0 ? (
+                                    <motion.tr initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}>
+                                        <td colSpan="4" className="p-12 text-center text-sm font-medium text-muted-foreground">
+                                            <Search className="w-8 h-8 opacity-20 mx-auto mb-2" />
+                                            <p>No issues found matching your filters.</p>
+                                        </td>
+                                    </motion.tr>
+                                ) : (
+                                    visibleIssues.map((issue) => {
+                                        const isMyJob = issue.bidding?.winningBid?.authorityId === user?._id;
+                                        return (
+                                            <motion.tr
+                                                layout
+                                                initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }}
+                                                key={issue._id}
+                                                onClick={() => openModal(issue._id)}
+                                                className="hover:bg-primary/5 transition-all cursor-pointer group"
+                                            >
+                                                <td className="py-4 px-6">
+                                                    <div className="flex items-center gap-2">
+                                                        <span className="font-bold text-sm text-foreground group-hover:text-primary transition-colors">
+                                                            {fetchingIssueId === issue._id ? 'Loading Details...' : issue.title}
+                                                        </span>
+                                                    </div>
+                                                    <p className="text-[10px] text-muted-foreground mt-1 uppercase tracking-wider font-semibold">{issue.category}</p>
+                                                </td>
+                                                <td className="py-4 px-6">
+                                                    <p className="text-sm font-semibold">{issue.location?.city || issue.location?.district}</p>
+                                                    <p className="text-[11px] text-muted-foreground mt-0.5">{issue.location?.state}</p>
+                                                </td>
+                                                <td className="py-4 px-6 flex items-center gap-2">
+                                                    <span className={`text-[10px] border px-2.5 py-1 rounded-md font-bold uppercase tracking-widest shadow-sm ${statusColors[issue.status] || statusColors.OPEN}`}>
+                                                        {issue.status}
+                                                    </span>
+                                                    {isMyJob && (
+                                                        <span className="bg-yellow-500/10 text-yellow-500 border border-yellow-500/30 px-2 py-1 rounded-md flex items-center gap-1.5 text-[9px] font-black uppercase tracking-widest">
+                                                            <Star size={10} className="fill-yellow-500" /> My Job
+                                                        </span>
+                                                    )}
+                                                </td>
+                                                <td className="py-4 px-6 text-right">
+                                                    <span className="inline-flex items-center justify-end gap-1.5 text-sm font-black text-yellow-500 bg-yellow-500/10 px-3 py-1 rounded-lg border border-yellow-500/20">
+                                                        <Zap size={14} className="fill-yellow-500/20" /> {issue.impactScore || 0}
+                                                    </span>
+                                                </td>
+                                            </motion.tr>
+                                        );
+                                    })
+                                )}
+                            </AnimatePresence>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+
+            {/* Pagination (Visible for both desktop and mobile) */}
+            {!loading && totalPages > 1 && (
+                <div className="p-4 border border-border/50 rounded-2xl md:rounded-b-2xl md:border-t-0 md:rounded-t-none bg-background/40 backdrop-blur-md flex justify-between items-center text-xs font-semibold text-muted-foreground shadow-sm">
+                    <span className="tracking-widest uppercase">Page {page} of {totalPages}</span>
+                    <div className="space-x-2 flex">
+                        <button disabled={page === 1} onClick={() => setPage(p => p - 1)} className="p-2 bg-card/80 border border-border/50 rounded-xl hover:bg-muted disabled:opacity-50 transition-all shadow-sm">
+                            <ChevronLeft size={16} />
+                        </button>
+                        <button disabled={page === totalPages} onClick={() => setPage(p => p + 1)} className="p-2 bg-card/80 border border-border/50 rounded-xl hover:bg-muted disabled:opacity-50 transition-all shadow-sm">
+                            <ChevronRight size={16} />
+                        </button>
                     </div>
-                )}
-            </div>
+                </div>
+            )}
 
-            {/* ========================================== */}
-            {/* 🟢 1. CSI SCORE HISTORY MODAL             */}
-            {/* ========================================== */}
+            {/* ... Modals remaining identically exactly as original ... */}
+            
+            {/* 🟢 1. CSI SCORE HISTORY MODAL */}
             <AnimatePresence>
                 {csiModal.isOpen && (
                     <div className="fixed inset-0 z-[100] flex items-center justify-center p-4">
@@ -540,9 +605,7 @@ const AuthorityAnalytics = () => {
                 )}
             </AnimatePresence>
 
-            {/* ========================================== */}
-            {/* 🟢 METRIC LIST MODAL                      */}
-            {/* ========================================== */}
+            {/* 🟢 METRIC LIST MODAL */}
             <AnimatePresence>
                 {metricModal.isOpen && (
                     <div className="fixed inset-0 z-[100] flex items-center justify-center p-4">
@@ -599,9 +662,7 @@ const AuthorityAnalytics = () => {
                 )}
             </AnimatePresence>
 
-            {/* ========================================== */}
             {/* 🟢 2. ADMIN-STYLE SPLIT SCREEN DETAIL MODAL */}
-            {/* ========================================== */}
             <AnimatePresence>
                 {isModalVisible && selectedIssue && (
                     <div className="fixed inset-0 z-[200] flex items-center justify-center p-2 sm:p-4">
