@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { createPortal } from 'react-dom';
+import { useSelector } from 'react-redux';
 import axiosInstance from '../../utils/axios';
 import { showToast } from '../../utils/toast';
 import { motion, AnimatePresence } from 'framer-motion';
@@ -8,15 +9,13 @@ import {
     CheckCircle, AlertTriangle, Trash2, Search, Shield,
     Leaf, Flame, Clock, History, Briefcase, Download, ArrowRight, RotateCcw,
     ShieldAlert, Zap, MoreVertical, Ban, AlertOctagon, Trophy, Medal, Star, CheckSquare,
-    ListIcon, Filter, Camera
+    Filter, Camera, Users
 } from 'lucide-react';
 import MiniLoader from '../MiniLoader';
 import CustomSelect from '../../components/CustomSelect';
 import { cscApi } from '../../utils/cscAPI';
 
 // --- HELPERS ---
-const getAvatar = (name) => `https://ui-avatars.com/api/?name=${encodeURIComponent(name || 'U')}&background=random&color=fff&size=128&bold=true`;
-
 const getCorsSafeUrl = (url) => {
     if (!url) return null;
     if (url.includes('ui-avatars.com')) return url;
@@ -41,7 +40,6 @@ const timeAgo = (dateInput) => {
     return Math.floor(seconds) + "s ago";
 };
 
-// --- TIMELINE GENERATOR ---
 const generateTimeline = (issue) => {
     if (!issue) return [];
     const combined = [];
@@ -74,7 +72,21 @@ const statusColors = {
     RELEASED: "bg-amber-500/10 text-amber-500 border-amber-500/30"
 };
 
+const Avatar = ({ src, name, size = "w-10 h-10", iconSize = "w-5 h-5" }) => {
+    const [imageError, setImageError] = useState(false);
+    useEffect(() => { setImageError(false); }, [src]);
+    if (!src || imageError) {
+        return (
+            <div className={`${size} shrink-0 rounded-full bg-primary/10 border border-primary/20 flex items-center justify-center text-primary`}>
+                <User className={iconSize} />
+            </div>
+        );
+    }
+    return <img src={getCorsSafeUrl(src)} alt={name || "User"} onError={() => setImageError(true)} crossOrigin="anonymous" className={`${size} shrink-0 rounded-full object-cover border border-border/50 bg-muted`} />;
+};
+
 const AdminIssues = () => {
+    const { user } = useSelector((state) => state.auth);
     const [isMounted, setIsMounted] = useState(false);
 
     const [issues, setIssues] = useState([]);
@@ -88,15 +100,16 @@ const AdminIssues = () => {
     const [districtsList, setDistrictsList] = useState([]);
 
     const [isMobileFilterOpen, setIsMobileFilterOpen] = useState(false);
-    const [selectedIssueForDetail, setSelectedIssueForDetail] = useState(null);
-    const [isModalVisible, setIsModalVisible] = useState(false);
 
     // --- MODALS & EXTENDED UI STATES ---
+    const [isModalVisible, setIsModalVisible] = useState(false);
+    const [selectedIssueForDetail, setSelectedIssueForDetail] = useState(null);
     const [careerModal, setCareerModal] = useState({ isOpen: false, profile: null, history: null, view: 'OVERVIEW', selectedCategory: '', issueList: [] });
-    const [actionMenuOpen, setActionMenuOpen] = useState(false);
 
+    // 🟢 Dynamic Z-Index for perfectly stacking modals
     const [modalZ, setModalZ] = useState({ issue: 200, career: 200 });
 
+    const [actionMenuOpen, setActionMenuOpen] = useState(false);
     const [actionTab, setActionTab] = useState('STATUS');
     const [updateData, setUpdateData] = useState({ status: '', adminRemark: '', resolvedByAuthority: '' });
     const [assignData, setAssignData] = useState({ authorityId: '', commitmentTimeHours: '' });
@@ -131,8 +144,18 @@ const AdminIssues = () => {
         { value: 'official', label: 'Officials' },
         { value: 'ngo', label: 'NGOs' }
     ];
+    const CATEGORIES = [
+        { value: '', label: 'All Categories' },
+        { value: 'ROAD_&_POTHOLES', label: 'Road & Potholes' },
+        { value: 'WATER_SUPPLY', label: 'Water Supply' },
+        { value: 'ELECTRICITY', label: 'Electricity' },
+        { value: 'SAFETY', label: 'Safety' },
+        { value: 'SANITATION', label: 'Sanitation' },
+        { value: 'GARBAGE', label: 'Garbage' },
+        { value: 'DRAINAGE', label: 'Drainage' },
+        { value: 'Other', lablel: 'Other' }
+    ];
 
-    // 🟢 UPDATED: Full God-Mode Status List
     const UPDATE_STATUS_OPTIONS = [
         { value: 'OPEN', label: 'OPEN (Auction)' },
         { value: 'LOCKED', label: 'LOCKED (Assigned)' },
@@ -167,14 +190,16 @@ const AdminIssues = () => {
         return () => clearTimeout(delayDebounceFn);
     }, [filters, page]);
 
+    // Body Scroll Lock
     useEffect(() => {
-        if (selectedIssueForDetail || showDeleteConfirm || careerModal.isOpen) document.body.style.overflow = 'hidden';
+        if (isModalVisible || showDeleteConfirm || careerModal.isOpen) document.body.style.overflow = 'hidden';
         else document.body.style.overflow = 'unset';
         return () => { document.body.style.overflow = 'unset'; };
-    }, [selectedIssueForDetail, showDeleteConfirm, careerModal.isOpen]);
+    }, [isModalVisible, showDeleteConfirm, careerModal.isOpen]);
 
     useEffect(() => { setCurrentMediaIndex(0); }, [mediaTab]);
 
+    // Modal Video Autoplay
     useEffect(() => {
         const isVideo = selectedIssueForDetail?.media?.[currentMediaIndex]?.url?.match(/\.(mp4|webm|ogg)$/i);
         if (isModalVisible && isVideo && videoRef.current) {
@@ -203,16 +228,6 @@ const AdminIssues = () => {
         } catch (error) { console.error(error); }
     };
 
-    const fetchAndOpenIssue = async (issueId) => {
-        try {
-            showToast({ icon: 'loading', title: 'Loading details...' });
-            const res = await axiosInstance.get(`/admin/issue/${issueId}`);
-            openModal(res.data.data);
-        } catch (error) {
-            showToast({ icon: 'error', title: 'Failed to load issue details' });
-        }
-    };
-
     const handleGlobalExport = async () => {
         try {
             showToast({ icon: 'loading', title: 'Generating Excel...' });
@@ -228,25 +243,57 @@ const AdminIssues = () => {
         } catch (error) { showToast({ icon: 'error', title: 'Export failed' }); }
     };
 
-    const handleQuickSuspend = async (userId) => {
+    // 🟢 Central Modal Controllers with Dynamic Z-Index
+    const openModal = async (issueId) => {
         try {
-            await axiosInstance.patch(`/admin/user/${userId}/status`, { accountStatus: 'SUSPENDED' });
-            showToast({ icon: 'success', title: 'User account suspended for 24h.' });
-            setActionMenuOpen(false);
+            showToast({ icon: 'loading', title: 'Loading details...' });
+            const res = await axiosInstance.get(`/admin/issue/${issueId}`);
+
+            const fetchedIssue = res.data.data?.issue || res.data.data;
+            const currentAssignee = fetchedIssue.bidding?.winningBid?.authorityId;
+            const assigneeId = currentAssignee ? (currentAssignee._id || currentAssignee) : '';
+
+            setSelectedIssueForDetail(fetchedIssue);
+
+            setUpdateData({
+                status: fetchedIssue.status,
+                adminRemark: fetchedIssue.adminRemark || '',
+                resolvedByAuthority: fetchedIssue.resolvedByAuthority ||
+                    fetchedIssue.resolutionEvidence?.resolvedByAuthority ||
+                    assigneeId || ''
+            });
+
+            setAssignData({ authorityId: '', commitmentTimeHours: '' });
+            setRevokeData({ reason: '', penaltyPoints: 0 });
+            setActionMedia(null);
+            setActionTab('STATUS');
+            setMediaTab('REPORTED');
+            setCurrentMediaIndex(0);
+
+            // Pop issue modal above career modal if career modal happens to be open
+            setModalZ(prev => ({ ...prev, issue: (prev.career || 200) + 10 }));
+            setIsModalVisible(true);
         } catch (error) {
-            showToast({ icon: 'error', title: 'Failed to suspend user.' });
+            showToast({ icon: 'error', title: 'Failed to load issue details' });
         }
     };
 
-    const handleQuickWarn = async () => {
-        showToast({ icon: 'success', title: 'Official warning sent to user.' });
+    const closeIssueModal = () => {
+        setIsModalVisible(false);
+        setShowDeleteConfirm(false);
         setActionMenuOpen(false);
+        setTimeout(() => {
+            setSelectedIssueForDetail(null);
+            setActionMedia(null);
+        }, 300);
     };
 
     const openCareerModal = async (userId) => {
         if (!userId) return;
         try {
             const res = await axiosInstance.get(`/admin/user/${userId}`);
+
+            // Pop career modal above issue modal
             setModalZ(prev => ({ ...prev, career: prev.issue + 10 }));
             setCareerModal({
                 isOpen: true,
@@ -261,11 +308,26 @@ const AdminIssues = () => {
         }
     };
 
+    // --- QUICK ACTIONS ---
+    const handleQuickSuspend = async (userId) => {
+        try {
+            await axiosInstance.patch(`/admin/user/${userId}/status`, { accountStatus: 'SUSPENDED' });
+            showToast({ icon: 'success', title: 'User account suspended for 24h.' });
+            setActionMenuOpen(false);
+        } catch (error) { showToast({ icon: 'error', title: 'Failed to suspend user.' }); }
+    };
+
+    const handleQuickWarn = async () => {
+        showToast({ icon: 'success', title: 'Official warning sent to user.' });
+        setActionMenuOpen(false);
+    };
+
+    // --- GOD MODE HANDLERS ---
     const handleUpdateStatus = async (e) => {
         e.preventDefault();
         setIsUpdating(true);
         try {
-            let payload = updateData;
+            let payload = { ...updateData };
             let headers = {};
 
             if (['DISPUTED', 'RESOLVED'].includes(updateData.status) && actionMedia) {
@@ -288,7 +350,7 @@ const AdminIssues = () => {
         } finally { setIsUpdating(false); }
     };
 
-    const handleForceAssignTable = async (e) => {
+    const handleForceAssign = async (e) => {
         e.preventDefault();
         setIsUpdating(true);
         try {
@@ -316,11 +378,16 @@ const AdminIssues = () => {
         } finally { setIsUpdating(false); }
     };
 
-    // 🟢 Extension Request Handler
-    const handleExtensionAction = async (action) => {
+    const handleExtensionAction = async (action, timeValue, timeUnit) => {
         setIsUpdating(true);
         try {
-            await axiosInstance.patch(`/admin/issue/${selectedIssueForDetail._id}/extension`, { action });
+            const payload = { action };
+            if (action === 'APPROVED') {
+                payload.timeValue = timeValue;
+                payload.timeUnit = timeUnit;
+            }
+
+            await axiosInstance.patch(`/admin/issue/${selectedIssueForDetail._id}/extension`, payload);
             showToast({ icon: 'success', title: `Extension ${action.toLowerCase()}!` });
             closeIssueModal();
             fetchIssues();
@@ -343,40 +410,7 @@ const AdminIssues = () => {
         } finally { setIsDeleting(false); }
     };
 
-    const openModal = async (issue) => {
-        setSelectedIssueForDetail(issue);
-        setUpdateData({
-            status: issue.status,
-            adminRemark: issue.adminRemark || '',
-            resolvedByAuthority: issue.resolvedByAuthority || issue.resolutionEvidence?.resolvedByAuthority || ''
-        });
-        setAssignData({ authorityId: '', commitmentTimeHours: '' });
-        setRevokeData({ reason: '', penaltyPoints: 0 });
-        setActionMedia(null);
-        setActionTab('STATUS');
-        setActionMenuOpen(false);
-
-        setMediaTab('REPORTED'); // Reset media tab
-        setCurrentMediaIndex(0);
-
-        setModalZ(prev => ({ ...prev, issue: prev.career + 10 }));
-        setTimeout(() => setIsModalVisible(true), 10);
-    };
-
-    const closeIssueModal = () => {
-        setIsModalVisible(false);
-        setShowDeleteConfirm(false);
-        setActionMenuOpen(false);
-        setTimeout(() => {
-            setSelectedIssueForDetail(null);
-            setActionMedia(null);
-        }, 300);
-    };
-
-    const stateOptions = [{ value: '', label: 'All States' }, ...statesList.map(s => ({ value: s.name, label: s.name }))];
-    const districtOptions = [{ value: '', label: 'All Districts' }, ...districtsList.map(d => ({ value: d.name, label: d.name }))];
-
-    // 🟢 Media Tabs Logic
+    // 🟢 Media Tabs Parsing
     let claimedUrls = [];
     let opposedUrls = [];
     let reportedUrls = [];
@@ -403,10 +437,12 @@ const AdminIssues = () => {
                 : opposedUrls;
     }
 
-    return (
-        <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} className="space-y-4 md:space-y-6 flex flex-col h-full pb-10">
+    const stateOptions = [{ value: '', label: 'All States' }, ...statesList.map(s => ({ value: s.name, label: s.name }))];
+    const districtOptions = [{ value: '', label: 'All Districts' }, ...districtsList.map(d => ({ value: d.name, label: d.name }))];
 
-            {/* Control Deck Header */}
+    return (
+        <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} className="space-y-4 md:space-y-6 flex flex-col h-full overflow-y-auto pb-10">
+            {/* Header */}
             <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 relative z-[50]">
                 <div className="flex flex-col gap-1">
                     <h2 className="text-3xl md:text-4xl font-black bg-clip-text text-transparent bg-gradient-to-r from-foreground to-foreground/60 drop-shadow-sm flex items-center gap-3">
@@ -438,8 +474,8 @@ const AdminIssues = () => {
 
             {/* Filters Section */}
             <div className={`${isMobileFilterOpen ? 'block' : 'hidden'} md:block bg-card/60 backdrop-blur-xl border border-border/60 rounded-2xl p-4 shadow-lg relative z-[40]`}>
-                <div className="flex flex-col gap-4">
-                    <div className="relative w-full group">
+                <div className="flex flex-col xl:flex-row gap-4">
+                    <div className="relative flex-1 group">
                         <Search className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground group-focus-within:text-primary transition-colors" />
                         <input
                             type="text"
@@ -449,14 +485,82 @@ const AdminIssues = () => {
                             className="w-full pl-11 pr-4 py-2.5 bg-background/50 border border-border/60 rounded-xl text-sm font-medium focus:border-primary focus:ring-2 focus:ring-primary/20 outline-none transition-all shadow-inner"
                         />
                     </div>
-
-                    <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 relative z-[70]">
-                        <CustomSelect options={stateOptions} value={filters.state} onChange={(val) => { setFilters({ ...filters, state: val, city: '' }); setPage(1); }} />
-                        <CustomSelect options={districtOptions} value={filters.city} onChange={(val) => { setFilters({ ...filters, city: val }); setPage(1); }} />
-                        <CustomSelect options={REPORTER_ROLE_OPTIONS} value={filters.reporterRole} onChange={(val) => { setFilters({ ...filters, reporterRole: val }); setPage(1); }} />
-                        <CustomSelect options={FILTER_STATUS_OPTIONS} value={filters.status} onChange={(val) => { setFilters({ ...filters, status: val }); setPage(1); }} />
+                    <div className="flex gap-3 flex-col sm:flex-row flex-wrap xl:flex-nowrap relative z-[70]">
+                        <div className="w-full sm:w-36 relative z-[74]"><CustomSelect options={stateOptions} value={filters.state} onChange={v => { setFilters({ ...filters, state: v, city: '' }); setPage(1); }} /></div>
+                        <div className="w-full sm:w-36 relative z-[73]"><CustomSelect options={districtOptions} value={filters.city} onChange={v => { setFilters({ ...filters, city: v }); setPage(1); }} /></div>
+                        <div className="w-full sm:w-40 relative z-[72]"><CustomSelect options={CATEGORIES} value={filters.category} onChange={v => { setFilters({ ...filters, category: v }); setPage(1); }} /></div>
+                        <div className="w-full sm:w-40 relative z-[71]"><CustomSelect options={FILTER_STATUS_OPTIONS} value={filters.status} onChange={v => { setFilters({ ...filters, status: v }); setPage(1); }} /></div>
                     </div>
                 </div>
+            </div>
+
+            {/* 🟢 Mobile Card View Wrapper (Hidden on md+) */}
+            <div className="md:hidden flex flex-col gap-3 relative z-[10] mb-6">
+                <AnimatePresence>
+                    {loading ? (
+                        [...Array(4)].map((_, i) => (
+                            <div key={i} className="bg-card/60 border border-border/60 rounded-xl p-4 flex flex-col gap-3 animate-pulse">
+                                <div className="flex justify-between items-start gap-3">
+                                    <div className="flex-1 space-y-2">
+                                        <div className="h-4 w-3/4 bg-muted rounded"></div>
+                                        <div className="h-3 w-1/2 bg-muted/50 rounded"></div>
+                                    </div>
+                                    <div className="h-6 w-16 bg-muted rounded-md shrink-0"></div>
+                                </div>
+                                <div className="flex justify-between items-end mt-1 pt-3 border-t border-border/30">
+                                    <div className="h-3 w-24 bg-muted/50 rounded"></div>
+                                    <div className="h-4 w-12 bg-muted rounded"></div>
+                                </div>
+                            </div>
+                        ))
+                    ) : issues.length === 0 ? (
+                        <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="p-10 text-center bg-card/40 border border-border/50 rounded-2xl">
+                            <Search className="w-8 h-8 opacity-20 mx-auto mb-2 text-muted-foreground" />
+                            <p className="text-sm font-medium text-muted-foreground">No issues found matching your filters.</p>
+                        </motion.div>
+                    ) : (
+                        issues.map((issue) => {
+                            const isMyJob = issue.bidding?.winningBid?.authorityId === user?._id;
+                            return (
+                                <motion.div
+                                    layout
+                                    initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }}
+                                    key={issue._id}
+                                    onClick={() => openModal(issue._id)}
+                                    className="bg-card/60 backdrop-blur-md border border-border/60 rounded-xl p-4 flex flex-col gap-3 shadow-sm hover:border-primary/50 transition-all cursor-pointer group"
+                                >
+                                    <div className="flex justify-between items-start gap-3">
+                                        <div className="flex-1">
+                                            <h4 className="font-bold text-sm text-foreground line-clamp-2 leading-snug">
+                                                {issue.title}
+                                            </h4>
+                                            <p className="text-[10px] text-muted-foreground mt-1.5 uppercase tracking-wider font-semibold">{issue.category}</p>
+                                        </div>
+                                        <span className={`shrink-0 text-[9px] border px-2 py-1 rounded-md font-bold uppercase tracking-widest shadow-sm ${statusColors[issue.status] || statusColors.OPEN}`}>
+                                            {issue.status}
+                                        </span>
+                                    </div>
+                                    <div className="flex justify-between items-end mt-1 pt-3 border-t border-border/30">
+                                        <div>
+                                            <p className="text-xs font-semibold text-foreground flex items-center gap-1"><MapPin size={12} className="opacity-50" />{issue.location?.city || issue.location?.district || 'Unknown'}</p>
+                                            <p className="text-[10px] text-muted-foreground mt-0.5 ml-4">{issue.location?.state || 'Unknown'}</p>
+                                        </div>
+                                        <div className="flex flex-col items-end gap-1.5">
+                                            {isMyJob && (
+                                                <span className="bg-yellow-500/10 text-yellow-500 border border-yellow-500/30 px-1.5 py-0.5 rounded flex items-center gap-1 text-[8px] font-black uppercase tracking-widest">
+                                                    <Star size={8} className="fill-yellow-500" /> My Job
+                                                </span>
+                                            )}
+                                            <span className="inline-flex items-center justify-end gap-1 text-xs font-black text-yellow-500">
+                                                <Zap size={12} className="fill-yellow-500/20" /> {issue.impactScore || 0}
+                                            </span>
+                                        </div>
+                                    </div>
+                                </motion.div>
+                            )
+                        })
+                    )}
+                </AnimatePresence>
             </div>
 
             {/* 🟢 Desktop Table Wrapper */}
@@ -495,9 +599,9 @@ const AdminIssues = () => {
                                     issues.map((issue) => (
                                         <motion.tr
                                             layout
-                                            initial={{ opacity: 0 }} animate={{ opacity: 1 }}
+                                            initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }}
                                             key={issue._id}
-                                            onClick={() => openModal(issue)}
+                                            onClick={() => openModal(issue._id)}
                                             className="hover:bg-primary/5 transition-all cursor-pointer group"
                                         >
                                             <td className="py-4 px-6">
@@ -540,7 +644,7 @@ const AdminIssues = () => {
                                                 <p className="text-[11px] text-muted-foreground truncate max-w-[150px]">{issue.location?.state}</p>
                                             </td>
                                             <td className="py-4 px-6 text-right">
-                                                <button onClick={(e) => { e.stopPropagation(); openModal(issue); }} className="text-xs px-4 py-2 bg-primary/10 text-primary hover:bg-primary hover:text-white border border-primary/20 rounded-lg shadow-sm transition-all font-bold">
+                                                <button onClick={(e) => { e.stopPropagation(); openModal(issue._id); }} className="text-xs px-4 py-2 bg-primary/10 text-primary hover:bg-primary hover:text-white border border-primary/20 rounded-lg shadow-sm transition-all font-bold">
                                                     Triage
                                                 </button>
                                             </td>
@@ -555,7 +659,7 @@ const AdminIssues = () => {
 
             {/* Pagination Controls */}
             {!loading && totalPages > 1 && (
-                <div className="p-4 border-t border-border/50 bg-background/40 backdrop-blur-md flex justify-between items-center text-xs font-semibold text-muted-foreground">
+                <div className="p-4 border border-border/50 rounded-2xl md:rounded-b-2xl md:border-t-0 md:rounded-t-none bg-background/40 backdrop-blur-md flex justify-between items-center text-xs font-semibold text-muted-foreground shadow-sm mt-4 md:mt-0">
                     <span className="tracking-widest uppercase">Page {page} of {totalPages}</span>
                     <div className="space-x-2 flex">
                         <button disabled={page === 1} onClick={() => setPage(p => p - 1)} className="p-2 bg-card/80 border border-border/50 rounded-xl hover:bg-muted disabled:opacity-50 transition-all shadow-sm"><ChevronLeft size={16} /></button>
@@ -570,14 +674,337 @@ const AdminIssues = () => {
 
             {isMounted && createPortal(
                 <>
-                    {/* Career Page Modal */}
+                    {/* 🟢 1. ISSUE VIEWER MODAL (Deep Dive, Opens on top of everything) */}
+                    <AnimatePresence>
+                        {isModalVisible && selectedIssueForDetail && (
+                            <div className="fixed inset-0 flex items-center justify-center p-2 sm:p-4 bg-black/80 backdrop-blur-sm animate-fade-in" style={{ zIndex: modalZ.issue }}>
+                                <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="absolute inset-0" onClick={closeIssueModal} />
+
+                                <motion.div
+                                    initial={{ opacity: 0, scale: 0.95, y: 20 }} animate={{ opacity: 1, scale: 1, y: 0 }} exit={{ opacity: 0, scale: 0.95, y: 20 }}
+                                    className="relative bg-background border border-border/50 rounded-3xl w-full max-w-6xl shadow-2xl flex flex-col max-h-[85dvh] my-4 overflow-hidden z-10"
+                                    onClick={e => e.stopPropagation()}
+                                >
+                                    {/* Header */}
+                                    <div className="flex justify-between items-center p-4 md:p-5 border-b border-border/50 bg-muted/20 shrink-0">
+                                        <div className="flex items-center gap-3">
+                                            <span className={`px-3 py-1.5 rounded-xl text-[10px] font-black uppercase tracking-widest border shadow-sm ${statusColors[selectedIssueForDetail.status] || statusColors.OPEN}`}>
+                                                {selectedIssueForDetail.status}
+                                            </span>
+                                            <span className="text-xs font-mono text-muted-foreground hidden sm:block">ID: {selectedIssueForDetail._id}</span>
+                                        </div>
+                                        <div className="flex items-center gap-2">
+                                            <button onClick={() => setShowDeleteConfirm(true)} title="Delete Issue" className="p-2 rounded-full text-red-500 bg-red-500/10 hover:bg-red-500 hover:text-white transition-colors"><Trash2 size={18} /></button>
+                                            <button onClick={closeIssueModal} className="p-2 rounded-full bg-card border border-border/50 hover:bg-muted transition-colors"><X size={20} /></button>
+                                        </div>
+                                    </div>
+
+                                    {/* Split Body */}
+                                    <div className="flex flex-col lg:flex-row flex-1 min-h-0 overflow-y-auto lg:overflow-hidden thin-scrollbar">
+
+                                        {/* LEFT COLUMN: Media & Core Data */}
+                                        <div className="w-full lg:w-1/2 p-4 md:p-6 lg:border-r border-border/50 flex flex-col gap-5 shrink-0 lg:shrink lg:overflow-y-auto thin-scrollbar bg-background/50">
+                                            <h3 className="text-2xl md:text-3xl font-black text-foreground leading-tight">{selectedIssueForDetail.title}</h3>
+
+                                            {/* 🟢 MEDIA TABS */}
+                                            {['DISPUTED', 'RESOLVED', 'REJECTED', 'AWAITING_HANDOVER'].includes(selectedIssueForDetail.status) || claimedUrls.length || opposedUrls.length ? (
+                                                <div className="flex bg-muted/40 p-1.5 rounded-xl border border-border/50 w-full md:w-max">
+                                                    <button onClick={() => setMediaTab('REPORTED')} className={`flex-1 md:flex-none px-4 py-2 rounded-lg text-[10px] sm:text-xs font-black uppercase tracking-widest transition-all ${mediaTab === 'REPORTED' ? 'bg-primary text-primary-foreground shadow-md' : 'text-muted-foreground hover:bg-muted'}`}>
+                                                        Reported
+                                                    </button>
+                                                    <button onClick={() => setMediaTab('CLAIMED')} disabled={!claimedUrls.length} className={`flex-1 md:flex-none px-4 py-2 rounded-lg text-[10px] sm:text-xs font-black uppercase tracking-widest transition-all ${mediaTab === 'CLAIMED' ? 'bg-green-500 text-white shadow-md' : 'text-muted-foreground hover:bg-muted'} ${!claimedUrls.length && 'opacity-40 cursor-not-allowed'}`}>
+                                                        Claimed
+                                                    </button>
+                                                    <button onClick={() => setMediaTab('OPPOSED')} disabled={!opposedUrls.length} className={`flex-1 md:flex-none px-4 py-2 rounded-lg text-[10px] sm:text-xs font-black uppercase tracking-widest transition-all ${mediaTab === 'OPPOSED' ? 'bg-red-500 text-white shadow-md' : 'text-muted-foreground hover:bg-muted'} ${!opposedUrls.length && 'opacity-40 cursor-not-allowed'}`}>
+                                                        Opposed
+                                                    </button>
+                                                </div>
+                                            ) : null}
+
+                                            {/* 🟢 MEDIA VIEWER */}
+                                            <div className="w-full bg-black/40 rounded-2xl border border-border/50 overflow-hidden relative flex items-center justify-center h-[250px] sm:h-[350px] shrink-0 group shadow-inner">
+                                                {activeMediaArray.length > 0 ? (
+                                                    <>
+                                                        {activeMediaArray[currentMediaIndex]?.match(/\.(mp4|webm|ogg)$/i) ? (
+                                                            <video ref={videoRef} src={activeMediaArray[currentMediaIndex]} className="w-full h-full object-contain bg-black" controls autoPlay muted playsInline />
+                                                        ) : (
+                                                            <img src={activeMediaArray[currentMediaIndex]} alt="issue" className="w-full h-full object-contain" />
+                                                        )}
+
+                                                        {activeMediaArray.length > 1 && (
+                                                            <>
+                                                                <button onClick={() => setCurrentMediaIndex((prev) => (prev - 1 + activeMediaArray.length) % activeMediaArray.length)} className="absolute left-3 p-2 bg-black/60 rounded-full text-white hover:bg-black/80 backdrop-blur-md opacity-0 group-hover:opacity-100 transition-opacity"><ChevronLeft size={20} /></button>
+                                                                <button onClick={() => setCurrentMediaIndex((prev) => (prev + 1) % activeMediaArray.length)} className="absolute right-3 p-2 bg-black/60 rounded-full text-white hover:bg-black/80 backdrop-blur-md opacity-0 group-hover:opacity-100 transition-opacity"><ChevronRight size={20} /></button>
+                                                            </>
+                                                        )}
+                                                    </>
+                                                ) : (
+                                                    <div className="flex flex-col items-center opacity-40">
+                                                        <Camera size={36} className="mb-3" />
+                                                        <p className="text-sm font-bold text-center px-4">No {mediaTab.toLowerCase()} evidence attached.</p>
+                                                    </div>
+                                                )}
+                                            </div>
+
+                                            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                                                <div className="bg-card border border-border/50 rounded-2xl p-4 shadow-sm">
+                                                    <p className="text-[10px] text-muted-foreground font-bold uppercase tracking-wider mb-1 flex items-center gap-1"><MapPin size={12} /> Location</p>
+                                                    <p className="text-sm font-bold text-foreground">{selectedIssueForDetail.location?.city}, {selectedIssueForDetail.location?.state}</p>
+                                                    <p className="text-[11px] text-muted-foreground mt-1 truncate">{selectedIssueForDetail.location?.address} • PIN: {selectedIssueForDetail.location?.pinCode}</p>
+                                                </div>
+                                                <div className="bg-card border border-border/50 rounded-2xl p-4 shadow-sm flex flex-col justify-center items-center text-center">
+                                                    <p className="text-[10px] text-muted-foreground font-bold uppercase tracking-wider mb-1">Impact Score</p>
+                                                    <p className="text-2xl font-black text-yellow-500 flex items-center gap-1 justify-center"><Zap size={20} className="fill-yellow-500" /> {selectedIssueForDetail.impactScore || 0}</p>
+                                                </div>
+                                            </div>
+
+                                            <div className="bg-muted/20 border border-border/50 rounded-2xl p-5 mb-4 lg:mb-0 shadow-inner">
+                                                <p className="text-[10px] text-muted-foreground font-bold uppercase tracking-wider mb-2">Description</p>
+                                                <p className="text-sm text-foreground/90 whitespace-pre-wrap leading-relaxed">{selectedIssueForDetail.description}</p>
+                                            </div>
+                                        </div>
+
+                                        {/* RIGHT COLUMN: Players, Actions, Timeline */}
+                                        <div className="w-full lg:w-1/2 flex flex-col bg-muted/5 shrink-0 lg:shrink lg:overflow-y-auto thin-scrollbar relative z-30">
+
+                                            {/* Players Section */}
+                                            <div className="p-4 md:p-5 border-b border-border/50 shrink-0 relative z-[60]">
+                                                <div className="grid grid-cols-2 gap-3">
+                                                    <div className="bg-card border border-border/50 p-3 rounded-xl flex justify-between items-center group relative">
+                                                        <div className="flex-1 cursor-pointer min-w-0 pr-2" onClick={() => !selectedIssueForDetail.isAnonymous && openCareerModal(selectedIssueForDetail.reportedBy?._id)}>
+                                                            <p className="text-[9px] text-muted-foreground font-bold uppercase mb-1">Reporter</p>
+                                                            <p className={`text-sm font-bold truncate ${selectedIssueForDetail.isAnonymous ? 'text-muted-foreground' : 'text-foreground group-hover:text-primary'}`}>
+                                                                {selectedIssueForDetail.isAnonymous ? 'Anonymous' : selectedIssueForDetail.reportedBy?.name || 'Unknown'}
+                                                            </p>
+                                                        </div>
+                                                        {!selectedIssueForDetail.isAnonymous && selectedIssueForDetail.reportedBy?._id && (
+                                                            <div className="relative shrink-0">
+                                                                <button onClick={() => setActionMenuOpen(!actionMenuOpen)} className="p-1.5 rounded-md hover:bg-muted text-muted-foreground transition-colors">
+                                                                    <MoreVertical size={16} />
+                                                                </button>
+                                                                {actionMenuOpen && (
+                                                                    <div className="absolute right-0 top-full mt-2 w-48 bg-card border border-border/60 rounded-xl shadow-xl z-[100] py-1 overflow-hidden animate-fade-in">
+                                                                        <button onClick={handleQuickWarn} className="w-full text-left px-4 py-2.5 text-xs font-bold hover:bg-muted flex items-center gap-2 text-amber-500">
+                                                                            <AlertOctagon size={14} /> Send Warning
+                                                                        </button>
+                                                                        <button onClick={() => handleQuickSuspend(selectedIssueForDetail.reportedBy._id)} className="w-full text-left px-4 py-2.5 text-xs font-bold hover:bg-red-500/10 flex items-center gap-2 text-red-500">
+                                                                            <Ban size={14} /> Suspend (24h)
+                                                                        </button>
+                                                                    </div>
+                                                                )}
+                                                            </div>
+                                                        )}
+                                                    </div>
+
+                                                    <div className={`p-3 rounded-xl border transition-colors min-w-0 ${selectedIssueForDetail.bidding?.winningBid?.authorityId ? 'bg-indigo-500/5 border-indigo-500/20 cursor-pointer hover:bg-indigo-500/10 hover:border-indigo-500/40 group' : 'bg-card border-border/50'}`}
+                                                        onClick={() => selectedIssueForDetail.bidding?.winningBid?.authorityId && openCareerModal(selectedIssueForDetail.bidding.winningBid.authorityId._id)}>
+                                                        <p className={`text-[9px] font-bold uppercase mb-1 ${selectedIssueForDetail.bidding?.winningBid?.authorityId ? 'text-indigo-500' : 'text-muted-foreground'}`}>Assigned Official</p>
+                                                        {selectedIssueForDetail.bidding?.winningBid?.authorityId ? (
+                                                            <div>
+                                                                <p className="text-sm font-bold text-indigo-600 dark:text-indigo-400 truncate group-hover:underline">{selectedIssueForDetail.bidding.winningBid.authorityId.name || 'ID Linked'}</p>
+                                                                <p className="text-[10px] text-indigo-500/80 font-bold mt-0.5 truncate">Commitment: {selectedIssueForDetail.bidding.winningBid.commitmentTimeHours}h</p>
+                                                            </div>
+                                                        ) : (
+                                                            <p className="text-xs text-muted-foreground italic mt-1 font-medium truncate">Unassigned</p>
+                                                        )}
+                                                    </div>
+                                                </div>
+
+                                                {/* 🟢 NEW: Pending Extension Request Banner */}
+                                                {selectedIssueForDetail.status === 'PENDING_EXTENSION' && (
+                                                    <div className="col-span-2 mt-4 bg-amber-500/10 border border-amber-500/20 p-4 rounded-xl relative z-[70]">
+
+                                                        {/* 🟢 NEW: Dedicated background layer just to clip the clock safely */}
+                                                        <div className="absolute inset-0 overflow-hidden rounded-xl pointer-events-none z-0">
+                                                            <div className="absolute top-0 right-0 p-4 opacity-5">
+                                                                <Clock size={80} className="text-amber-500 -mr-6 -mt-6" />
+                                                            </div>
+                                                        </div>
+
+                                                        <div className="relative z-10">
+                                                            <p className="text-[10px] text-amber-500 font-bold uppercase tracking-wider mb-1 flex items-center gap-1"><Clock size={12} /> Extension Requested</p>
+                                                            <p className="text-sm font-bold text-foreground">
+                                                                {selectedIssueForDetail.workCycle?.extensionRequests?.slice(-1)[0]?.hoursRequested} Hours
+                                                            </p>
+                                                            <p className="text-xs text-muted-foreground mt-1 mb-4 border-l-2 border-amber-500/50 pl-2">
+                                                                Reason: {selectedIssueForDetail.workCycle?.extensionRequests?.slice(-1)[0]?.reason}
+                                                            </p>
+
+                                                            {/* 🟢 FIXED: Inputs are now Pre-filled and Disabled (Read-Only) */}
+                                                            <div className="flex gap-2 mb-4 relative z-50">
+                                                                <input
+                                                                    type="number"
+                                                                    className="w-1/3 p-2 rounded-lg bg-background/50 border border-border/50 text-xs font-bold outline-none opacity-70 cursor-not-allowed"
+                                                                    value={selectedIssueForDetail.workCycle?.extensionRequests?.slice(-1)[0]?.requestedTimeValue || ''}
+                                                                    disabled
+                                                                />
+                                                                <input
+                                                                    type="text"
+                                                                    className="w-2/3 p-2 rounded-lg bg-background/50 border border-border/50 text-xs font-bold outline-none opacity-70 cursor-not-allowed uppercase"
+                                                                    value={selectedIssueForDetail.workCycle?.extensionRequests?.slice(-1)[0]?.requestedTimeUnit || ''}
+                                                                    disabled
+                                                                />
+                                                            </div>
+
+                                                            <div className="flex gap-2 relative z-10">
+                                                                <button
+                                                                    onClick={() => {
+                                                                        const pendingReq = selectedIssueForDetail.workCycle?.extensionRequests?.slice(-1)[0];
+                                                                        handleExtensionAction('APPROVED', pendingReq?.requestedTimeValue, pendingReq?.requestedTimeUnit);
+                                                                    }}
+                                                                    disabled={isUpdating}
+                                                                    className="flex-1 bg-amber-500 text-white font-bold text-xs py-2.5 rounded-lg hover:bg-amber-600 transition-colors shadow-sm flex items-center justify-center gap-2 disabled:opacity-50"
+                                                                >
+                                                                    <CheckCircle size={14} /> Approve
+                                                                </button>
+                                                                <button
+                                                                    onClick={() => handleExtensionAction('REJECTED')}
+                                                                    disabled={isUpdating}
+                                                                    className="flex-1 bg-card text-muted-foreground border border-border/50 font-bold text-xs py-2.5 rounded-lg hover:text-foreground hover:bg-muted/50 transition-colors shadow-sm flex items-center justify-center gap-2"
+                                                                >
+                                                                    <X size={14} /> Deny
+                                                                </button>
+                                                            </div>
+                                                        </div>
+                                                    </div>
+                                                )}
+                                            </div>
+
+                                            {/* God Mode Action Zone */}
+                                            <div className="p-4 md:p-5 border-b border-border/50 shrink-0 bg-background relative z-40">
+                                                <div className="flex gap-4 mb-3 border-b border-border/50">
+                                                    <button onClick={() => setActionTab('STATUS')} className={`pb-2 text-xs font-bold uppercase tracking-wider ${actionTab === 'STATUS' ? 'text-primary border-b-2 border-primary' : 'text-muted-foreground'}`}>Update Status</button>
+                                                    {selectedIssueForDetail.bidding?.winningBid?.authorityId ? (
+                                                        <button onClick={() => setActionTab('REVOKE')} className={`pb-2 text-xs font-bold uppercase tracking-wider ${actionTab === 'REVOKE' ? 'text-red-500 border-b-2 border-red-500' : 'text-muted-foreground'}`}>Revoke Assignment</button>
+                                                    ) : (
+                                                        <button onClick={() => setActionTab('ASSIGN')} className={`pb-2 text-xs font-bold uppercase tracking-wider ${actionTab === 'ASSIGN' ? 'text-indigo-500 border-b-2 border-indigo-500' : 'text-muted-foreground'}`}>Force Assign</button>
+                                                    )}
+                                                </div>
+
+                                                {actionTab === 'STATUS' && (
+                                                    <form onSubmit={handleUpdateStatus} className="flex flex-col gap-3 relative z-40">
+                                                        <div className="flex gap-2 relative z-50">
+                                                            {/* Status Dropdown */}
+                                                            <div className="w-1/2 relative z-50">
+                                                                <label className="text-[10px] text-muted-foreground mb-1 block font-semibold uppercase">Change Status</label>
+                                                                <CustomSelect
+                                                                    options={UPDATE_STATUS_OPTIONS.filter(opt => opt.value !== 'PENDING_EXTENSION')}
+                                                                    value={updateData.status}
+                                                                    onChange={(val) => setUpdateData({ ...updateData, status: val })}
+                                                                />
+                                                            </div>
+
+                                                            {/* Remark (Now 100% Optional for all statuses) */}
+                                                            <div className="w-1/2 relative z-40">
+                                                                <label className="text-[10px] text-muted-foreground mb-1 block font-semibold uppercase truncate">
+                                                                    Audit Remark (Optional)
+                                                                </label>
+                                                                <input
+                                                                    type="text"
+                                                                    value={updateData.adminRemark}
+                                                                    onChange={(e) => setUpdateData({ ...updateData, adminRemark: e.target.value })}
+                                                                    placeholder="Add context..."
+                                                                    className="w-full px-3 py-2 bg-muted border border-border/50 rounded-xl text-xs font-medium focus:border-primary outline-none transition-colors"
+                                                                />
+                                                            </div>
+                                                        </div>
+
+                                                        {/* 🟢 DYNAMIC ACTOR DROPDOWN (100% Optional) */}
+                                                        {['LOCKED', 'AWAITING_HANDOVER', 'RESOLVED', 'FAILED', 'DISPUTED', 'RELEASED'].includes(updateData.status) && (
+                                                            <div className="relative z-40 mb-1 animate-fade-in">
+                                                                <label className="text-[10px] text-primary mb-1 block font-bold uppercase flex items-center gap-1">
+                                                                    <Users size={12} />
+                                                                    {updateData.status === 'LOCKED' ? 'Assign To (Optional)' : 'Action Attributed To (Optional)'}
+                                                                </label>
+                                                                <CustomSelect
+                                                                    options={[{ value: '', label: 'System / Admin (Default)' }, ...authorities]}
+                                                                    value={updateData.resolvedByAuthority || ''}
+                                                                    onChange={(val) => setUpdateData({ ...updateData, resolvedByAuthority: val })}
+                                                                />
+                                                            </div>
+                                                        )}
+
+                                                        {/* 🟢 EVIDENCE UPLOAD (100% Optional) */}
+                                                        {['DISPUTED', 'RESOLVED'].includes(updateData.status) && (
+                                                            <div className={`relative z-30 p-3 border rounded-xl animate-fade-in ${updateData.status === 'RESOLVED' ? 'bg-green-500/5 border-green-500/20' : 'bg-red-500/5 border-red-500/20'}`}>
+                                                                <label className={`text-xs mb-2 block font-bold flex items-center gap-1 ${updateData.status === 'RESOLVED' ? 'text-green-500' : 'text-red-500'}`}>
+                                                                    <ShieldAlert size={12} /> {updateData.status === 'RESOLVED' ? 'Attach Evidence (Optional)' : 'Dispute Evidence (Optional)'}
+                                                                </label>
+                                                                <input
+                                                                    type="file"
+                                                                    accept="image/*"
+                                                                    onChange={(e) => setActionMedia(e.target.files[0])}
+                                                                    className={`w-full text-xs file:mr-3 file:py-1.5 file:px-3 file:rounded-lg file:border-0 file:font-bold cursor-pointer text-muted-foreground ${updateData.status === 'RESOLVED' ? 'file:bg-green-500/10 file:text-green-500 hover:file:bg-green-500/20' : 'file:bg-red-500/10 file:text-red-500 hover:file:bg-red-500/20'}`}
+                                                                />
+                                                            </div>
+                                                        )}
+
+                                                        <button type="submit" disabled={isUpdating} className="w-full py-2.5 mt-1 bg-primary text-primary-foreground font-bold text-xs rounded-xl shadow-md flex items-center justify-center gap-1.5 relative z-10 hover:scale-[1.01] transition-transform">
+                                                            {isUpdating ? <MiniLoader className="w-3.5 h-3.5" /> : <>Log Action <CheckCircle size={14} /></>}
+                                                        </button>
+                                                    </form>
+                                                )}
+
+                                                {actionTab === 'ASSIGN' && (
+                                                    <form onSubmit={handleForceAssign} className="flex flex-col gap-2 relative z-50">
+                                                        <div className="flex gap-2 relative">
+                                                            <div className="w-1/2 relative z-50">
+                                                                <CustomSelect options={authorities} value={assignData.authorityId} onChange={(val) => setAssignData({ ...assignData, authorityId: val })} placeholder="Select Official..." />
+                                                            </div>
+                                                            <input type="number" min="1" value={assignData.commitmentTimeHours} onChange={(e) => setAssignData({ ...assignData, commitmentTimeHours: e.target.value })} placeholder="Hrs (e.g. 24)" className="w-1/2 px-3 py-2 bg-muted border border-border/50 rounded-xl text-xs font-medium focus:border-indigo-500 outline-none relative z-10 transition-colors" required />
+                                                        </div>
+                                                        <button type="submit" disabled={isUpdating || !assignData.authorityId || !assignData.commitmentTimeHours} className="w-full mt-1 py-2.5 bg-indigo-500 text-white disabled:bg-indigo-500/50 font-bold text-xs rounded-xl shadow-md flex items-center justify-center gap-1.5 relative z-10 hover:scale-[1.01] transition-transform">
+                                                            {isUpdating ? <MiniLoader className="w-3.5 h-3.5" /> : <>Lock Job <ArrowRight size={14} /></>}
+                                                        </button>
+                                                    </form>
+                                                )}
+
+                                                {actionTab === 'REVOKE' && (
+                                                    <form onSubmit={handleRevokeAssign} className="flex flex-col gap-2 relative z-10">
+                                                        <div className="flex gap-2 relative">
+                                                            <input type="number" min="0" value={revokeData.penaltyPoints} onChange={(e) => setRevokeData({ ...revokeData, penaltyPoints: e.target.value })} placeholder="Penalty Pts" className="w-1/3 px-3 py-2 bg-muted border border-border/50 rounded-xl text-xs font-medium focus:border-red-500 outline-none transition-colors" required />
+                                                            <input type="text" value={revokeData.reason} onChange={(e) => setRevokeData({ ...revokeData, reason: e.target.value })} placeholder="Reason for revocation..." className="w-2/3 px-3 py-2 bg-muted border border-border/50 rounded-xl text-xs font-medium focus:border-red-500 outline-none transition-colors" required />
+                                                        </div>
+                                                        <button type="submit" disabled={isUpdating || !revokeData.reason} className="w-full py-2.5 mt-1 bg-red-500 text-white disabled:bg-red-500/50 font-bold text-xs rounded-xl shadow-md flex items-center justify-center gap-1.5 hover:scale-[1.01] transition-transform">
+                                                            {isUpdating ? <MiniLoader className="w-3.5 h-3.5" /> : <>Revoke <RotateCcw size={14} /></>}
+                                                        </button>
+                                                    </form>
+                                                )}
+                                            </div>
+
+                                            {/* Timeline */}
+                                            <div className="flex-1 p-4 md:p-6 relative z-10 bg-card/40 pb-20">
+                                                <h4 className="text-xs font-black uppercase tracking-widest text-muted-foreground mb-6 pl-2 border-l-2 border-primary">System Timeline</h4>
+                                                <div className="space-y-6 relative before:absolute before:inset-0 before:ml-5 before:-translate-x-px before:h-full before:w-0.5 before:bg-gradient-to-b before:from-primary/50 before:via-border/50 before:to-transparent pb-4">
+                                                    {generateTimeline(selectedIssueForDetail).map((event, i) => (
+                                                        <motion.div initial={{ opacity: 0, x: 20 }} animate={{ opacity: 1, x: 0 }} transition={{ delay: i * 0.1 }} key={i} className="relative flex items-start gap-4 group">
+                                                            <div className={`flex items-center justify-center w-10 h-10 rounded-full border-4 border-background shrink-0 shadow-md ${event.color} z-10 transition-transform group-hover:scale-110`}>
+                                                                {event.icon}
+                                                            </div>
+                                                            <div className="w-full p-4 rounded-2xl bg-card border border-border/50 shadow-sm mt-1 group-hover:border-primary/30 transition-colors">
+                                                                <h5 className="font-bold text-[11px] md:text-xs uppercase tracking-wider">{event.label}</h5>
+                                                                <div className="text-[10px] text-muted-foreground font-mono mt-1 mb-2 font-medium">{event.time.toLocaleString([], { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' })}</div>
+                                                                {event.detail && <p className="text-[11px] text-foreground/80 bg-muted/40 p-2.5 rounded-xl border border-border/40 leading-relaxed font-medium">{event.detail}</p>}
+                                                            </div>
+                                                        </motion.div>
+                                                    ))}
+                                                </div>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </motion.div>
+                            </div>
+                        )}
+                    </AnimatePresence>
+
+                    {/* 🟢 2. CAREER MODAL */}
                     <AnimatePresence>
                         {careerModal.isOpen && careerModal.profile && (
                             <div className="fixed inset-0 flex items-center justify-center p-4 sm:p-8 md:p-12 bg-black/60 backdrop-blur-sm" style={{ zIndex: modalZ.career }}>
                                 <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="absolute inset-0" onClick={() => setCareerModal({ ...careerModal, isOpen: false })} />
                                 <motion.div
                                     initial={{ opacity: 0, x: 100 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: 100 }} transition={{ type: "spring", damping: 25, stiffness: 200 }}
-                                    className="bg-card border border-border/50 rounded-3xl w-full max-w-5xl shadow-2xl flex flex-col relative z-10 overflow-hidden max-h-full"
+                                    className="bg-card border border-border/50 rounded-3xl w-full max-w-5xl shadow-2xl flex flex-col relative z-10 overflow-hidden max-h-[85dvh]"
                                 >
                                     <div className="p-4 md:p-5 border-b border-border/50 bg-background/80 backdrop-blur-md flex items-center gap-4 shrink-0">
                                         {careerModal.view === 'ISSUE_LIST' && (
@@ -680,7 +1107,7 @@ const AdminIssues = () => {
                                                         <motion.div
                                                             initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: i * 0.03 }}
                                                             key={issue._id}
-                                                            onClick={() => fetchAndOpenIssue(issue._id)}
+                                                            onClick={() => openModal(issue._id)}
                                                             className="bg-card border border-border/50 p-4 rounded-xl flex flex-col sm:flex-row items-start justify-between gap-4 cursor-pointer hover:border-primary/50 hover:bg-primary/5 transition-all group shadow-sm"
                                                         >
                                                             <div className="flex-1 min-w-0 pr-2">
@@ -702,285 +1129,7 @@ const AdminIssues = () => {
                         )}
                     </AnimatePresence>
 
-                    {/* 🟢 3. ISSUE VIEWER MODAL (Deep Dive, Opens on top of everything) */}
-                    <AnimatePresence>
-                        {isModalVisible && selectedIssueForDetail && (
-                            <div className="fixed inset-0 flex items-center justify-center p-4 sm:p-8 md:p-12 bg-black/80 backdrop-blur-md" style={{ zIndex: modalZ.issue }}>
-                                <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="absolute inset-0" onClick={closeIssueModal} />
-
-                                <motion.div
-                                    initial={{ opacity: 0, scale: 0.95, y: 20 }} animate={{ opacity: 1, scale: 1, y: 0 }} exit={{ opacity: 0, scale: 0.95, y: 20 }}
-                                    className="relative bg-background border border-border/50 rounded-3xl w-full max-w-6xl shadow-2xl flex flex-col max-h-[85dvh] overflow-hidden z-10"
-                                    onClick={e => e.stopPropagation()}
-                                >
-                                    {/* Header */}
-                                    <div className="flex justify-between items-center p-4 md:p-5 border-b border-border/50 bg-muted/20 shrink-0">
-                                        <div className="flex items-center gap-3">
-                                            <span className={`px-3 py-1.5 rounded-xl text-[10px] font-black uppercase tracking-widest border shadow-sm ${statusColors[selectedIssueForDetail.status] || statusColors.OPEN}`}>
-                                                {selectedIssueForDetail.status}
-                                            </span>
-                                            <span className="text-xs font-mono text-muted-foreground hidden sm:block">ID: {selectedIssueForDetail._id}</span>
-                                        </div>
-                                        <div className="flex items-center gap-2">
-                                            <button onClick={() => setShowDeleteConfirm(true)} title="Delete Issue" className="p-2 rounded-full text-red-500 bg-red-500/10 hover:bg-red-500 hover:text-white transition-colors"><Trash2 size={18} /></button>
-                                            <button onClick={closeIssueModal} className="p-2 rounded-full bg-card border border-border/50 hover:bg-muted transition-colors"><X size={20} /></button>
-                                        </div>
-                                    </div>
-
-                                    {/* Split Body */}
-                                    <div className="flex flex-col lg:flex-row flex-1 min-h-0 overflow-y-auto lg:overflow-hidden thin-scrollbar">
-
-                                        {/* LEFT COLUMN: Media & Core Data */}
-                                        <div className="w-full lg:w-1/2 p-4 md:p-6 lg:border-r border-border/50 flex flex-col gap-5 shrink-0 lg:shrink lg:overflow-y-auto thin-scrollbar bg-background/50">
-                                            <h3 className="text-2xl md:text-3xl font-black text-foreground leading-tight">{selectedIssueForDetail.title}</h3>
-
-                                            {/* 🟢 MEDIA TABS */}
-                                            <div className="flex bg-muted/40 p-1.5 rounded-xl border border-border/50 w-full md:w-max">
-                                                <button onClick={() => setMediaTab('REPORTED')} className={`flex-1 md:flex-none px-4 py-2 rounded-lg text-[10px] sm:text-xs font-black uppercase tracking-widest transition-all ${mediaTab === 'REPORTED' ? 'bg-primary text-primary-foreground shadow-md' : 'text-muted-foreground hover:bg-muted'}`}>
-                                                    Reported
-                                                </button>
-                                                <button onClick={() => setMediaTab('CLAIMED')} disabled={!claimedUrls.length} className={`flex-1 md:flex-none px-4 py-2 rounded-lg text-[10px] sm:text-xs font-black uppercase tracking-widest transition-all ${mediaTab === 'CLAIMED' ? 'bg-green-500 text-white shadow-md' : 'text-muted-foreground hover:bg-muted'} ${!claimedUrls.length && 'opacity-40 cursor-not-allowed'}`}>
-                                                    Claimed
-                                                </button>
-                                                <button onClick={() => setMediaTab('OPPOSED')} disabled={!opposedUrls.length} className={`flex-1 md:flex-none px-4 py-2 rounded-lg text-[10px] sm:text-xs font-black uppercase tracking-widest transition-all ${mediaTab === 'OPPOSED' ? 'bg-red-500 text-white shadow-md' : 'text-muted-foreground hover:bg-muted'} ${!opposedUrls.length && 'opacity-40 cursor-not-allowed'}`}>
-                                                    Opposed
-                                                </button>
-                                            </div>
-
-                                            {/* 🟢 MEDIA VIEWER */}
-                                            <div className="w-full bg-black/40 rounded-2xl border border-border/50 overflow-hidden relative flex items-center justify-center h-[250px] sm:h-[350px] shrink-0 group shadow-inner">
-                                                {activeMediaArray.length > 0 ? (
-                                                    <>
-                                                        {activeMediaArray[currentMediaIndex]?.match(/\.(mp4|webm|ogg)$/i) ? (
-                                                            <video ref={videoRef} src={activeMediaArray[currentMediaIndex]} className="w-full h-full object-contain bg-black" controls autoPlay muted playsInline />
-                                                        ) : (
-                                                            <img src={activeMediaArray[currentMediaIndex]} alt="issue" className="w-full h-full object-contain" />
-                                                        )}
-
-                                                        {activeMediaArray.length > 1 && (
-                                                            <>
-                                                                <button onClick={() => setCurrentMediaIndex((prev) => (prev - 1 + activeMediaArray.length) % activeMediaArray.length)} className="absolute left-3 p-2 bg-black/60 rounded-full text-white hover:bg-black/80 backdrop-blur-md opacity-0 group-hover:opacity-100 transition-opacity"><ChevronLeft size={20} /></button>
-                                                                <button onClick={() => setCurrentMediaIndex((prev) => (prev + 1) % activeMediaArray.length)} className="absolute right-3 p-2 bg-black/60 rounded-full text-white hover:bg-black/80 backdrop-blur-md opacity-0 group-hover:opacity-100 transition-opacity"><ChevronRight size={20} /></button>
-                                                            </>
-                                                        )}
-                                                    </>
-                                                ) : (
-                                                    <div className="flex flex-col items-center opacity-40">
-                                                        <Camera size={36} className="mb-3" />
-                                                        <p className="text-sm font-bold text-center px-4">No {mediaTab.toLowerCase()} evidence attached.</p>
-                                                    </div>
-                                                )}
-                                            </div>
-
-                                            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                                                <div className="bg-card border border-border/50 rounded-2xl p-4 shadow-sm">
-                                                    <p className="text-[10px] text-muted-foreground font-bold uppercase tracking-wider mb-1 flex items-center gap-1"><MapPin size={12} /> Location</p>
-                                                    <p className="text-sm font-bold text-foreground">{selectedIssueForDetail.location?.city}, {selectedIssueForDetail.location?.state}</p>
-                                                    <p className="text-[11px] text-muted-foreground mt-1 truncate">{selectedIssueForDetail.location?.address} • PIN: {selectedIssueForDetail.location?.pinCode}</p>
-                                                </div>
-                                                <div className="bg-card border border-border/50 rounded-2xl p-4 shadow-sm flex flex-col justify-center items-center text-center">
-                                                    <p className="text-[10px] text-muted-foreground font-bold uppercase tracking-wider mb-1">Impact Score</p>
-                                                    <p className="text-2xl font-black text-yellow-500 flex items-center gap-1 justify-center"><Zap size={20} className="fill-yellow-500" /> {selectedIssueForDetail.impactScore || 0}</p>
-                                                </div>
-                                            </div>
-
-                                            <div className="bg-muted/20 border border-border/50 rounded-2xl p-5 mb-4 lg:mb-0 shadow-inner">
-                                                <p className="text-[10px] text-muted-foreground font-bold uppercase tracking-wider mb-2">Description</p>
-                                                <p className="text-sm text-foreground/90 whitespace-pre-wrap leading-relaxed">{selectedIssueForDetail.description}</p>
-                                            </div>
-                                        </div>
-
-                                        {/* RIGHT COLUMN: Players, Actions, Timeline */}
-                                        <div className="w-full lg:w-1/2 flex flex-col bg-muted/5 shrink-0 lg:shrink relative z-30">
-
-                                            {/* Players Section */}
-                                            <div className="p-4 md:p-5 border-b border-border/50 shrink-0">
-                                                <div className="grid grid-cols-2 gap-3">
-                                                    <div className="bg-card border border-border/50 p-3 rounded-xl flex justify-between items-center group relative">
-                                                        <div className="flex-1 cursor-pointer min-w-0 pr-2" onClick={() => !selectedIssueForDetail.isAnonymous && openCareerModal(selectedIssueForDetail.reportedBy?._id)}>
-                                                            <p className="text-[9px] text-muted-foreground font-bold uppercase mb-1">Reporter</p>
-                                                            <p className={`text-sm font-bold truncate ${selectedIssueForDetail.isAnonymous ? 'text-muted-foreground' : 'text-foreground group-hover:text-primary'}`}>
-                                                                {selectedIssueForDetail.isAnonymous ? 'Anonymous' : selectedIssueForDetail.reportedBy?.name || 'Unknown'}
-                                                            </p>
-                                                        </div>
-                                                        {!selectedIssueForDetail.isAnonymous && selectedIssueForDetail.reportedBy?._id && (
-                                                            <div className="relative shrink-0">
-                                                                <button onClick={() => setActionMenuOpen(!actionMenuOpen)} className="p-1.5 rounded-md hover:bg-muted text-muted-foreground transition-colors">
-                                                                    <MoreVertical size={16} />
-                                                                </button>
-                                                                {actionMenuOpen && (
-                                                                    <div className="absolute right-0 top-full mt-2 w-48 bg-card border border-border/60 rounded-xl shadow-xl z-[100] py-1 overflow-hidden animate-fade-in">
-                                                                        <button onClick={handleQuickWarn} className="w-full text-left px-4 py-2.5 text-xs font-bold hover:bg-muted flex items-center gap-2 text-amber-500">
-                                                                            <AlertOctagon size={14} /> Send Warning
-                                                                        </button>
-                                                                        <button onClick={() => handleQuickSuspend(selectedIssueForDetail.reportedBy._id)} className="w-full text-left px-4 py-2.5 text-xs font-bold hover:bg-red-500/10 flex items-center gap-2 text-red-500">
-                                                                            <Ban size={14} /> Suspend (24h)
-                                                                        </button>
-                                                                    </div>
-                                                                )}
-                                                            </div>
-                                                        )}
-                                                    </div>
-
-                                                    <div className={`p-3 rounded-xl border transition-colors min-w-0 ${selectedIssueForDetail.bidding?.winningBid?.authorityId ? 'bg-indigo-500/5 border-indigo-500/20 cursor-pointer hover:bg-indigo-500/10 hover:border-indigo-500/40 group' : 'bg-card border-border/50'}`}
-                                                        onClick={() => selectedIssueForDetail.bidding?.winningBid?.authorityId && openCareerModal(selectedIssueForDetail.bidding.winningBid.authorityId._id)}>
-                                                        <p className={`text-[9px] font-bold uppercase mb-1 ${selectedIssueForDetail.bidding?.winningBid?.authorityId ? 'text-indigo-500' : 'text-muted-foreground'}`}>Assigned Official</p>
-                                                        {selectedIssueForDetail.bidding?.winningBid?.authorityId ? (
-                                                            <div>
-                                                                <p className="text-sm font-bold text-indigo-600 dark:text-indigo-400 truncate group-hover:underline">{selectedIssueForDetail.bidding.winningBid.authorityId.name || 'ID Linked'}</p>
-                                                                <p className="text-[10px] text-indigo-500/80 font-bold mt-0.5 truncate">Commitment: {selectedIssueForDetail.bidding.winningBid.commitmentTimeHours}h</p>
-                                                            </div>
-                                                        ) : (
-                                                            <p className="text-xs text-muted-foreground italic mt-1 font-medium truncate">Unassigned</p>
-                                                        )}
-                                                    </div>
-                                                </div>
-
-                                                {/* 🟢 NEW: Pending Extension Request Banner */}
-                                                {selectedIssueForDetail.status === 'PENDING_EXTENSION' && (
-                                                    <div className="col-span-2 mt-4 bg-amber-500/10 border border-amber-500/20 p-4 rounded-xl relative overflow-hidden">
-                                                        <div className="absolute top-0 right-0 p-4 opacity-5 pointer-events-none"><Clock size={80} className="text-amber-500 -mr-6 -mt-6" /></div>
-                                                        <div className="relative z-10">
-                                                            <p className="text-[10px] text-amber-500 font-bold uppercase tracking-wider mb-1 flex items-center gap-1"><Clock size={12} /> Extension Requested</p>
-                                                            <p className="text-sm font-bold text-foreground">
-                                                                {selectedIssueForDetail.workCycle?.extensionRequests?.slice(-1)[0]?.hoursRequested} Hours
-                                                            </p>
-                                                            <p className="text-xs text-muted-foreground mt-1 mb-4 border-l-2 border-amber-500/50 pl-2">
-                                                                Reason: {selectedIssueForDetail.workCycle?.extensionRequests?.slice(-1)[0]?.reason}
-                                                            </p>
-                                                            <div className="flex gap-2">
-                                                                <button onClick={() => handleExtensionAction('APPROVED')} disabled={isUpdating} className="flex-1 bg-amber-500 text-white font-bold text-xs py-2.5 rounded-lg hover:bg-amber-600 transition-colors shadow-sm flex items-center justify-center gap-2">
-                                                                    <CheckCircle size={14} /> Approve
-                                                                </button>
-                                                                <button onClick={() => handleExtensionAction('REJECTED')} disabled={isUpdating} className="flex-1 bg-card text-muted-foreground border border-border/50 font-bold text-xs py-2.5 rounded-lg hover:text-foreground hover:bg-muted/50 transition-colors shadow-sm flex items-center justify-center gap-2">
-                                                                    <X size={14} /> Deny
-                                                                </button>
-                                                            </div>
-                                                        </div>
-                                                    </div>
-                                                )}
-                                            </div>
-
-                                            {/* God Mode Action Zone */}
-                                            <div className="p-4 md:p-5 border-b border-border/50 shrink-0 bg-background relative z-40">
-                                                <div className="flex gap-4 mb-3 border-b border-border/50">
-                                                    <button onClick={() => setActionTab('STATUS')} className={`pb-2 text-xs font-bold uppercase tracking-wider ${actionTab === 'STATUS' ? 'text-primary border-b-2 border-primary' : 'text-muted-foreground'}`}>Update Status</button>
-                                                    {selectedIssueForDetail.bidding?.winningBid?.authorityId ? (
-                                                        <button onClick={() => setActionTab('REVOKE')} className={`pb-2 text-xs font-bold uppercase tracking-wider ${actionTab === 'REVOKE' ? 'text-red-500 border-b-2 border-red-500' : 'text-muted-foreground'}`}>Revoke Assignment</button>
-                                                    ) : (
-                                                        <button onClick={() => setActionTab('ASSIGN')} className={`pb-2 text-xs font-bold uppercase tracking-wider ${actionTab === 'ASSIGN' ? 'text-indigo-500 border-b-2 border-indigo-500' : 'text-muted-foreground'}`}>Force Assign</button>
-                                                    )}
-                                                </div>
-
-                                                {actionTab === 'STATUS' && (
-                                                    <form onSubmit={handleUpdateStatus} className="flex flex-col gap-3 relative z-40">
-                                                        <div className="flex gap-2 relative z-40">
-                                                            <div className="w-1/2 relative z-40">
-                                                                <label className="text-[10px] text-muted-foreground mb-1 block font-semibold uppercase">Change Status</label>
-                                                                {/* 🟢 Includes all 9 options */}
-                                                                <CustomSelect options={UPDATE_STATUS_OPTIONS} value={updateData.status} onChange={(val) => setUpdateData({ ...updateData, status: val })} />
-                                                            </div>
-                                                            <div className="w-1/2 relative z-10">
-                                                                <label className="text-[10px] text-muted-foreground mb-1 block font-semibold uppercase truncate">
-                                                                    {['DISPUTED', 'ORPHANED', 'RESOLVED'].includes(updateData.status) ? 'Audit Remark (Optional)' : 'Audit Remark (Required)'}
-                                                                </label>
-                                                                <input
-                                                                    type="text"
-                                                                    value={updateData.adminRemark}
-                                                                    onChange={(e) => setUpdateData({ ...updateData, adminRemark: e.target.value })}
-                                                                    placeholder={['DISPUTED', 'ORPHANED', 'RESOLVED'].includes(updateData.status) ? "Optional context..." : "State reason..."}
-                                                                    className="w-full px-3 py-2 bg-muted border border-border/50 rounded-xl text-xs font-medium focus:border-primary outline-none transition-colors"
-                                                                    required={!['DISPUTED', 'ORPHANED', 'RESOLVED'].includes(updateData.status)}
-                                                                />
-                                                            </div>
-                                                        </div>
-
-                                                        {updateData.status === 'RESOLVED' && (
-                                                            <div className="relative z-30 mb-1 animate-fade-in">
-                                                                <label className="text-[10px] text-green-500 mb-1 block font-bold uppercase flex items-center gap-1">
-                                                                    <ShieldAlert size={12} /> Resolved By (Optional)
-                                                                </label>
-                                                                <CustomSelect
-                                                                    options={[{ value: '', label: 'Unknown / System Resolved' }, ...authorities]}
-                                                                    value={updateData.resolvedByAuthority || ''}
-                                                                    onChange={(val) => setUpdateData({ ...updateData, resolvedByAuthority: val })}
-                                                                />
-                                                            </div>
-                                                        )}
-
-                                                        {['DISPUTED', 'RESOLVED'].includes(updateData.status) && (
-                                                            <div className={`relative z-10 p-3 border rounded-xl animate-fade-in ${updateData.status === 'RESOLVED' ? 'bg-green-500/5 border-green-500/20' : 'bg-red-500/5 border-red-500/20'}`}>
-                                                                <label className={`text-xs mb-2 block font-bold flex items-center gap-1 ${updateData.status === 'RESOLVED' ? 'text-green-500' : 'text-red-500'}`}>
-                                                                    <ShieldAlert size={12} /> {updateData.status === 'RESOLVED' ? 'Attach Evidence (Optional)' : 'Dispute Evidence (Optional)'}
-                                                                </label>
-                                                                <input
-                                                                    type="file"
-                                                                    accept="image/*"
-                                                                    onChange={(e) => setActionMedia(e.target.files[0])}
-                                                                    className={`w-full text-xs file:mr-3 file:py-1.5 file:px-3 file:rounded-lg file:border-0 file:font-bold cursor-pointer text-muted-foreground ${updateData.status === 'RESOLVED' ? 'file:bg-green-500/10 file:text-green-500 hover:file:bg-green-500/20' : 'file:bg-red-500/10 file:text-red-500 hover:file:bg-red-500/20'}`}
-                                                                />
-                                                            </div>
-                                                        )}
-
-                                                        <button type="submit" disabled={isUpdating} className="w-full py-2.5 mt-1 bg-primary text-primary-foreground font-bold text-xs rounded-xl shadow-md flex items-center justify-center gap-1.5 relative z-10 hover:scale-[1.01] transition-transform">
-                                                            {isUpdating ? <MiniLoader className="w-3.5 h-3.5" /> : <>Log Action <CheckCircle size={14} /></>}
-                                                        </button>
-                                                    </form>
-                                                )}
-
-                                                {actionTab === 'ASSIGN' && (
-                                                    <form onSubmit={handleForceAssignTable} className="flex flex-col gap-2 relative z-50">
-                                                        <div className="flex gap-2 relative">
-                                                            <div className="w-1/2 relative z-50">
-                                                                <CustomSelect options={authorities} value={assignData.authorityId} onChange={(val) => setAssignData({ ...assignData, authorityId: val })} placeholder="Select Official..." />
-                                                            </div>
-                                                            <input type="number" min="1" value={assignData.commitmentTimeHours} onChange={(e) => setAssignData({ ...assignData, commitmentTimeHours: e.target.value })} placeholder="Hrs (e.g. 24)" className="w-1/2 px-3 py-2 bg-muted border border-border/50 rounded-xl text-xs font-medium focus:border-indigo-500 outline-none relative z-10 transition-colors" required />
-                                                        </div>
-                                                        <button type="submit" disabled={isUpdating || !assignData.authorityId || !assignData.commitmentTimeHours} className="w-full mt-1 py-2.5 bg-indigo-500 text-white disabled:bg-indigo-500/50 font-bold text-xs rounded-xl shadow-md flex items-center justify-center gap-1.5 relative z-10 hover:scale-[1.01] transition-transform">
-                                                            {isUpdating ? <MiniLoader className="w-3.5 h-3.5" /> : <>Lock Job <ArrowRight size={14} /></>}
-                                                        </button>
-                                                    </form>
-                                                )}
-
-                                                {actionTab === 'REVOKE' && (
-                                                    <form onSubmit={handleRevokeAssign} className="flex flex-col gap-2 relative z-10">
-                                                        <div className="flex gap-2 relative">
-                                                            <input type="number" min="0" value={revokeData.penaltyPoints} onChange={(e) => setRevokeData({ ...revokeData, penaltyPoints: e.target.value })} placeholder="Penalty Pts" className="w-1/3 px-3 py-2 bg-muted border border-border/50 rounded-xl text-xs font-medium focus:border-red-500 outline-none transition-colors" required />
-                                                            <input type="text" value={revokeData.reason} onChange={(e) => setRevokeData({ ...revokeData, reason: e.target.value })} placeholder="Reason for revocation..." className="w-2/3 px-3 py-2 bg-muted border border-border/50 rounded-xl text-xs font-medium focus:border-red-500 outline-none transition-colors" required />
-                                                        </div>
-                                                        <button type="submit" disabled={isUpdating || !revokeData.reason} className="w-full py-2.5 mt-1 bg-red-500 text-white disabled:bg-red-500/50 font-bold text-xs rounded-xl shadow-md flex items-center justify-center gap-1.5 hover:scale-[1.01] transition-transform">
-                                                            {isUpdating ? <MiniLoader className="w-3.5 h-3.5" /> : <>Revoke <RotateCcw size={14} /></>}
-                                                        </button>
-                                                    </form>
-                                                )}
-                                            </div>
-
-                                            {/* Timeline */}
-                                            <div className="flex-1 p-4 md:p-6 lg:overflow-y-auto thin-scrollbar relative z-10 bg-card/40">
-                                                <h4 className="text-xs font-black uppercase tracking-widest text-muted-foreground mb-6 pl-2 border-l-2 border-primary">System Timeline</h4>
-                                                <div className="space-y-6 relative before:absolute before:inset-0 before:ml-5 before:-translate-x-px before:h-full before:w-0.5 before:bg-gradient-to-b before:from-primary/50 before:via-border/50 before:to-transparent pb-4">
-                                                    {generateTimeline(selectedIssueForDetail).map((event, i) => (
-                                                        <motion.div initial={{ opacity: 0, x: 20 }} animate={{ opacity: 1, x: 0 }} transition={{ delay: i * 0.1 }} key={i} className="relative flex items-start gap-4 group">
-                                                            <div className={`flex items-center justify-center w-10 h-10 rounded-full border-4 border-background shrink-0 shadow-sm ${event.color} z-10 transition-transform group-hover:scale-110`}>
-                                                                {event.icon}
-                                                            </div>
-                                                            <div className="w-full p-4 rounded-2xl bg-card border border-border/50 shadow-sm mt-1 group-hover:border-primary/30 transition-colors">
-                                                                <h5 className="font-bold text-[11px] md:text-xs uppercase tracking-wider">{event.label}</h5>
-                                                                <div className="text-[10px] text-muted-foreground font-mono mt-1 mb-2 font-medium">{event.time.toLocaleString([], { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' })}</div>
-                                                                {event.detail && <p className="text-[11px] text-foreground/80 bg-muted/40 p-2.5 rounded-xl border border-border/40 leading-relaxed font-medium">{event.detail}</p>}
-                                                            </div>
-                                                        </motion.div>
-                                                    ))}
-                                                </div>
-                                            </div>
-                                        </div>
-                                    </div>
-                                </motion.div>
-                            </div>
-                        )}
-                    </AnimatePresence>
-
-                    {/* 🟢 6. Delete Confirmation Overlay */}
+                    {/* 🟢 4. Delete Confirmation Overlay (Highest Z-Index) */}
                     {showDeleteConfirm && (
                         <div className="fixed inset-0 flex items-center justify-center p-4 sm:p-8 md:p-12 bg-black/60 backdrop-blur-sm animate-fade-in" style={{ zIndex: 10000 }}>
                             <div className="bg-card border border-red-500/30 rounded-2xl p-5 md:p-6 max-w-sm w-full shadow-2xl flex flex-col max-h-full" onClick={e => e.stopPropagation()}>
@@ -1007,7 +1156,6 @@ const AdminIssues = () => {
     );
 };
 
-// Reusable Metric component for the Career Modal
 const StatBox = ({ icon, title, count, color, onClick }) => (
     <div
         onClick={onClick}

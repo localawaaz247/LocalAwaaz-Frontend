@@ -63,9 +63,37 @@ const generateTimeline = (issue) => {
     return combined.sort((a, b) => b.time - a.time);
 };
 
+// --- AVATAR COMPONENT ---
+const Avatar = ({ src, name, size = "w-10 h-10", iconSize = "w-5 h-5" }) => {
+    const [imageError, setImageError] = useState(false);
+    useEffect(() => { setImageError(false); }, [src]);
+
+    if (!src || imageError) {
+        return (
+            <div className={`${size} shrink-0 rounded-full bg-primary/10 border border-primary/20 flex items-center justify-center text-primary`}>
+                <User className={iconSize} />
+            </div>
+        );
+    }
+    return (
+        <img
+            src={getCorsSafeUrl(src)}
+            alt={name || "User"}
+            onError={() => setImageError(true)}
+            crossOrigin="anonymous"
+            className={`${size} shrink-0 rounded-full object-cover border border-border/50 bg-muted`}
+        />
+    );
+};
+
 const AdminAnalytics = () => {
     const { user } = useSelector((state) => state.auth);
     const [isMounted, setIsMounted] = useState(false);
+
+    const [assignData, setAssignData] = useState({
+        authorityId: '',
+        commitmentTimeHours: ''
+    });
 
     const [stats, setStats] = useState(null);
     const [statsLoading, setStatsLoading] = useState(true);
@@ -88,6 +116,7 @@ const AdminAnalytics = () => {
 
     // Modals
     const [metricModal, setMetricModal] = useState({ isOpen: false, type: '', title: '', issues: [], loading: false });
+    const [userMetricModal, setUserMetricModal] = useState({ isOpen: false, role: '', title: '', users: [], loading: false });
     const [csiModal, setCsiModal] = useState({ isOpen: false, loading: false, history: [] });
     const [issueModal, setIssueModal] = useState({ isOpen: false, issue: null });
     const [careerModal, setCareerModal] = useState({ isOpen: false, profile: null, history: null, view: 'OVERVIEW', selectedCategory: '', issueList: [] });
@@ -95,8 +124,11 @@ const AdminAnalytics = () => {
     // 🟢 Action Zone (God Mode) States
     const [actionMenuOpen, setActionMenuOpen] = useState(false);
     const [actionTab, setActionTab] = useState('STATUS');
-    const [updateData, setUpdateData] = useState({ status: '', adminRemark: '', resolvedByAuthority: '' });
-    const [assignData, setAssignData] = useState({ authorityId: '', commitmentTimeHours: '' });
+    const [updateData, setUpdateData] = useState({
+        status: '',
+        adminRemark: '',
+        resolvedByAuthority: ''
+    });
     const [revokeData, setRevokeData] = useState({ reason: '', penaltyPoints: 0 });
     const [isUpdating, setIsUpdating] = useState(false);
     const [actionMedia, setActionMedia] = useState(null);
@@ -119,17 +151,6 @@ const AdminAnalytics = () => {
         { value: 'SANITATION', label: 'Sanitation' },
         { value: 'GARBAGE', label: 'Garbage' },
         { value: 'DRAINAGE', label: 'Drainage' }
-    ];
-
-    const STATUSES = [
-        { value: '', label: 'All Statuses' },
-        { value: 'OPEN', label: 'Open' },
-        { value: 'LOCKED', label: 'Assigned (Locked)' },
-        { value: 'PENDING_EXTENSION', label: 'Pending Extension' },
-        { value: 'RESOLVED', label: 'Resolved' },
-        { value: 'REJECTED', label: 'Rejected / Failed' },
-        { value: 'ORPHANED', label: 'Orphaned' },
-        { value: 'DISPUTED', label: 'Disputed' }
     ];
 
     // 🟢 Full 9-Option God-Mode Status List
@@ -176,23 +197,24 @@ const AdminAnalytics = () => {
 
     // Lock Body Scroll
     useEffect(() => {
-        if (issueModal.isOpen || metricModal.isOpen || csiModal.isOpen || showDeleteConfirm || careerModal.isOpen) {
+        if (issueModal.isOpen || metricModal.isOpen || userMetricModal.isOpen || csiModal.isOpen || showDeleteConfirm || careerModal.isOpen) {
             document.body.style.overflow = 'hidden';
         } else {
             document.body.style.overflow = 'unset';
         }
         return () => { document.body.style.overflow = 'unset'; };
-    }, [issueModal.isOpen, metricModal.isOpen, csiModal.isOpen, showDeleteConfirm, careerModal.isOpen]);
+    }, [issueModal.isOpen, metricModal.isOpen, userMetricModal.isOpen, csiModal.isOpen, showDeleteConfirm, careerModal.isOpen]);
 
     useEffect(() => { setCurrentMediaIndex(0); }, [mediaTab]);
 
-    // 🟢 Real-Time Synchronization Listener
+    // Real-Time Synchronization Listener
     useEffect(() => {
         if (socket) {
             const handleRealTimeUpdate = (notification) => {
                 const relevantTypes = ['UPDATE', 'URGENT', 'CRITICAL', 'SYSTEM_BROADCAST', 'REWARD'];
                 if (relevantTypes.includes(notification.type)) {
                     fetchData();
+                    fetchSummary();
                     if (csiModal.isOpen) fetchCsiHistory();
                 }
             };
@@ -204,13 +226,9 @@ const AdminAnalytics = () => {
     const fetchData = async () => {
         setLoading(true);
         try {
-            const [statsRes, issuesRes] = await Promise.all([
-                axiosInstance.get('/admin/analytics/summary'),
-                axiosInstance.get('/admin/issues', { params: { page, ...filters } })
-            ]);
-            setStats(statsRes.data.data);
-            setIssues(issuesRes.data.data.issues);
-            setTotalPages(issuesRes.data.data.pagination.totalPages);
+            const res = await axiosInstance.get('/admin/issues', { params: { page, ...filters } });
+            setIssues(res.data.data.issues);
+            setTotalPages(res.data.data.pagination.totalPages);
         } catch (error) {
             console.error("Failed to load data", error);
         } finally {
@@ -294,20 +312,52 @@ const AdminAnalytics = () => {
         }
     };
 
-    // 🟢 Unified Issue Viewer
+    // 🟢 User Metric Click Handler
+    const handleUserMetricClick = async (roleQuery, title) => {
+        setUserMetricModal({ isOpen: true, role: roleQuery, title, users: [], loading: true });
+        try {
+            if (roleQuery === 'user') {
+                const res = await axiosInstance.get('/admin/users', { params: { role: 'user', limit: 100 } });
+                setUserMetricModal(prev => ({ ...prev, users: res.data.data.users, loading: false }));
+            } else {
+                // Fetch all approved authorities, then filter to match the dashboard stats perfectly
+                const res = await axiosInstance.get('/admin/authorities', { params: { status: 'APPROVED' } });
+                const allAuths = res.data.data || [];
+
+                const filteredUsers = allAuths.filter(u => {
+                    if (roleQuery === 'official') return u.role === 'official';
+                    if (roleQuery === 'ngo') return ['ngo', 'other'].includes(u.role);
+                    return false;
+                });
+
+                setUserMetricModal(prev => ({ ...prev, users: filteredUsers, loading: false }));
+            }
+        } catch (error) {
+            showToast({ icon: 'error', title: 'Failed to load user list' });
+            setUserMetricModal(prev => ({ ...prev, loading: false }));
+        }
+    };
+
     const openIssueModal = async (issueId) => {
         try {
             showToast({ icon: 'loading', title: 'Loading details...' });
             const res = await axiosInstance.get(`/admin/issue/${issueId}`);
-            const fetchedIssue = res.data.data;
+
+            // Safely grab the issue object
+            const fetchedIssue = res.data.data?.issue || res.data.data;
+
+            // Safely extract the assignee ID if the issue is currently assigned
+            const currentAssignee = fetchedIssue.bidding?.winningBid?.authorityId;
+            const assigneeId = currentAssignee ? (currentAssignee._id || currentAssignee) : '';
 
             setIssueModal({ isOpen: true, issue: fetchedIssue });
 
             setUpdateData({
                 status: fetchedIssue.status,
                 adminRemark: fetchedIssue.adminRemark || '',
-                resolvedByAuthority: fetchedIssue.resolvedByAuthority || fetchedIssue.resolutionEvidence?.resolvedByAuthority || ''
+                resolvedByAuthority: fetchedIssue.resolvedByAuthority || fetchedIssue.resolutionEvidence?.resolvedByAuthority || assigneeId || ''
             });
+
             setAssignData({ authorityId: '', commitmentTimeHours: '' });
             setRevokeData({ reason: '', penaltyPoints: 0 });
             setActionMedia(null);
@@ -315,7 +365,7 @@ const AdminAnalytics = () => {
             setMediaTab('REPORTED');
             setCurrentMediaIndex(0);
 
-            setModalZ(prev => ({ ...prev, issue: prev.career + 10 }));
+            setModalZ(prev => ({ ...prev, issue: (prev.career || prev.list || 200) + 10 }));
 
         } catch (error) {
             showToast({ icon: 'error', title: 'Failed to load issue details' });
@@ -370,16 +420,19 @@ const AdminAnalytics = () => {
         e.preventDefault();
         setIsUpdating(true);
         try {
-            let payload = updateData;
+            let payload = { ...updateData };
             let headers = {};
 
+            // 🟢 Only convert to FormData if we have media AND it's a media-allowed status
             if (['DISPUTED', 'RESOLVED'].includes(updateData.status) && actionMedia) {
                 payload = new FormData();
                 payload.append('status', updateData.status);
                 payload.append('adminRemark', updateData.adminRemark);
+
                 if (updateData.resolvedByAuthority) {
                     payload.append('resolvedByAuthority', updateData.resolvedByAuthority);
                 }
+
                 payload.append('media', actionMedia);
                 headers = { 'Content-Type': 'multipart/form-data' };
             }
@@ -421,13 +474,20 @@ const AdminAnalytics = () => {
         } finally { setIsUpdating(false); }
     };
 
-    const handleExtensionAction = async (action) => {
+    const handleExtensionAction = async (action, timeValue, timeUnit) => {
         setIsUpdating(true);
         try {
-            await axiosInstance.patch(`/admin/issue/${issueModal.issue._id}/extension`, { action });
+            // Only send time info if they clicked 'APPROVED'
+            const payload = { action };
+            if (action === 'APPROVED') {
+                payload.timeValue = timeValue;
+                payload.timeUnit = timeUnit;
+            }
+
+            await axiosInstance.patch(`/admin/issue/${issueModal.issue._id}/extension`, payload);
             showToast({ icon: 'success', title: `Extension ${action.toLowerCase()}!` });
             closeIssueModal();
-            fetchData();
+            fetchData(); // Refreshes the analytics dashboard
         } catch (error) {
             showToast({ icon: 'error', title: error.response?.data?.message || 'Failed to process extension' });
         } finally {
@@ -530,11 +590,12 @@ const AdminAnalytics = () => {
         );
     }
 
+
     return (
         <motion.div
             initial={{ opacity: 0, y: 10 }}
             animate={{ opacity: 1, y: 0 }}
-            className="space-y-6 flex flex-col min-h-full h-auto md:h-full relative"
+            className="space-y-6 flex flex-col min-h-full h-auto md:h-full relative pb-10"
         >
             {/* Header */}
             <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 relative z-[50]">
@@ -556,11 +617,11 @@ const AdminAnalytics = () => {
 
             {/* 🟢 3x3 Metric Cards Grid */}
             <div className="grid grid-cols-2 lg:grid-cols-3 gap-4 shrink-0 relative z-[45]">
-                <MetricCard icon={Users} title="Standard Users" count={stats?.totalUsers || 0} color="text-blue-500" bg="from-blue-500/20" />
-                <MetricCard icon={ShieldCheck} title="Verified Officials" count={stats?.totalOfficials || 0} color="text-emerald-500" bg="from-emerald-500/20" />
-                <MetricCard icon={Briefcase} title="Verified NGOs" count={stats?.totalNGOs || 0} color="text-indigo-500" bg="from-indigo-500/20" />
+                <MetricCard icon={Users} title="Standard Users" count={stats?.totalUsers || 0} color="text-blue-500" bg="from-blue-500/20" onClick={() => handleUserMetricClick('user', 'Standard Users')} />
+                <MetricCard icon={ShieldCheck} title="Verified Officials" count={stats?.totalOfficials || 0} color="text-emerald-500" bg="from-emerald-500/20" onClick={() => handleUserMetricClick('official', 'Verified Officials')} />
+                <MetricCard icon={Briefcase} title="Verified NGOs" count={stats?.totalNGOs || 0} color="text-indigo-500" bg="from-indigo-500/20" onClick={() => handleUserMetricClick('ngo', 'Verified NGOs')} />
 
-                <MetricCard icon={FileText} title="Total Issues" count={stats?.totalIssues || 0} color="text-purple-500" bg="from-purple-500/20" />
+                <MetricCard icon={FileText} title="Total Issues" count={stats?.totalIssues || 0} color="text-purple-500" bg="from-purple-500/20" onClick={() => handleMetricClick('', 'All Platform Issues')} />
                 <MetricCard icon={AlertTriangle} title="Open Issues" count={stats?.issueStats?.OPEN || 0} color="text-yellow-500" bg="from-yellow-500/20" onClick={() => handleMetricClick('OPEN', 'Open Issues')} />
                 <MetricCard icon={CheckSquare} title="Resolved Issues" count={stats?.issueStats?.RESOLVED || 0} color="text-emerald-500" bg="from-emerald-500/20" onClick={() => handleMetricClick('RESOLVED', 'Resolved Issues')} />
 
@@ -761,6 +822,74 @@ const AdminAnalytics = () => {
 
             {isMounted && createPortal(
                 <>
+                    {/* 🟢 USER METRIC LIST MODAL */}
+                    <AnimatePresence>
+                        {userMetricModal.isOpen && (
+                            <div className="fixed inset-0 z-[100] flex items-center justify-center p-4">
+                                <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="absolute inset-0 bg-black/60 backdrop-blur-md" onClick={() => setUserMetricModal({ ...userMetricModal, isOpen: false })} />
+                                <motion.div
+                                    initial={{ opacity: 0, scale: 0.95, y: 20 }} animate={{ opacity: 1, scale: 1, y: 0 }} exit={{ opacity: 0, scale: 0.95, y: 20 }}
+                                    className="bg-card/95 backdrop-blur-2xl w-full max-w-3xl border border-white/10 rounded-3xl shadow-[0_0_50px_rgba(0,0,0,0.5)] overflow-hidden flex flex-col max-h-[85dvh] relative z-10"
+                                >
+                                    <div className="p-5 border-b border-border/50 flex justify-between items-center bg-white/5 shrink-0">
+                                        <h3 className="text-xl font-black tracking-wide flex items-center gap-3">
+                                            <div className="p-2 bg-primary/20 rounded-xl border border-primary/30 text-primary"><Users size={20} /></div>
+                                            {userMetricModal.title}
+                                        </h3>
+                                        <button onClick={() => setUserMetricModal({ isOpen: false, role: '', title: '', users: [], loading: false })} className="text-muted-foreground p-2 hover:bg-white/10 rounded-full transition-colors"><X size={20} /></button>
+                                    </div>
+
+                                    <div className="overflow-y-auto thin-scrollbar flex-1 p-4 md:p-6 space-y-3 bg-background/30">
+                                        {userMetricModal.loading ? (
+                                            <div className="space-y-3">
+                                                {[...Array(6)].map((_, i) => (
+                                                    <div key={i} className="bg-card border border-border/50 p-4 rounded-2xl flex items-center justify-between animate-pulse">
+                                                        <div className="space-y-2 w-1/2 sm:w-2/3">
+                                                            <div className="h-5 w-full bg-muted rounded"></div>
+                                                            <div className="h-3 w-1/2 bg-muted/50 rounded"></div>
+                                                        </div>
+                                                        <div className="h-8 w-20 bg-muted rounded-lg shrink-0"></div>
+                                                    </div>
+                                                ))}
+                                            </div>
+                                        ) : userMetricModal.users.length === 0 ? (
+                                            <div className="text-center py-20 text-muted-foreground">
+                                                <Users className="w-16 h-16 mx-auto mb-4 opacity-20" />
+                                                <p className="font-medium">No users found for this metric.</p>
+                                            </div>
+                                        ) : (
+                                            userMetricModal.users.map((mappedUser, index) => (
+                                                <motion.div
+                                                    initial={{ opacity: 0, x: -10 }} animate={{ opacity: 1, x: 0 }} transition={{ delay: index * 0.03 }}
+                                                    key={mappedUser._id}
+                                                    onClick={() => {
+                                                        setUserMetricModal({ ...userMetricModal, isOpen: false });
+                                                        openCareerModal(mappedUser._id);
+                                                    }}
+                                                    className="bg-card border border-border/50 p-4 rounded-2xl flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 cursor-pointer hover:border-primary/50 hover:bg-primary/5 transition-all shadow-sm group"
+                                                >
+                                                    <div className="flex items-center gap-3 overflow-hidden w-full sm:flex-1 pr-0 sm:pr-2">
+                                                        <Avatar src={mappedUser.profilePic} name={mappedUser.name} size="w-10 h-10" iconSize="w-5 h-5" />
+                                                        <div className="flex flex-col min-w-0">
+                                                            <p className="text-base font-bold text-foreground truncate group-hover:text-primary transition-colors">{mappedUser.name || mappedUser.userName}</p>
+                                                            <p className="text-xs font-medium text-muted-foreground truncate">{mappedUser.contact?.email || 'No Email'}</p>
+                                                        </div>
+                                                    </div>
+                                                    <div className="shrink-0 flex items-center gap-3 w-full sm:w-auto justify-end">
+                                                        <span className={`text-[10px] font-bold px-3 py-1.5 rounded-lg border uppercase tracking-widest ${mappedUser.accountStatus === 'ACTIVE' ? 'bg-green-500/10 text-green-500 border-green-500/20' : 'bg-red-500/10 text-red-500 border-red-500/20'}`}>
+                                                            {mappedUser.accountStatus || 'ACTIVE'}
+                                                        </span>
+                                                        <ChevronRight size={18} className="text-muted-foreground group-hover:text-primary transition-colors hidden sm:block" />
+                                                    </div>
+                                                </motion.div>
+                                            ))
+                                        )}
+                                    </div>
+                                </motion.div>
+                            </div>
+                        )}
+                    </AnimatePresence>
+
                     {/* 🟢 METRIC LIST MODAL */}
                     <AnimatePresence>
                         {metricModal.isOpen && (
@@ -960,7 +1089,7 @@ const AdminAnalytics = () => {
                     {/* 🟢 ADMIN-STYLE SPLIT SCREEN DETAIL MODAL */}
                     <AnimatePresence>
                         {issueModal.isOpen && issueModal.issue && (
-                            <div className="fixed inset-0 z-[200] flex items-center justify-center p-2 sm:p-4">
+                            <div className="fixed inset-0 flex items-center justify-center p-2 sm:p-4" style={{ zIndex: modalZ.issue }}>
                                 <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="absolute inset-0 bg-black/80 backdrop-blur-sm" onClick={closeIssueModal} />
 
                                 <motion.div
@@ -1048,10 +1177,10 @@ const AdminAnalytics = () => {
                                         </div>
 
                                         {/* RIGHT COLUMN: The Players, ACTION ZONE & Timeline */}
-                                        <div className="w-full lg:w-1/2 flex flex-col bg-muted/5 shrink-0 lg:shrink relative z-30">
+                                        <div className="w-full lg:w-1/2 flex flex-col bg-muted/5 shrink-0 lg:shrink lg:overflow-y-auto thin-scrollbar relative z-30">
 
                                             {/* Players Section */}
-                                            <div className="p-4 md:p-5 border-b border-border/50 shrink-0">
+                                            <div className="p-4 md:p-5 border-b border-border/50 shrink-0 relative z-[60]"> {/* 🟢 ADDED: relative z-[60] to float above the action zone */}
                                                 <div className="grid grid-cols-2 gap-3">
                                                     <div className="bg-card border border-border/50 p-3 rounded-xl flex justify-between items-center group relative">
                                                         <div className="flex-1 cursor-pointer min-w-0 pr-2" onClick={() => !issueModal.issue.isAnonymous && openCareerModal(issueModal.issue.reportedBy?._id)}>
@@ -1095,8 +1224,15 @@ const AdminAnalytics = () => {
 
                                                 {/* 🟢 NEW: Pending Extension Request Banner */}
                                                 {issueModal.issue.status === 'PENDING_EXTENSION' && (
-                                                    <div className="col-span-2 mt-4 bg-amber-500/10 border border-amber-500/20 p-4 rounded-xl relative overflow-hidden">
-                                                        <div className="absolute top-0 right-0 p-4 opacity-5 pointer-events-none"><Clock size={80} className="text-amber-500 -mr-6 -mt-6" /></div>
+                                                    <div className="col-span-2 mt-4 bg-amber-500/10 border border-amber-500/20 p-4 rounded-xl relative z-[70]">
+
+                                                        {/* 🟢 NEW: Dedicated background layer just to clip the clock safely */}
+                                                        <div className="absolute inset-0 overflow-hidden rounded-xl pointer-events-none z-0">
+                                                            <div className="absolute top-0 right-0 p-4 opacity-5">
+                                                                <Clock size={80} className="text-amber-500 -mr-6 -mt-6" />
+                                                            </div>
+                                                        </div>
+
                                                         <div className="relative z-10">
                                                             <p className="text-[10px] text-amber-500 font-bold uppercase tracking-wider mb-1 flex items-center gap-1"><Clock size={12} /> Extension Requested</p>
                                                             <p className="text-sm font-bold text-foreground">
@@ -1105,11 +1241,39 @@ const AdminAnalytics = () => {
                                                             <p className="text-xs text-muted-foreground mt-1 mb-4 border-l-2 border-amber-500/50 pl-2">
                                                                 Reason: {issueModal.issue.workCycle?.extensionRequests?.slice(-1)[0]?.reason}
                                                             </p>
-                                                            <div className="flex gap-2">
-                                                                <button onClick={() => handleExtensionAction('APPROVED')} disabled={isUpdating} className="flex-1 bg-amber-500 text-white font-bold text-xs py-2.5 rounded-lg hover:bg-amber-600 transition-colors shadow-sm flex items-center justify-center gap-2">
+
+                                                            {/* 🟢 FIXED: Inputs are now Pre-filled and Disabled (Read-Only) */}
+                                                            <div className="flex gap-2 mb-4 relative z-50">
+                                                                <input
+                                                                    type="number"
+                                                                    className="w-1/3 p-2 rounded-lg bg-background/50 border border-border/50 text-xs font-bold outline-none opacity-70 cursor-not-allowed"
+                                                                    value={issueModal.issue.workCycle?.extensionRequests?.slice(-1)[0]?.requestedTimeValue || ''}
+                                                                    disabled
+                                                                />
+                                                                <input
+                                                                    type="text"
+                                                                    className="w-2/3 p-2 rounded-lg bg-background/50 border border-border/50 text-xs font-bold outline-none opacity-70 cursor-not-allowed uppercase"
+                                                                    value={issueModal.issue.workCycle?.extensionRequests?.slice(-1)[0]?.requestedTimeUnit || ''}
+                                                                    disabled
+                                                                />
+                                                            </div>
+
+                                                            <div className="flex gap-2 relative z-10">
+                                                                <button
+                                                                    onClick={() => {
+                                                                        const pendingReq = issueModal.issue.workCycle?.extensionRequests?.slice(-1)[0];
+                                                                        handleExtensionAction('APPROVED', pendingReq?.requestedTimeValue, pendingReq?.requestedTimeUnit);
+                                                                    }}
+                                                                    disabled={isUpdating}
+                                                                    className="flex-1 bg-amber-500 text-white font-bold text-xs py-2.5 rounded-lg hover:bg-amber-600 transition-colors shadow-sm flex items-center justify-center gap-2 disabled:opacity-50"
+                                                                >
                                                                     <CheckCircle size={14} /> Approve
                                                                 </button>
-                                                                <button onClick={() => handleExtensionAction('REJECTED')} disabled={isUpdating} className="flex-1 bg-card text-muted-foreground border border-border/50 font-bold text-xs py-2.5 rounded-lg hover:text-foreground hover:bg-muted/50 transition-colors shadow-sm flex items-center justify-center gap-2">
+                                                                <button
+                                                                    onClick={() => handleExtensionAction('REJECTED')}
+                                                                    disabled={isUpdating}
+                                                                    className="flex-1 bg-card text-muted-foreground border border-border/50 font-bold text-xs py-2.5 rounded-lg hover:text-foreground hover:bg-muted/50 transition-colors shadow-sm flex items-center justify-center gap-2"
+                                                                >
                                                                     <X size={14} /> Deny
                                                                 </button>
                                                             </div>
@@ -1131,42 +1295,50 @@ const AdminAnalytics = () => {
 
                                                 {actionTab === 'STATUS' && (
                                                     <form onSubmit={handleUpdateStatus} className="flex flex-col gap-3 relative z-40">
-                                                        <div className="flex gap-2 relative z-40">
-                                                            <div className="w-1/2 relative z-40">
+                                                        <div className="flex gap-2 relative z-50">
+                                                            {/* Status Dropdown */}
+                                                            <div className="w-1/2 relative z-50">
                                                                 <label className="text-[10px] text-muted-foreground mb-1 block font-semibold uppercase">Change Status</label>
-                                                                {/* 🟢 Includes all 9 options */}
-                                                                <CustomSelect options={UPDATE_STATUS_OPTIONS} value={updateData.status} onChange={(val) => setUpdateData({ ...updateData, status: val })} />
+                                                                <CustomSelect
+                                                                    options={UPDATE_STATUS_OPTIONS.filter(opt => opt.value !== 'PENDING_EXTENSION')}
+                                                                    value={updateData.status}
+                                                                    onChange={(val) => setUpdateData({ ...updateData, status: val })}
+                                                                />
                                                             </div>
-                                                            <div className="w-1/2 relative z-10">
+
+                                                            {/* Remark (Now 100% Optional for all statuses) */}
+                                                            <div className="w-1/2 relative z-40">
                                                                 <label className="text-[10px] text-muted-foreground mb-1 block font-semibold uppercase truncate">
-                                                                    {['DISPUTED', 'ORPHANED', 'RESOLVED'].includes(updateData.status) ? 'Audit Remark (Optional)' : 'Audit Remark (Required)'}
+                                                                    Audit Remark (Optional)
                                                                 </label>
                                                                 <input
                                                                     type="text"
                                                                     value={updateData.adminRemark}
                                                                     onChange={(e) => setUpdateData({ ...updateData, adminRemark: e.target.value })}
-                                                                    placeholder={['DISPUTED', 'ORPHANED', 'RESOLVED'].includes(updateData.status) ? "Optional context..." : "State reason..."}
+                                                                    placeholder="Add context..."
                                                                     className="w-full px-3 py-2 bg-muted border border-border/50 rounded-xl text-xs font-medium focus:border-primary outline-none transition-colors"
-                                                                    required={!['DISPUTED', 'ORPHANED', 'RESOLVED'].includes(updateData.status)}
                                                                 />
                                                             </div>
                                                         </div>
 
-                                                        {updateData.status === 'RESOLVED' && (
-                                                            <div className="relative z-30 mb-1 animate-fade-in">
-                                                                <label className="text-[10px] text-green-500 mb-1 block font-bold uppercase flex items-center gap-1">
-                                                                    <ShieldAlert size={12} /> Resolved By (Optional)
+                                                        {/* 🟢 DYNAMIC ACTOR DROPDOWN (100% Optional) */}
+                                                        {['LOCKED', 'AWAITING_HANDOVER', 'RESOLVED', 'FAILED', 'DISPUTED', 'RELEASED'].includes(updateData.status) && (
+                                                            <div className="relative z-40 mb-1 animate-fade-in">
+                                                                <label className="text-[10px] text-primary mb-1 block font-bold uppercase flex items-center gap-1">
+                                                                    <Users size={12} />
+                                                                    {updateData.status === 'LOCKED' ? 'Assign To (Optional)' : 'Action Attributed To (Optional)'}
                                                                 </label>
                                                                 <CustomSelect
-                                                                    options={[{ value: '', label: 'Unknown / System Resolved' }, ...authorities]}
+                                                                    options={[{ value: '', label: 'System / Admin (Default)' }, ...authorities]}
                                                                     value={updateData.resolvedByAuthority || ''}
                                                                     onChange={(val) => setUpdateData({ ...updateData, resolvedByAuthority: val })}
                                                                 />
                                                             </div>
                                                         )}
 
+                                                        {/* 🟢 EVIDENCE UPLOAD (100% Optional) */}
                                                         {['DISPUTED', 'RESOLVED'].includes(updateData.status) && (
-                                                            <div className={`relative z-10 p-3 border rounded-xl animate-fade-in ${updateData.status === 'RESOLVED' ? 'bg-green-500/5 border-green-500/20' : 'bg-red-500/5 border-red-500/20'}`}>
+                                                            <div className={`relative z-30 p-3 border rounded-xl animate-fade-in ${updateData.status === 'RESOLVED' ? 'bg-green-500/5 border-green-500/20' : 'bg-red-500/5 border-red-500/20'}`}>
                                                                 <label className={`text-xs mb-2 block font-bold flex items-center gap-1 ${updateData.status === 'RESOLVED' ? 'text-green-500' : 'text-red-500'}`}>
                                                                     <ShieldAlert size={12} /> {updateData.status === 'RESOLVED' ? 'Attach Evidence (Optional)' : 'Dispute Evidence (Optional)'}
                                                                 </label>
@@ -1213,7 +1385,7 @@ const AdminAnalytics = () => {
                                             </div>
 
                                             {/* Timeline */}
-                                            <div className="flex-1 p-4 md:p-6 lg:overflow-y-auto thin-scrollbar relative z-10 bg-card/40">
+                                            <div className="flex-1 p-4 md:p-6 relative z-10 bg-card/40 pb-20">
                                                 <h4 className="text-xs font-black uppercase tracking-widest text-muted-foreground mb-6 pl-2 border-l-2 border-primary">System Timeline</h4>
                                                 <div className="space-y-6 relative before:absolute before:inset-0 before:ml-5 before:-translate-x-px before:h-full before:w-0.5 before:bg-gradient-to-b before:from-primary/50 before:via-border/50 before:to-transparent pb-4">
                                                     {generateTimeline(issueModal.issue).map((event, i) => (
@@ -1237,7 +1409,49 @@ const AdminAnalytics = () => {
                         )}
                     </AnimatePresence>
 
-                    {/* 🟢 6. Delete Confirmation Overlay */}
+                    {/* 🟢 4. CSI HISTORY MODAL */}
+                    <AnimatePresence>
+                        {csiModal.isOpen && (
+                            <div className="fixed inset-0 flex items-center justify-center p-2 sm:p-4 bg-black/60 backdrop-blur-md animate-fade-in" style={{ zIndex: Math.max(modalZ.career, modalZ.issue) + 20 }}>
+                                <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="absolute inset-0" onClick={() => setCsiModal({ ...csiModal, isOpen: false })} />
+                                <motion.div initial={{ opacity: 0, scale: 0.95, y: 20 }} animate={{ opacity: 1, scale: 1, y: 0 }} exit={{ opacity: 0, scale: 0.95, y: 20 }} className="bg-card w-full max-w-2xl border border-border/50 rounded-3xl shadow-2xl overflow-hidden flex flex-col max-h-[85dvh] relative z-10">
+                                    <div className="p-4 md:p-5 border-b border-border/50 flex justify-between items-center bg-muted/10 shrink-0">
+                                        <h3 className="text-xl font-black text-primary flex items-center gap-2">
+                                            <Target size={20} /> CSI Ledger
+                                        </h3>
+                                        <button onClick={() => setCsiModal({ ...csiModal, isOpen: false })} className="p-2 bg-muted rounded-full hover:bg-muted/80 transition-colors"><X size={20} /></button>
+                                    </div>
+                                    <div className="overflow-y-auto thin-scrollbar flex-1 p-4 md:p-6 space-y-3 bg-background/30">
+                                        {csiModal.loading ? (
+                                            <div className="flex justify-center py-20"><MiniLoader /></div>
+                                        ) : csiModal.history.length === 0 ? (
+                                            <div className="text-center py-20 text-muted-foreground font-medium"><Clock className="w-12 h-12 mx-auto mb-3 opacity-20" />No points history recorded yet.</div>
+                                        ) : (
+                                            csiModal.history.map((record, i) => (
+                                                <motion.div initial={{ opacity: 0, x: -10 }} animate={{ opacity: 1, x: 0 }} transition={{ delay: i * 0.05 }} key={record._id + i} className={`bg-card border p-4 rounded-2xl flex flex-col sm:flex-row items-start justify-between gap-4 shadow-sm relative overflow-hidden ${record.type === 'EARNED' ? 'border-green-500/20' : 'border-red-500/20'}`}>
+                                                    <div className={`absolute left-0 top-0 bottom-0 w-1 ${record.type === 'EARNED' ? 'bg-green-500' : 'bg-red-500'}`} />
+                                                    <div className="overflow-hidden w-full sm:flex-1 pl-2">
+                                                        <p className="text-sm font-bold text-foreground truncate">{record.title}</p>
+                                                        <p className="text-[10px] font-medium text-muted-foreground mt-1">{new Date(record.updatedAt || record.createdAt).toLocaleString()}</p>
+                                                        <p className="text-[9px] uppercase tracking-wider mt-2 font-bold text-muted-foreground">
+                                                            Reason: {record.type === 'EARNED' ? 'Successfully Resolved & Verified' : (record.points === -100 ? 'Ghost Abandonment Protocol' : 'Missed Deadline / Handover')}
+                                                        </p>
+                                                    </div>
+                                                    <div className="flex items-center justify-end shrink-0">
+                                                        <div className={`flex items-center gap-1.5 px-3 py-1.5 rounded-xl border font-black text-sm ${record.type === 'EARNED' ? 'bg-green-500/10 text-green-500 border-green-500/30' : 'bg-red-500/10 text-red-500 border-red-500/30'}`}>
+                                                            {record.type === 'EARNED' ? '+' : ''}{record.points}
+                                                        </div>
+                                                    </div>
+                                                </motion.div>
+                                            ))
+                                        )}
+                                    </div>
+                                </motion.div>
+                            </div>
+                        )}
+                    </AnimatePresence>
+
+                    {/* 🟢 5. Delete Confirmation Overlay */}
                     {showDeleteConfirm && (
                         <div className="fixed inset-0 flex items-center justify-center p-4 sm:p-8 md:p-12 bg-black/60 backdrop-blur-sm animate-fade-in" style={{ zIndex: 10000 }}>
                             <div className="bg-card border border-red-500/30 rounded-2xl p-5 md:p-6 max-w-sm w-full shadow-2xl flex flex-col max-h-full" onClick={e => e.stopPropagation()}>
@@ -1259,12 +1473,10 @@ const AdminAnalytics = () => {
                 </>,
                 document.body
             )}
-
         </motion.div>
     );
 };
 
-// Reusable Metric component
 const MetricCard = ({ icon: Icon, title, count, color, bg, onClick }) => (
     <motion.button
         whileHover={{ scale: 1.02, y: -2 }}

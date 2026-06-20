@@ -7,7 +7,6 @@ import {
     Building2, MapPin, Search, Clock, CheckCircle,
     XCircle, ShieldCheck, Mail, ChevronRight, Filter
 } from 'lucide-react';
-import MiniLoader from '../MiniLoader';
 import AuthorityDetailModal from '../modals/AuthorityDetailModal';
 
 const AdminVerification = () => {
@@ -85,7 +84,7 @@ const AdminVerification = () => {
         <motion.div
             initial={{ opacity: 0, y: 10 }}
             animate={{ opacity: 1, y: 0 }}
-            className="space-y-6 md:space-y-8 flex flex-col min-h-full pb-10 relative"
+            className="space-y-6 md:space-y-8 flex flex-col h-full overflow-y-auto pb-10 relative"
         >
             {/* --- HEADER --- */}
             <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 relative z-[50]">
@@ -159,8 +158,29 @@ const AdminVerification = () => {
             {/* --- MAIN GRID AREA --- */}
             <div className="bg-card/40 backdrop-blur-2xl border border-border/60 rounded-2xl overflow-hidden shadow-xl flex-1 flex flex-col relative z-[10] p-4 md:p-6 min-h-[400px]">
                 {loading ? (
-                    <div className="flex h-full items-center justify-center p-12">
-                        <MiniLoader />
+                    /* 🟢 NEW YOUTUBE-STYLE SHIMMER EFFECT */
+                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4 w-full">
+                        {[...Array(8)].map((_, i) => (
+                            <div key={i} className="p-4 sm:p-5 rounded-2xl bg-card/40 border border-border/50 flex flex-col h-[190px] animate-pulse">
+                                {/* Top Row: Icon & Status Placeholder */}
+                                <div className="flex justify-between items-start mb-4">
+                                    <div className="w-10 h-10 rounded-xl bg-muted shrink-0"></div>
+                                    <div className="w-16 h-6 rounded-md bg-muted shrink-0"></div>
+                                </div>
+
+                                {/* Core Data Placeholder */}
+                                <div className="flex-1 space-y-3">
+                                    <div className="h-5 w-3/4 bg-muted rounded"></div>
+                                    <div className="h-3 w-1/3 bg-muted/50 rounded"></div>
+                                </div>
+
+                                {/* Bottom Info Placeholder */}
+                                <div className="pt-3 border-t border-border/50 mt-auto space-y-2">
+                                    <div className="h-3 w-1/2 bg-muted rounded"></div>
+                                    <div className="h-3 w-2/3 bg-muted/50 rounded"></div>
+                                </div>
+                            </div>
+                        ))}
                     </div>
                 ) : filteredAuthorities.length === 0 ? (
                     <motion.div

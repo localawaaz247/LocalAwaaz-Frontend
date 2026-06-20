@@ -8,7 +8,7 @@ import {
     CheckCircle, AlertTriangle, Trash2, Search, Shield,
     Leaf, Flame, Clock, History, Briefcase, Download, ArrowRight, RotateCcw,
     ShieldAlert, Zap, MoreVertical, Ban, AlertOctagon, Trophy, Medal, Star, CheckSquare,
-    UserCog, FileSignature, Target, Filter, Camera, ListIcon
+    UserCog, FileSignature, Target, Filter, Camera, ListIcon, Users
 } from 'lucide-react';
 import MiniLoader from '../MiniLoader';
 import CustomSelect from '../../components/CustomSelect';
@@ -284,13 +284,22 @@ const AdminUsers = () => {
             const res = await axiosInstance.get(`/admin/issue/${issueId}`);
             const issueData = res.data.data?.issue || res.data.data;
 
+            // 🟢 THE FIX: Safely extract the assignee ID if assigned
+            const currentAssignee = issueData.bidding?.winningBid?.authorityId;
+            const assigneeId = currentAssignee ? (currentAssignee._id || currentAssignee) : '';
+
             setSelectedIssue(issueData);
+
+            // 🟢 Inject the assigneeId into the updateData state for the dropdown
             setUpdateData({
                 status: issueData.status,
                 adminRemark: issueData.adminRemark || '',
-                resolvedByAuthority: issueData.resolvedByAuthority || issueData.resolutionEvidence?.resolvedByAuthority || ''
+                resolvedByAuthority: issueData.resolvedByAuthority ||
+                    issueData.resolutionEvidence?.resolvedByAuthority ||
+                    assigneeId || ''
             });
-            setAssignData({ authorityId: '', commitmentTimeHours: '' });
+
+            setAssignData({ authorityId: '', commitmentTimeHours: '' }); // Reset assign form
             setRevokeData({ reason: '', penaltyPoints: 0 });
             setDisputeMedia(null);
             setActionTab('STATUS');
@@ -351,10 +360,16 @@ const AdminUsers = () => {
     };
 
     // 🟢 EXTENSION REQUEST HANDLER
-    const handleExtensionAction = async (action) => {
+    const handleExtensionAction = async (action, timeValue, timeUnit) => {
         setIsUpdating(true);
         try {
-            await axiosInstance.patch(`/admin/issue/${selectedIssue._id}/extension`, { action });
+            const payload = { action };
+            if (action === 'APPROVED') {
+                payload.timeValue = timeValue;
+                payload.timeUnit = timeUnit;
+            }
+
+            await axiosInstance.patch(`/admin/issue/${selectedIssue._id}/extension`, payload);
             showToast({ icon: 'success', title: `Extension ${action.toLowerCase()}!` });
             closeIssueModal();
             fetchUserFullDetails(selectedUserDetails.user._id);
@@ -539,8 +554,7 @@ const AdminUsers = () => {
     }
 
     return (
-        <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} className="space-y-4 md:space-y-6 flex flex-col h-full pb-10">
-            {/* HEADER */}
+        <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} className="space-y-4 md:space-y-6 flex flex-col h-full overflow-y-auto pb-10">            {/* HEADER */}
             <div className="flex flex-col xl:flex-row justify-between items-start xl:items-center gap-4 relative z-[50]">
                 <div className="flex flex-col gap-1">
                     <h2 className="text-3xl md:text-4xl font-black bg-clip-text text-transparent bg-gradient-to-r from-foreground to-foreground/60 drop-shadow-sm flex items-center gap-3">
@@ -931,7 +945,6 @@ const AdminUsers = () => {
                                                         </div>
                                                     )}
                                                 </div>
-
                                             </div>
                                         )}
                                     </div>
@@ -1063,31 +1076,45 @@ const AdminUsers = () => {
                                             </div>
                                         </div>
 
-                                        {/* Right Side: Details and Timeline */}
-                                        <div className="w-full lg:w-1/2 flex flex-col bg-card/40 shrink-0 lg:shrink relative">
-                                            <div className="p-4 md:p-6 border-b border-border/50 shrink-0 bg-background/50">
-                                                <div className="grid grid-cols-2 gap-4">
-                                                    <div className="bg-card border border-border/50 p-4 rounded-2xl shadow-sm">
-                                                        <p className="text-[10px] text-muted-foreground font-bold uppercase tracking-wider mb-1">Reported By</p>
-                                                        <p className="text-sm font-bold truncate text-foreground">{selectedIssue.isAnonymous ? 'Anonymous Citizen' : selectedIssue.reportedBy?.name || 'Unknown'}</p>
+                                        {/* RIGHT COLUMN: Players, Actions, Timeline */}
+                                        <div className="w-full lg:w-1/2 flex flex-col bg-muted/5 shrink-0 lg:shrink lg:overflow-y-auto thin-scrollbar relative z-30">
+
+                                            {/* --- PLAYERS SECTION --- */}
+                                            <div className="p-4 md:p-5 border-b border-border/50 shrink-0 relative z-[60]">
+                                                <div className="grid grid-cols-2 gap-3">
+                                                    <div className="bg-card border border-border/50 p-3 rounded-xl flex justify-between items-center group relative">
+                                                        <div className="flex-1 min-w-0 pr-2">
+                                                            <p className="text-[9px] text-muted-foreground font-bold uppercase mb-1">Reporter</p>
+                                                            <p className="text-sm font-bold truncate text-foreground">
+                                                                {selectedIssue.isAnonymous ? 'Anonymous' : selectedIssue.reportedBy?.name || 'Unknown'}
+                                                            </p>
+                                                        </div>
                                                     </div>
-                                                    {selectedIssue.bidding?.winningBid ? (
-                                                        <div className="bg-indigo-500/5 border border-indigo-500/20 p-4 rounded-2xl shadow-sm">
-                                                            <p className="text-[10px] text-indigo-500 font-bold uppercase tracking-wider mb-1">Assigned Official</p>
-                                                            <p className="text-sm font-black text-indigo-500 truncate">{selectedIssue.bidding.winningBid.authorityId?.name || 'ID Linked'}</p>
-                                                            <p className="text-[10px] text-indigo-500/80 font-bold mt-0.5">Comm. Time: {selectedIssue.bidding.winningBid.commitmentTimeHours} hrs</p>
-                                                        </div>
-                                                    ) : (
-                                                        <div className="bg-muted/30 border border-border/50 p-4 rounded-2xl shadow-sm flex items-center justify-center">
-                                                            <p className="text-xs font-bold text-muted-foreground">Unassigned</p>
-                                                        </div>
-                                                    )}
+
+                                                    <div className={`p-3 rounded-xl border transition-colors min-w-0 ${selectedIssue.bidding?.winningBid?.authorityId ? 'bg-indigo-500/5 border-indigo-500/20' : 'bg-card border-border/50'}`}>
+                                                        <p className={`text-[9px] font-bold uppercase mb-1 ${selectedIssue.bidding?.winningBid?.authorityId ? 'text-indigo-500' : 'text-muted-foreground'}`}>Assigned Official</p>
+                                                        {selectedIssue.bidding?.winningBid?.authorityId ? (
+                                                            <div>
+                                                                <p className="text-sm font-bold text-indigo-600 dark:text-indigo-400 truncate">{selectedIssue.bidding.winningBid.authorityId.name || 'ID Linked'}</p>
+                                                                <p className="text-[10px] text-indigo-500/80 font-bold mt-0.5 truncate">Commitment: {selectedIssue.bidding.winningBid.commitmentTimeHours}h</p>
+                                                            </div>
+                                                        ) : (
+                                                            <p className="text-xs text-muted-foreground italic mt-1 font-medium truncate">Unassigned</p>
+                                                        )}
+                                                    </div>
                                                 </div>
 
                                                 {/* 🟢 PENDING EXTENSION BANNER */}
                                                 {selectedIssue.status === 'PENDING_EXTENSION' && (
-                                                    <div className="col-span-2 mt-4 bg-amber-500/10 border border-amber-500/20 p-4 rounded-xl relative overflow-hidden">
-                                                        <div className="absolute top-0 right-0 p-4 opacity-5 pointer-events-none"><Clock size={80} className="text-amber-500 -mr-6 -mt-6" /></div>
+                                                    <div className="col-span-2 mt-4 bg-amber-500/10 border border-amber-500/20 p-4 rounded-xl relative z-[70]">
+
+                                                        {/* 🟢 NEW: Dedicated background layer just to clip the clock safely */}
+                                                        <div className="absolute inset-0 overflow-hidden rounded-xl pointer-events-none z-0">
+                                                            <div className="absolute top-0 right-0 p-4 opacity-5">
+                                                                <Clock size={80} className="text-amber-500 -mr-6 -mt-6" />
+                                                            </div>
+                                                        </div>
+
                                                         <div className="relative z-10">
                                                             <p className="text-[10px] text-amber-500 font-bold uppercase tracking-wider mb-1 flex items-center gap-1"><Clock size={12} /> Extension Requested</p>
                                                             <p className="text-sm font-bold text-foreground">
@@ -1096,11 +1123,39 @@ const AdminUsers = () => {
                                                             <p className="text-xs text-muted-foreground mt-1 mb-4 border-l-2 border-amber-500/50 pl-2">
                                                                 Reason: {selectedIssue.workCycle?.extensionRequests?.slice(-1)[0]?.reason}
                                                             </p>
-                                                            <div className="flex gap-2">
-                                                                <button onClick={() => handleExtensionAction('APPROVED')} disabled={isUpdating} className="flex-1 bg-amber-500 text-white font-bold text-xs py-2.5 rounded-lg hover:bg-amber-600 transition-colors shadow-sm flex items-center justify-center gap-2">
+
+                                                            {/* 🟢 FIXED: Inputs are now Pre-filled and Disabled (Read-Only) */}
+                                                            <div className="flex gap-2 mb-4 relative z-50">
+                                                                <input
+                                                                    type="number"
+                                                                    className="w-1/3 p-2 rounded-lg bg-background/50 border border-border/50 text-xs font-bold outline-none opacity-70 cursor-not-allowed"
+                                                                    value={selectedIssue.workCycle?.extensionRequests?.slice(-1)[0]?.requestedTimeValue || ''}
+                                                                    disabled
+                                                                />
+                                                                <input
+                                                                    type="text"
+                                                                    className="w-2/3 p-2 rounded-lg bg-background/50 border border-border/50 text-xs font-bold outline-none opacity-70 cursor-not-allowed uppercase"
+                                                                    value={selectedIssue.workCycle?.extensionRequests?.slice(-1)[0]?.requestedTimeUnit || ''}
+                                                                    disabled
+                                                                />
+                                                            </div>
+
+                                                            <div className="flex gap-2 relative z-10">
+                                                                <button
+                                                                    onClick={() => {
+                                                                        const pendingReq = selectedIssue.workCycle?.extensionRequests?.slice(-1)[0];
+                                                                        handleExtensionAction('APPROVED', pendingReq?.requestedTimeValue, pendingReq?.requestedTimeUnit);
+                                                                    }}
+                                                                    disabled={isUpdating}
+                                                                    className="flex-1 bg-amber-500 text-white font-bold text-xs py-2.5 rounded-lg hover:bg-amber-600 transition-colors shadow-sm flex items-center justify-center gap-2 disabled:opacity-50"
+                                                                >
                                                                     <CheckCircle size={14} /> Approve
                                                                 </button>
-                                                                <button onClick={() => handleExtensionAction('REJECTED')} disabled={isUpdating} className="flex-1 bg-card text-muted-foreground border border-border/50 font-bold text-xs py-2.5 rounded-lg hover:text-foreground hover:bg-muted/50 transition-colors shadow-sm flex items-center justify-center gap-2">
+                                                                <button
+                                                                    onClick={() => handleExtensionAction('REJECTED')}
+                                                                    disabled={isUpdating}
+                                                                    className="flex-1 bg-card text-muted-foreground border border-border/50 font-bold text-xs py-2.5 rounded-lg hover:text-foreground hover:bg-muted/50 transition-colors shadow-sm flex items-center justify-center gap-2"
+                                                                >
                                                                     <X size={14} /> Deny
                                                                 </button>
                                                             </div>
@@ -1109,7 +1164,7 @@ const AdminUsers = () => {
                                                 )}
                                             </div>
 
-                                            {/* God Mode Action Zone */}
+                                            {/* --- ACTIONS SECTION (GOD MODE) --- */}
                                             <div className="p-4 md:p-5 border-b border-border/50 shrink-0 bg-background relative z-40">
                                                 <div className="flex gap-4 mb-3 border-b border-border/50">
                                                     <button onClick={() => setActionTab('STATUS')} className={`pb-2 text-xs font-bold uppercase tracking-wider ${actionTab === 'STATUS' ? 'text-primary border-b-2 border-primary' : 'text-muted-foreground'}`}>Update Status</button>
@@ -1122,48 +1177,56 @@ const AdminUsers = () => {
 
                                                 {actionTab === 'STATUS' && (
                                                     <form onSubmit={handleUpdateStatus} className="flex flex-col gap-3 relative z-40">
-                                                        <div className="flex gap-2 relative z-40">
-                                                            <div className="w-1/2 relative z-40">
+                                                        <div className="flex gap-2 relative z-50">
+                                                            {/* Status Dropdown */}
+                                                            <div className="w-1/2 relative z-50">
                                                                 <label className="text-[10px] text-muted-foreground mb-1 block font-semibold uppercase">Change Status</label>
-                                                                <CustomSelect options={UPDATE_STATUS_OPTIONS} value={updateData.status} onChange={(val) => setUpdateData({ ...updateData, status: val })} />
+                                                                <CustomSelect
+                                                                    options={UPDATE_STATUS_OPTIONS.filter(opt => opt.value !== 'PENDING_EXTENSION')}
+                                                                    value={updateData.status}
+                                                                    onChange={(val) => setUpdateData({ ...updateData, status: val })}
+                                                                />
                                                             </div>
-                                                            <div className="w-1/2 relative z-10">
+
+                                                            {/* Remark (Now 100% Optional for all statuses) */}
+                                                            <div className="w-1/2 relative z-40">
                                                                 <label className="text-[10px] text-muted-foreground mb-1 block font-semibold uppercase truncate">
-                                                                    {['DISPUTED', 'ORPHANED', 'RESOLVED'].includes(updateData.status) ? 'Audit Remark (Optional)' : 'Audit Remark (Required)'}
+                                                                    Audit Remark (Optional)
                                                                 </label>
                                                                 <input
                                                                     type="text"
                                                                     value={updateData.adminRemark}
                                                                     onChange={(e) => setUpdateData({ ...updateData, adminRemark: e.target.value })}
-                                                                    placeholder={['DISPUTED', 'ORPHANED', 'RESOLVED'].includes(updateData.status) ? "Optional context..." : "State reason..."}
+                                                                    placeholder="Add context..."
                                                                     className="w-full px-3 py-2 bg-muted border border-border/50 rounded-xl text-xs font-medium focus:border-primary outline-none transition-colors"
-                                                                    required={!['DISPUTED', 'ORPHANED', 'RESOLVED'].includes(updateData.status)}
                                                                 />
                                                             </div>
                                                         </div>
 
-                                                        {updateData.status === 'RESOLVED' && (
-                                                            <div className="relative z-30 mb-1 animate-fade-in">
-                                                                <label className="text-[10px] text-green-500 mb-1 block font-bold uppercase flex items-center gap-1">
-                                                                    <ShieldAlert size={12} /> Resolved By (Optional)
+                                                        {/* 🟢 DYNAMIC ACTOR DROPDOWN (100% Optional) */}
+                                                        {['LOCKED', 'AWAITING_HANDOVER', 'RESOLVED', 'FAILED', 'DISPUTED', 'RELEASED'].includes(updateData.status) && (
+                                                            <div className="relative z-40 mb-1 animate-fade-in">
+                                                                <label className="text-[10px] text-primary mb-1 block font-bold uppercase flex items-center gap-1">
+                                                                    <Users size={12} />
+                                                                    {updateData.status === 'LOCKED' ? 'Assign To (Optional)' : 'Action Attributed To (Optional)'}
                                                                 </label>
                                                                 <CustomSelect
-                                                                    options={[{ value: '', label: 'Unknown / System Resolved' }, ...authorities]}
+                                                                    options={[{ value: '', label: 'System / Admin (Default)' }, ...authorities]}
                                                                     value={updateData.resolvedByAuthority || ''}
                                                                     onChange={(val) => setUpdateData({ ...updateData, resolvedByAuthority: val })}
                                                                 />
                                                             </div>
                                                         )}
 
-                                                        {/* 🟢 DISPUTE / RESOLVE EVIDENCE INPUT */}
+                                                        {/* 🟢 EVIDENCE UPLOAD (100% Optional) */}
                                                         {['DISPUTED', 'RESOLVED'].includes(updateData.status) && (
-                                                            <div className={`relative z-10 p-3 border rounded-xl animate-fade-in ${updateData.status === 'RESOLVED' ? 'bg-green-500/5 border-green-500/20' : 'bg-red-500/5 border-red-500/20'}`}>
+                                                            <div className={`relative z-30 p-3 border rounded-xl animate-fade-in ${updateData.status === 'RESOLVED' ? 'bg-green-500/5 border-green-500/20' : 'bg-red-500/5 border-red-500/20'}`}>
                                                                 <label className={`text-xs mb-2 block font-bold flex items-center gap-1 ${updateData.status === 'RESOLVED' ? 'text-green-500' : 'text-red-500'}`}>
                                                                     <ShieldAlert size={12} /> {updateData.status === 'RESOLVED' ? 'Attach Evidence (Optional)' : 'Dispute Evidence (Optional)'}
                                                                 </label>
                                                                 <input
                                                                     type="file"
-                                                                    accept="image/*,video/mp4,video/webm"
+                                                                    accept="image/*"
                                                                     onChange={(e) => setDisputeMedia(e.target.files[0])}
                                                                     className={`w-full text-xs file:mr-3 file:py-1.5 file:px-3 file:rounded-lg file:border-0 file:font-bold cursor-pointer text-muted-foreground ${updateData.status === 'RESOLVED' ? 'file:bg-green-500/10 file:text-green-500 hover:file:bg-green-500/20' : 'file:bg-red-500/10 file:text-red-500 hover:file:bg-red-500/20'}`}
                                                                 />
@@ -1177,7 +1240,7 @@ const AdminUsers = () => {
                                                 )}
 
                                                 {actionTab === 'ASSIGN' && (
-                                                    <form onSubmit={handleForceAssign} className="flex flex-col gap-2 relative z-50">
+                                                    <form onSubmit={handleInlineForceAssign} className="flex flex-col gap-2 relative z-50">
                                                         <div className="flex gap-2 relative">
                                                             <div className="w-1/2 relative z-50">
                                                                 <CustomSelect options={authorities} value={assignData.authorityId} onChange={(val) => setAssignData({ ...assignData, authorityId: val })} placeholder="Select Official..." />
@@ -1203,8 +1266,8 @@ const AdminUsers = () => {
                                                 )}
                                             </div>
 
-                                            {/* Timeline */}
-                                            <div className="flex-1 p-4 md:p-6 lg:overflow-y-auto thin-scrollbar relative">
+                                            {/* --- TIMELINE SECTION --- */}
+                                            <div className="flex-1 p-4 md:p-6 relative z-10 bg-card/40 pb-20">
                                                 <h4 className="text-xs font-black uppercase tracking-widest text-muted-foreground mb-6 pl-2 border-l-2 border-primary">System Timeline & Audit Log</h4>
                                                 <div className="space-y-6 relative before:absolute before:inset-0 before:ml-5 before:-translate-x-px before:h-full before:w-0.5 before:bg-gradient-to-b before:from-primary/50 before:to-transparent pb-4">
                                                     {generateTimeline(selectedIssue).map((event, i) => (
@@ -1268,122 +1331,17 @@ const AdminUsers = () => {
                         )}
                     </AnimatePresence>
 
-                    {/* ACTION MODALS */}
-                    {pointsModal.isOpen && (
-                        <div className="fixed inset-0 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4 sm:p-6 md:p-12 animate-fade-in transition-all duration-300" style={{ zIndex: Math.max(modalZ.profile, modalZ.list, modalZ.issue) + 50 }}>
-                            <form onSubmit={handlePointAdjustment} className="bg-card p-6 md:p-8 rounded-3xl border border-yellow-500/30 shadow-[0_0_50px_rgba(234,179,8,0.15)] w-full max-w-sm flex flex-col max-h-full overflow-hidden">
-                                <div className="flex items-center gap-3 mb-6 text-yellow-500 shrink-0"><Zap size={28} /><h3 className="font-black text-2xl">Adjust Points</h3></div>
-                                <div className="overflow-y-auto thin-scrollbar flex-1 space-y-4 pr-1">
-                                    <input type="number" placeholder="Points (+50 or -20)" required value={pointsModal.points} onChange={e => setPointsModal({ ...pointsModal, points: e.target.value })} className="w-full p-4 bg-background border border-border/60 rounded-xl text-sm font-bold focus:border-yellow-500 outline-none shadow-inner transition-colors" />
-                                    <textarea placeholder="Mandatory Audit Reason" required value={pointsModal.reason} onChange={e => setPointsModal({ ...pointsModal, reason: e.target.value })} className="w-full p-4 bg-background border border-border/60 rounded-xl text-sm font-medium resize-none focus:border-yellow-500 outline-none shadow-inner transition-colors" rows="4"></textarea>
-                                </div>
-                                <div className="flex gap-3 justify-end pt-6 shrink-0 border-t border-border/50 mt-4">
-                                    <button type="button" onClick={() => setPointsModal({ isOpen: false, points: '', reason: '' })} className="px-5 py-2.5 text-sm font-bold text-muted-foreground hover:bg-muted rounded-xl transition-colors">Cancel</button>
-                                    <button type="submit" className="px-5 py-2.5 text-sm bg-yellow-500 text-black font-black rounded-xl shadow-[0_0_15px_rgba(234,179,8,0.4)] hover:bg-yellow-400 transition-all hover:scale-[1.02] active:scale-[0.98]">Apply Points</button>
-                                </div>
-                            </form>
-                        </div>
-                    )}
-
-                    {/* EDIT PROFILE MODAL */}
-                    {editProfileModal.isOpen && (
-                        <div className="fixed inset-0 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4 sm:p-6 md:p-12 animate-fade-in transition-all" style={{ zIndex: Math.max(modalZ.profile, modalZ.list, modalZ.issue) + 50 }}>
-                            <form onSubmit={handleEditProfileSubmit} className="bg-card p-6 md:p-8 rounded-3xl border border-border/50 shadow-2xl w-full max-w-md flex flex-col max-h-full">
-                                <h3 className="font-black text-2xl mb-6 flex items-center gap-3 text-primary shrink-0"><UserCog size={28} /> Edit Profile Data</h3>
-                                <div className="space-y-6 overflow-y-auto thin-scrollbar pr-2 pb-4 flex-1 bg-background/20 rounded-xl p-2">
-
-                                    <div className="space-y-3 relative z-50">
-                                        <label className="text-[10px] font-black text-muted-foreground uppercase tracking-widest pl-1">Basic Information</label>
-                                        <input type="text" placeholder="Full Name" value={editProfileModal.formData.name || ''} onChange={e => setEditProfileModal({ ...editProfileModal, formData: { ...editProfileModal.formData, name: e.target.value } })} className="w-full p-3.5 bg-background border border-border/60 rounded-xl text-sm font-medium focus:border-primary outline-none shadow-inner transition-colors" />
-                                        <input type="text" placeholder="Username (Unique)" value={editProfileModal.formData.userName || ''} onChange={e => setEditProfileModal({ ...editProfileModal, formData: { ...editProfileModal.formData, userName: e.target.value } })} className="w-full p-3.5 bg-background border border-border/60 rounded-xl text-sm font-medium focus:border-primary outline-none shadow-inner transition-colors" />
-                                        <input type="email" placeholder="Email Address" value={editProfileModal.formData.email || ''} onChange={e => setEditProfileModal({ ...editProfileModal, formData: { ...editProfileModal.formData, email: e.target.value } })} className="w-full p-3.5 bg-background border border-border/60 rounded-xl text-sm font-medium focus:border-primary outline-none shadow-inner transition-colors" />
-                                        <input type="text" placeholder="New Password (Leave blank to keep)" value={editProfileModal.formData.password || ''} onChange={e => setEditProfileModal({ ...editProfileModal, formData: { ...editProfileModal.formData, password: e.target.value } })} className="w-full p-3.5 bg-background border border-border/60 rounded-xl text-sm font-medium focus:border-primary outline-none shadow-inner placeholder:text-muted-foreground/50 transition-colors" />
-                                    </div>
-
-                                    <div className="space-y-3 pt-4 border-t border-border/50 relative z-40">
-                                        <label className="text-[10px] font-black text-muted-foreground uppercase tracking-widest pl-1">Location (Contact)</label>
-                                        <div className="relative z-40">
-                                            <CustomSelect options={modalStateOptions} value={editProfileModal.formData.state || ''} onChange={v => setEditProfileModal({ ...editProfileModal, formData: { ...editProfileModal.formData, state: v, city: '' } })} placeholder="Select State" />
-                                        </div>
-                                        <div className="relative z-30">
-                                            <CustomSelect options={modalDistrictOptions} value={editProfileModal.formData.city || ''} onChange={v => setEditProfileModal({ ...editProfileModal, formData: { ...editProfileModal.formData, city: v } })} placeholder="Select District/City" />
-                                        </div>
-                                        <input type="text" placeholder="Pincode" value={editProfileModal.formData['contact.pinCode'] || ''} onChange={e => setEditProfileModal({ ...editProfileModal, formData: { ...editProfileModal.formData, 'contact.pinCode': e.target.value } })} className="w-full p-3.5 bg-background border border-border/60 rounded-xl text-sm font-medium focus:border-primary outline-none shadow-inner transition-colors" />
-                                    </div>
-
-                                    {['official', 'ngo'].includes(selectedUserDetails?.user?.role) && (
-                                        <div className="space-y-3 pt-4 border-t border-border/50 relative z-20">
-                                            <label className="text-[10px] font-black text-muted-foreground uppercase tracking-widest pl-1">Authority Profile</label>
-                                            <input type="text" placeholder="Department / NGO Name" value={editProfileModal.formData.departmentName || ''} onChange={e => setEditProfileModal({ ...editProfileModal, formData: { ...editProfileModal.formData, departmentName: e.target.value } })} className="w-full p-3.5 bg-background border border-border/60 rounded-xl text-sm font-medium focus:border-primary outline-none shadow-inner transition-colors" />
-                                            <div className="relative z-20">
-                                                <CustomSelect options={modalStateOptions} value={editProfileModal.formData.assignedState || ''} onChange={v => setEditProfileModal({ ...editProfileModal, formData: { ...editProfileModal.formData, assignedState: v, assignedDistrict: '' } })} placeholder="Select Assigned State" />
-                                            </div>
-                                            <div className="relative z-10">
-                                                <CustomSelect options={modalAssignedDistrictOptions} value={editProfileModal.formData.assignedDistrict || ''} onChange={v => setEditProfileModal({ ...editProfileModal, formData: { ...editProfileModal.formData, assignedDistrict: v } })} placeholder="Select Assigned District" />
-                                            </div>
-                                        </div>
-                                    )}
-                                </div>
-                                <div className="flex gap-3 justify-end pt-6 border-t border-border/50 shrink-0 mt-2">
-                                    <button type="button" onClick={() => setEditProfileModal({ isOpen: false, formData: {} })} className="px-5 py-2.5 text-sm font-bold text-muted-foreground hover:bg-muted rounded-xl transition-colors">Cancel</button>
-                                    <button type="submit" className="px-5 py-2.5 text-sm bg-primary text-primary-foreground font-black rounded-xl shadow-[0_0_15px_rgba(var(--primary),0.3)] hover:bg-primary/90 transition-all hover:scale-[1.02] active:scale-[0.98]">Save Changes</button>
-                                </div>
-                            </form>
-                        </div>
-                    )}
-
-                    {forceAssignModal.isOpen && (
-                        <div className="fixed inset-0 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4 sm:p-6 md:p-12 animate-fade-in transition-all" style={{ zIndex: Math.max(modalZ.profile, modalZ.list, modalZ.issue) + 50 }}>
-                            <form onSubmit={handleForceAssign} className="bg-card p-6 md:p-8 rounded-3xl border border-indigo-500/30 shadow-[0_0_50px_rgba(99,102,241,0.15)] w-full max-w-md flex flex-col max-h-full">
-                                <h3 className="font-black text-2xl mb-2 text-indigo-500 flex items-center gap-3 shrink-0"><Briefcase size={28} /> Force Assign Issue</h3>
-                                <p className="text-xs font-medium text-muted-foreground mb-6 shrink-0">Lock a stagnant issue directly to this official.</p>
-
-                                <div className="overflow-y-auto thin-scrollbar flex-1 space-y-4 pr-1">
-                                    <div className="relative z-50">
-                                        <CustomSelect options={forceAssignModal.issues.map(issue => ({ value: issue._id, label: `${issue.title} - ${issue.location?.city || 'Unknown'}` }))} value={forceAssignModal.selectedIssue} onChange={(val) => setForceAssignModal({ ...forceAssignModal, selectedIssue: val })} placeholder="Select an Issue to lock..." />
-                                    </div>
-                                    <input type="number" min="1" placeholder="Mandatory Hrs (e.g. 24)" required value={forceAssignModal.commitmentTimeHours} onChange={e => setForceAssignModal({ ...forceAssignModal, commitmentTimeHours: e.target.value })} className="w-full p-4 bg-background border border-border/60 rounded-xl text-sm font-bold focus:border-indigo-500 outline-none shadow-inner relative z-10 transition-colors" />
-                                </div>
-
-                                <div className="flex gap-3 justify-end relative z-10 pt-6 border-t border-border/50 shrink-0 mt-4">
-                                    <button type="button" onClick={() => setForceAssignModal({ isOpen: false, issues: [], selectedIssue: '', commitmentTimeHours: '' })} className="px-5 py-2.5 text-sm font-bold text-muted-foreground hover:bg-muted rounded-xl transition-colors">Cancel</button>
-                                    <button type="submit" disabled={isUpdating || !forceAssignModal.selectedIssue || !forceAssignModal.commitmentTimeHours} className="px-5 py-2.5 text-sm bg-indigo-500 text-white font-black rounded-xl shadow-[0_0_15px_rgba(99,102,241,0.4)] hover:bg-indigo-600 flex items-center justify-center min-w-[120px] disabled:opacity-50 transition-all hover:scale-[1.02] active:scale-[0.98]">
-                                        {isUpdating ? <MiniLoader className="border-white border-t-transparent" /> : <>Lock Job <ArrowRight size={16} className="ml-1" /></>}
-                                    </button>
-                                </div>
-                            </form>
-                        </div>
-                    )}
-
-                    {forceUnassignModal.isOpen && (
-                        <div className="fixed inset-0 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4 sm:p-6 md:p-12 animate-fade-in transition-all" style={{ zIndex: Math.max(modalZ.profile, modalZ.list, modalZ.issue) + 50 }}>
-                            <form onSubmit={handleRevokeAssign} className="bg-card p-6 md:p-8 rounded-3xl border border-red-500/30 shadow-[0_0_50px_rgba(239,68,68,0.15)] w-full max-w-md flex flex-col max-h-full">
-                                <h3 className="font-black text-2xl mb-6 text-red-500 flex items-center gap-3 shrink-0"><Ban size={28} /> Revoke Assignment</h3>
-                                <div className="overflow-y-auto thin-scrollbar flex-1 space-y-4 pr-1">
-                                    <input type="number" placeholder="Penalty Points (e.g. 50)" required min="0" value={forceUnassignModal.penalty || ''} onChange={e => setForceUnassignModal({ ...forceUnassignModal, penalty: e.target.value })} className="w-full p-4 bg-background border border-border/60 rounded-xl text-sm font-bold focus:border-red-500 outline-none shadow-inner transition-colors" />
-                                    <textarea placeholder="Reason for revocation" required value={forceUnassignModal.reason} onChange={e => setForceUnassignModal({ ...forceUnassignModal, reason: e.target.value })} className="w-full p-4 bg-background border border-border/60 rounded-xl text-sm font-medium focus:border-red-500 outline-none resize-none shadow-inner transition-colors" rows="4"></textarea>
-                                </div>
-                                <div className="flex gap-3 justify-end pt-6 border-t border-border/50 shrink-0 mt-4">
-                                    <button type="button" onClick={() => setForceUnassignModal({ isOpen: false, issueId: '', reason: '', penalty: 0 })} className="px-5 py-2.5 text-sm font-bold text-muted-foreground hover:bg-muted rounded-xl transition-colors">Cancel</button>
-                                    <button type="submit" disabled={isUpdating} className="px-5 py-2.5 text-sm bg-red-500 text-white font-black rounded-xl shadow-[0_0_15px_rgba(239,68,68,0.4)] hover:bg-red-600 transition-all hover:scale-[1.02] active:scale-[0.98] flex items-center justify-center min-w-[100px]">
-                                        {isUpdating ? <MiniLoader className="border-white border-t-transparent" /> : 'Revoke'}
-                                    </button>
-                                </div>
-                            </form>
-                        </div>
-                    )}
-
-                    {/* 🟢 Delete Confirmation Overlay (Placed Last, absolute top) */}
+                    {/* 🟢 5. Delete Confirmation Overlay */}
                     {showDeleteConfirm && (
-                        <div className="fixed inset-0 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm animate-fade-in" style={{ zIndex: Math.max(modalZ.issue, modalZ.profile, modalZ.list) + 100 }}>
-                            <div className="bg-card border border-red-500/30 rounded-2xl p-5 md:p-6 max-w-sm w-full shadow-2xl" onClick={e => e.stopPropagation()}>
-                                <h3 className="text-lg font-bold text-red-500 mb-2 flex items-center gap-2">
+                        <div className="fixed inset-0 flex items-center justify-center p-4 sm:p-8 md:p-12 bg-black/60 backdrop-blur-sm animate-fade-in" style={{ zIndex: 10000 }}>
+                            <div className="bg-card border border-red-500/30 rounded-2xl p-5 md:p-6 max-w-sm w-full shadow-2xl flex flex-col max-h-full" onClick={e => e.stopPropagation()}>
+                                <h3 className="text-lg font-bold text-red-500 mb-2 flex items-center gap-2 shrink-0">
                                     <AlertTriangle className="w-5 h-5" /> Nuclear Delete
                                 </h3>
-                                <p className="text-xs text-muted-foreground mb-6 leading-relaxed">
+                                <p className="text-xs text-muted-foreground mb-6 leading-relaxed overflow-y-auto thin-scrollbar">
                                     This will permanently wipe this issue, all associated bids, and scrub all related notifications from existence. This cannot be undone.
                                 </p>
-                                <div className="flex justify-end gap-3">
+                                <div className="flex justify-end gap-3 shrink-0">
                                     <button onClick={() => setShowDeleteConfirm(false)} disabled={isDeleting} className="px-4 py-2 rounded-xl text-sm font-bold bg-muted/50 hover:bg-muted transition-colors">Cancel</button>
                                     <button onClick={handleDeleteIssue} disabled={isDeleting} className="px-4 py-2 rounded-xl text-sm font-black bg-red-500 text-white hover:bg-red-600 transition-colors flex items-center justify-center min-w-[80px]">
                                         {isDeleting ? <MiniLoader className="w-4 h-4 text-white" /> : 'Delete'}

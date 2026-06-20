@@ -7,7 +7,8 @@ import {
     AlertOctagon, Zap, Megaphone, Edit3, Briefcase,
     MapPin, Clock, ArrowRight, ShieldAlert, Download, Eye, X, Search, Flame, Filter,
     Camera, ChevronLeft, ChevronRight, FileText, History, Shield, Trash2, AlertTriangle,
-    CheckCircle, RotateCcw
+    CheckCircle, RotateCcw, Users, Trophy, Medal, Star,
+    MoreVertical
 } from 'lucide-react';
 import CustomSelect from '../CustomSelect';
 import MiniLoader from '../MiniLoader';
@@ -44,6 +45,26 @@ const statusColors = {
     RELEASED: "bg-amber-500/10 text-amber-500 border-amber-500/30"
 };
 
+const getCorsSafeUrl = (url) => {
+    if (!url) return null;
+    if (url.includes('ui-avatars.com')) return url;
+    const baseUrl = axiosInstance.defaults.baseURL || '';
+    return `${baseUrl}/proxy-image?url=${encodeURIComponent(url)}`;
+};
+
+const Avatar = ({ src, name, size = "w-10 h-10", iconSize = "w-5 h-5" }) => {
+    const [imageError, setImageError] = useState(false);
+    useEffect(() => { setImageError(false); }, [src]);
+    if (!src || imageError) {
+        return (
+            <div className={`${size} shrink-0 rounded-full bg-primary/10 border border-primary/20 flex items-center justify-center text-primary`}>
+                <User className={iconSize} />
+            </div>
+        );
+    }
+    return <img src={getCorsSafeUrl(src)} alt={name || "User"} onError={() => setImageError(true)} crossOrigin="anonymous" className={`${size} shrink-0 rounded-full object-cover border border-border/50 bg-muted`} />;
+};
+
 const AdminTriage = () => {
     const [isMounted, setIsMounted] = useState(false);
 
@@ -51,6 +72,8 @@ const AdminTriage = () => {
     const [loading, setLoading] = useState(true);
     const [page, setPage] = useState(1);
     const [totalPages, setTotalPages] = useState(1);
+
+    const [actionMenuOpen, setActionMenuOpen] = useState(false);
 
     const [filters, setFilters] = useState({ state: '', city: '', status: '' });
     const [statesList, setStatesList] = useState([]);
@@ -86,6 +109,10 @@ const AdminTriage = () => {
     const [sosModal, setSosModal] = useState({ isOpen: false, issueId: '' });
     const [isActionLoading, setIsActionLoading] = useState(false);
 
+    // 🟢 Dynamic Z-Index for perfectly stacking modals
+    const [modalZ, setModalZ] = useState({ issue: 200, career: 200 });
+    const [careerModal, setCareerModal] = useState({ isOpen: false, profile: null, history: null, view: 'OVERVIEW', selectedCategory: '', issueList: [] });
+
     const CATEGORIES = [
         { value: '', label: 'All Categories' },
         { value: 'ROAD_DAMAGE', label: 'Road Damage & Potholes' },
@@ -108,10 +135,13 @@ const AdminTriage = () => {
     ];
     const UPDATE_STATUS_OPTIONS = [
         { value: 'OPEN', label: 'OPEN (Auction)' },
-        { value: 'IN_REVIEW', label: 'IN REVIEW (Initiated)' },
+        { value: 'LOCKED', label: 'LOCKED (Assigned)' },
+        { value: 'PENDING_EXTENSION', label: 'PENDING EXTENSION' },
+        { value: 'AWAITING_HANDOVER', label: 'AWAITING HANDOVER' },
         { value: 'RESOLVED', label: 'RESOLVED (Fixed)' },
-        { value: 'REJECTED', label: 'REJECTED (Spam)' },
+        { value: 'FAILED', label: 'FAILED' },
         { value: 'DISPUTED', label: 'DISPUTED (Conflict)' },
+        { value: 'RELEASED', label: 'RELEASED' },
         { value: 'ORPHANED', label: 'ORPHANED (Stagnant)' }
     ];
 
@@ -136,13 +166,13 @@ const AdminTriage = () => {
     }, [page, filters]);
 
     useEffect(() => {
-        if (boostModal.isOpen || categoryModal.isOpen || assignModal.isOpen || sosModal.isOpen || isIssueModalOpen || showDeleteConfirm) {
+        if (boostModal.isOpen || categoryModal.isOpen || assignModal.isOpen || sosModal.isOpen || isIssueModalOpen || showDeleteConfirm || careerModal.isOpen) {
             document.body.style.overflow = 'hidden';
         } else {
             document.body.style.overflow = 'unset';
         }
         return () => { document.body.style.overflow = 'unset'; };
-    }, [boostModal.isOpen, categoryModal.isOpen, assignModal.isOpen, sosModal.isOpen, isIssueModalOpen, showDeleteConfirm]);
+    }, [boostModal.isOpen, categoryModal.isOpen, assignModal.isOpen, sosModal.isOpen, isIssueModalOpen, showDeleteConfirm, careerModal.isOpen]);
 
     useEffect(() => { setCurrentMediaIndex(0); }, [mediaTab]);
 
@@ -195,18 +225,30 @@ const AdminTriage = () => {
             const res = await axiosInstance.get(`/admin/issue/${issueId}`);
             const issueData = res.data.data;
 
+            // 🟢 Safely extract the assignee ID if assigned
+            const currentAssignee = issueData.bidding?.winningBid?.authorityId;
+            const assigneeId = currentAssignee ? (currentAssignee._id || currentAssignee) : '';
+
             setSelectedIssueForDetail(issueData);
+
+            // 🟢 Inject the assigneeId into the dropdown state
             setUpdateData({
                 status: issueData.status,
                 adminRemark: issueData.adminRemark || '',
-                resolvedByAuthority: issueData.resolvedByAuthority || issueData.resolutionEvidence?.resolvedByAuthority || ''
+                resolvedByAuthority: issueData.resolvedByAuthority ||
+                    issueData.resolutionEvidence?.resolvedByAuthority ||
+                    assigneeId || ''
             });
+
             setAssignData({ authorityId: '', commitmentTimeHours: '' });
             setRevokeData({ reason: '', penaltyPoints: 0 });
             setActionMedia(null);
             setActionTab('STATUS');
             setMediaTab('REPORTED');
             setCurrentMediaIndex(0);
+
+            // Pop issue modal above career modal if career modal happens to be open
+            setModalZ(prev => ({ ...prev, issue: (prev.career || 200) + 10 }));
             setIsIssueModalOpen(true);
         } catch (e) {
             showToast({ icon: 'error', title: 'Failed to load full issue details' });
@@ -219,6 +261,26 @@ const AdminTriage = () => {
         setIsIssueModalOpen(false);
         setShowDeleteConfirm(false);
         setTimeout(() => setSelectedIssueForDetail(null), 300);
+    };
+
+    const openCareerModal = async (userId) => {
+        if (!userId) return;
+        try {
+            const res = await axiosInstance.get(`/admin/user/${userId}`);
+
+            // Pop career modal above issue modal
+            setModalZ(prev => ({ ...prev, career: prev.issue + 10 }));
+            setCareerModal({
+                isOpen: true,
+                profile: res.data.data.user,
+                history: res.data.data.history || {},
+                view: 'OVERVIEW',
+                selectedCategory: '',
+                issueList: []
+            });
+        } catch (error) {
+            showToast({ icon: 'error', title: 'Failed to load user profile' });
+        }
     };
 
     const handleDeleteIssue = async () => {
@@ -293,7 +355,7 @@ const AdminTriage = () => {
         e.preventDefault();
         setIsUpdating(true);
         try {
-            let payload = updateData;
+            let payload = { ...updateData };
             let headers = {};
 
             if (['DISPUTED', 'RESOLVED'].includes(updateData.status) && actionMedia) {
@@ -344,6 +406,26 @@ const AdminTriage = () => {
         } finally { setIsUpdating(false); }
     };
 
+    const handleExtensionAction = async (action, timeValue, timeUnit) => {
+        setIsUpdating(true);
+        try {
+            const payload = { action };
+            if (action === 'APPROVED') {
+                payload.timeValue = timeValue;
+                payload.timeUnit = timeUnit;
+            }
+
+            await axiosInstance.patch(`/admin/issue/${selectedIssueForDetail._id}/extension`, payload);
+            showToast({ icon: 'success', title: `Extension ${action.toLowerCase()}!` });
+            closeIssueModal();
+            fetchTriageIssues();
+        } catch (error) {
+            showToast({ icon: 'error', title: error.response?.data?.message || 'Failed to process extension' });
+        } finally {
+            setIsUpdating(false);
+        }
+    };
+
     const stateOptions = [{ value: '', label: 'All States' }, ...statesList.map(s => ({ value: s.name, label: s.name }))];
     const districtOptions = [{ value: '', label: 'All Districts' }, ...districtsList.map(d => ({ value: d.name, label: d.name }))];
 
@@ -375,8 +457,7 @@ const AdminTriage = () => {
     }
 
     return (
-        <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} className="space-y-4 md:space-y-6 flex flex-col h-full relative pb-10">
-
+        <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} className="space-y-4 md:space-y-6 flex flex-col h-full overflow-y-auto relative pb-10">
             {/* --- HEADER --- */}
             <div className="flex flex-col xl:flex-row justify-between items-start xl:items-center gap-4 bg-red-500/5 p-6 rounded-2xl border border-red-500/20 relative z-[50]">
                 <div className="flex flex-col sm:flex-row items-start sm:items-center gap-4 justify-between w-full xl:w-auto">
@@ -854,26 +935,44 @@ const AdminTriage = () => {
                                             </div>
                                         </div>
 
-                                        {/* RIGHT COLUMN: The Players, ACTION ZONE & Timeline */}
-                                        <div className="w-full lg:w-1/2 flex flex-col bg-muted/5 shrink-0 lg:shrink relative z-30">
+                                        {/* RIGHT COLUMN: Players, Actions, Timeline */}
+                                        <div className="w-full lg:w-1/2 flex flex-col bg-muted/5 shrink-0 lg:shrink lg:overflow-y-auto thin-scrollbar relative z-30">
 
                                             {/* --- PLAYERS SECTION --- */}
-                                            <div className="p-4 md:p-5 border-b border-border/50 shrink-0">
+                                            <div className="p-4 md:p-5 border-b border-border/50 shrink-0 relative z-[60]">
                                                 <div className="grid grid-cols-2 gap-3">
                                                     <div className="bg-card border border-border/50 p-3 rounded-xl flex justify-between items-center group relative">
-                                                        <div className="flex-1 min-w-0 pr-2">
+                                                        <div className="flex-1 cursor-pointer min-w-0 pr-2" onClick={() => !selectedIssueForDetail.isAnonymous && openCareerModal(selectedIssueForDetail.reportedBy?._id)}>
                                                             <p className="text-[9px] text-muted-foreground font-bold uppercase mb-1">Reporter</p>
-                                                            <p className="text-sm font-bold truncate text-foreground">
+                                                            <p className={`text-sm font-bold truncate ${selectedIssueForDetail.isAnonymous ? 'text-muted-foreground' : 'text-foreground group-hover:text-primary'}`}>
                                                                 {selectedIssueForDetail.isAnonymous ? 'Anonymous' : selectedIssueForDetail.reportedBy?.name || 'Unknown'}
                                                             </p>
                                                         </div>
+                                                        {!selectedIssueForDetail.isAnonymous && selectedIssueForDetail.reportedBy?._id && (
+                                                            <div className="relative shrink-0">
+                                                                <button onClick={() => setActionMenuOpen(!actionMenuOpen)} className="p-1.5 rounded-md hover:bg-muted text-muted-foreground transition-colors">
+                                                                    <MoreVertical size={16} />
+                                                                </button>
+                                                                {actionMenuOpen && (
+                                                                    <div className="absolute right-0 top-full mt-2 w-48 bg-card border border-border/60 rounded-xl shadow-xl z-[100] py-1 overflow-hidden animate-fade-in">
+                                                                        <button onClick={handleQuickWarn} className="w-full text-left px-4 py-2.5 text-xs font-bold hover:bg-muted flex items-center gap-2 text-amber-500">
+                                                                            <AlertOctagon size={14} /> Send Warning
+                                                                        </button>
+                                                                        <button onClick={() => handleQuickSuspend(selectedIssueForDetail.reportedBy._id)} className="w-full text-left px-4 py-2.5 text-xs font-bold hover:bg-red-500/10 flex items-center gap-2 text-red-500">
+                                                                            <Ban size={14} /> Suspend (24h)
+                                                                        </button>
+                                                                    </div>
+                                                                )}
+                                                            </div>
+                                                        )}
                                                     </div>
 
-                                                    <div className={`p-3 rounded-xl border transition-colors min-w-0 ${selectedIssueForDetail.bidding?.winningBid?.authorityId ? 'bg-indigo-500/5 border-indigo-500/20' : 'bg-card border-border/50'}`}>
+                                                    <div className={`p-3 rounded-xl border transition-colors min-w-0 ${selectedIssueForDetail.bidding?.winningBid?.authorityId ? 'bg-indigo-500/5 border-indigo-500/20 cursor-pointer hover:bg-indigo-500/10 hover:border-indigo-500/40 group' : 'bg-card border-border/50'}`}
+                                                        onClick={() => selectedIssueForDetail.bidding?.winningBid?.authorityId && openCareerModal(selectedIssueForDetail.bidding.winningBid.authorityId._id)}>
                                                         <p className={`text-[9px] font-bold uppercase mb-1 ${selectedIssueForDetail.bidding?.winningBid?.authorityId ? 'text-indigo-500' : 'text-muted-foreground'}`}>Assigned Official</p>
                                                         {selectedIssueForDetail.bidding?.winningBid?.authorityId ? (
                                                             <div>
-                                                                <p className="text-sm font-bold text-indigo-600 dark:text-indigo-400 truncate">{selectedIssueForDetail.bidding.winningBid.authorityId.name || 'ID Linked'}</p>
+                                                                <p className="text-sm font-bold text-indigo-600 dark:text-indigo-400 truncate group-hover:underline">{selectedIssueForDetail.bidding.winningBid.authorityId.name || 'ID Linked'}</p>
                                                                 <p className="text-[10px] text-indigo-500/80 font-bold mt-0.5 truncate">Commitment: {selectedIssueForDetail.bidding.winningBid.commitmentTimeHours}h</p>
                                                             </div>
                                                         ) : (
@@ -881,6 +980,65 @@ const AdminTriage = () => {
                                                         )}
                                                     </div>
                                                 </div>
+
+                                                {/* 🟢 NEW: Pending Extension Request Banner */}
+                                                {selectedIssueForDetail.status === 'PENDING_EXTENSION' && (
+                                                    <div className="col-span-2 mt-4 bg-amber-500/10 border border-amber-500/20 p-4 rounded-xl relative z-[70]">
+
+                                                        {/* 🟢 NEW: Dedicated background layer just to clip the clock safely */}
+                                                        <div className="absolute inset-0 overflow-hidden rounded-xl pointer-events-none z-0">
+                                                            <div className="absolute top-0 right-0 p-4 opacity-5">
+                                                                <Clock size={80} className="text-amber-500 -mr-6 -mt-6" />
+                                                            </div>
+                                                        </div>
+
+                                                        <div className="relative z-10">
+                                                            <p className="text-[10px] text-amber-500 font-bold uppercase tracking-wider mb-1 flex items-center gap-1"><Clock size={12} /> Extension Requested</p>
+                                                            <p className="text-sm font-bold text-foreground">
+                                                                {selectedIssueForDetail.workCycle?.extensionRequests?.slice(-1)[0]?.hoursRequested} Hours
+                                                            </p>
+                                                            <p className="text-xs text-muted-foreground mt-1 mb-4 border-l-2 border-amber-500/50 pl-2">
+                                                                Reason: {selectedIssueForDetail.workCycle?.extensionRequests?.slice(-1)[0]?.reason}
+                                                            </p>
+
+                                                            {/* 🟢 FIXED: Inputs are now Pre-filled and Disabled (Read-Only) */}
+                                                            <div className="flex gap-2 mb-4 relative z-50">
+                                                                <input
+                                                                    type="number"
+                                                                    className="w-1/3 p-2 rounded-lg bg-background/50 border border-border/50 text-xs font-bold outline-none opacity-70 cursor-not-allowed"
+                                                                    value={selectedIssueForDetail.workCycle?.extensionRequests?.slice(-1)[0]?.requestedTimeValue || ''}
+                                                                    disabled
+                                                                />
+                                                                <input
+                                                                    type="text"
+                                                                    className="w-2/3 p-2 rounded-lg bg-background/50 border border-border/50 text-xs font-bold outline-none opacity-70 cursor-not-allowed uppercase"
+                                                                    value={selectedIssueForDetail.workCycle?.extensionRequests?.slice(-1)[0]?.requestedTimeUnit || ''}
+                                                                    disabled
+                                                                />
+                                                            </div>
+
+                                                            <div className="flex gap-2 relative z-10">
+                                                                <button
+                                                                    onClick={() => {
+                                                                        const pendingReq = selectedIssueForDetail.workCycle?.extensionRequests?.slice(-1)[0];
+                                                                        handleExtensionAction('APPROVED', pendingReq?.requestedTimeValue, pendingReq?.requestedTimeUnit);
+                                                                    }}
+                                                                    disabled={isUpdating}
+                                                                    className="flex-1 bg-amber-500 text-white font-bold text-xs py-2.5 rounded-lg hover:bg-amber-600 transition-colors shadow-sm flex items-center justify-center gap-2 disabled:opacity-50"
+                                                                >
+                                                                    <CheckCircle size={14} /> Approve
+                                                                </button>
+                                                                <button
+                                                                    onClick={() => handleExtensionAction('REJECTED')}
+                                                                    disabled={isUpdating}
+                                                                    className="flex-1 bg-card text-muted-foreground border border-border/50 font-bold text-xs py-2.5 rounded-lg hover:text-foreground hover:bg-muted/50 transition-colors shadow-sm flex items-center justify-center gap-2"
+                                                                >
+                                                                    <X size={14} /> Deny
+                                                                </button>
+                                                            </div>
+                                                        </div>
+                                                    </div>
+                                                )}
                                             </div>
 
                                             {/* --- ACTIONS SECTION (GOD MODE) --- */}
@@ -896,41 +1054,50 @@ const AdminTriage = () => {
 
                                                 {actionTab === 'STATUS' && (
                                                     <form onSubmit={handleUpdateStatus} className="flex flex-col gap-3 relative z-40">
-                                                        <div className="flex gap-2 relative z-40">
-                                                            <div className="w-1/2 relative z-40">
+                                                        <div className="flex gap-2 relative z-50">
+                                                            {/* Status Dropdown */}
+                                                            <div className="w-1/2 relative z-50">
                                                                 <label className="text-[10px] text-muted-foreground mb-1 block font-semibold uppercase">Change Status</label>
-                                                                <CustomSelect options={UPDATE_STATUS_OPTIONS} value={updateData.status} onChange={(val) => setUpdateData({ ...updateData, status: val })} />
+                                                                <CustomSelect
+                                                                    options={UPDATE_STATUS_OPTIONS.filter(opt => opt.value !== 'PENDING_EXTENSION')}
+                                                                    value={updateData.status}
+                                                                    onChange={(val) => setUpdateData({ ...updateData, status: val })}
+                                                                />
                                                             </div>
-                                                            <div className="w-1/2 relative z-10">
+
+                                                            {/* Remark (Now 100% Optional for all statuses) */}
+                                                            <div className="w-1/2 relative z-40">
                                                                 <label className="text-[10px] text-muted-foreground mb-1 block font-semibold uppercase truncate">
-                                                                    {['DISPUTED', 'ORPHANED', 'RESOLVED'].includes(updateData.status) ? 'Audit Remark (Optional)' : 'Audit Remark (Required)'}
+                                                                    Audit Remark (Optional)
                                                                 </label>
                                                                 <input
                                                                     type="text"
                                                                     value={updateData.adminRemark}
                                                                     onChange={(e) => setUpdateData({ ...updateData, adminRemark: e.target.value })}
-                                                                    placeholder={['DISPUTED', 'ORPHANED', 'RESOLVED'].includes(updateData.status) ? "Optional context..." : "State reason..."}
+                                                                    placeholder="Add context..."
                                                                     className="w-full px-3 py-2 bg-muted border border-border/50 rounded-xl text-xs font-medium focus:border-primary outline-none transition-colors"
-                                                                    required={!['DISPUTED', 'ORPHANED', 'RESOLVED'].includes(updateData.status)}
                                                                 />
                                                             </div>
                                                         </div>
 
-                                                        {updateData.status === 'RESOLVED' && (
-                                                            <div className="relative z-30 mb-1 animate-fade-in">
-                                                                <label className="text-[10px] text-green-500 mb-1 block font-bold uppercase flex items-center gap-1">
-                                                                    <ShieldAlert size={12} /> Resolved By (Optional)
+                                                        {/* 🟢 DYNAMIC ACTOR DROPDOWN (100% Optional) */}
+                                                        {['LOCKED', 'AWAITING_HANDOVER', 'RESOLVED', 'FAILED', 'DISPUTED', 'RELEASED'].includes(updateData.status) && (
+                                                            <div className="relative z-40 mb-1 animate-fade-in">
+                                                                <label className="text-[10px] text-primary mb-1 block font-bold uppercase flex items-center gap-1">
+                                                                    <Users size={12} />
+                                                                    {updateData.status === 'LOCKED' ? 'Assign To (Optional)' : 'Action Attributed To (Optional)'}
                                                                 </label>
                                                                 <CustomSelect
-                                                                    options={[{ value: '', label: 'Unknown / System Resolved' }, ...authorities]}
+                                                                    options={[{ value: '', label: 'System / Admin (Default)' }, ...authorities]}
                                                                     value={updateData.resolvedByAuthority || ''}
                                                                     onChange={(val) => setUpdateData({ ...updateData, resolvedByAuthority: val })}
                                                                 />
                                                             </div>
                                                         )}
 
+                                                        {/* 🟢 EVIDENCE UPLOAD (100% Optional) */}
                                                         {['DISPUTED', 'RESOLVED'].includes(updateData.status) && (
-                                                            <div className={`relative z-10 p-3 border rounded-xl animate-fade-in ${updateData.status === 'RESOLVED' ? 'bg-green-500/5 border-green-500/20' : 'bg-red-500/5 border-red-500/20'}`}>
+                                                            <div className={`relative z-30 p-3 border rounded-xl animate-fade-in ${updateData.status === 'RESOLVED' ? 'bg-green-500/5 border-green-500/20' : 'bg-red-500/5 border-red-500/20'}`}>
                                                                 <label className={`text-xs mb-2 block font-bold flex items-center gap-1 ${updateData.status === 'RESOLVED' ? 'text-green-500' : 'text-red-500'}`}>
                                                                     <ShieldAlert size={12} /> {updateData.status === 'RESOLVED' ? 'Attach Evidence (Optional)' : 'Dispute Evidence (Optional)'}
                                                                 </label>
@@ -977,12 +1144,12 @@ const AdminTriage = () => {
                                             </div>
 
                                             {/* --- TIMELINE SECTION --- */}
-                                            <div className="flex-1 p-4 md:p-6 lg:overflow-y-auto thin-scrollbar relative z-10 bg-card/40">
+                                            <div className="flex-1 p-4 md:p-6 relative z-10 bg-card/40 pb-20">
                                                 <h4 className="text-xs font-black uppercase tracking-widest text-muted-foreground mb-6 pl-2 border-l-2 border-primary">System Timeline</h4>
                                                 <div className="space-y-6 relative before:absolute before:inset-0 before:ml-5 before:-translate-x-px before:h-full before:w-0.5 before:bg-gradient-to-b before:from-primary/50 before:via-border/50 before:to-transparent pb-4">
                                                     {generateTimeline(selectedIssueForDetail).map((event, i) => (
                                                         <motion.div initial={{ opacity: 0, x: 20 }} animate={{ opacity: 1, x: 0 }} transition={{ delay: i * 0.1 }} key={i} className="relative flex items-start gap-4 group">
-                                                            <div className={`flex items-center justify-center w-10 h-10 rounded-full border-4 border-background shrink-0 shadow-sm ${event.color} z-10 transition-transform group-hover:scale-110`}>
+                                                            <div className={`flex items-center justify-center w-10 h-10 rounded-full border-4 border-background shrink-0 shadow-md ${event.color} z-10 transition-transform group-hover:scale-110`}>
                                                                 {event.icon}
                                                             </div>
                                                             <div className="w-full p-4 rounded-2xl bg-card border border-border/50 shadow-sm mt-1 group-hover:border-primary/30 transition-colors">
@@ -1027,5 +1194,18 @@ const AdminTriage = () => {
         </motion.div>
     );
 };
+
+const StatBox = ({ icon, title, count, color, onClick }) => (
+    <div
+        onClick={onClick}
+        className={`p-4 border rounded-2xl flex flex-col items-start gap-3 shadow-sm transition-all ${onClick ? 'cursor-pointer hover:-translate-y-1 hover:shadow-md' : 'cursor-default'} ${color}`}
+    >
+        <div className="p-2 bg-background/80 rounded-xl shadow-inner border border-border/50">{icon}</div>
+        <div className="text-left w-full">
+            <h4 className="text-2xl font-black text-foreground">{count}</h4>
+            <p className="text-[9px] font-bold uppercase tracking-widest text-muted-foreground mt-1 truncate">{title}</p>
+        </div>
+    </div>
+);
 
 export default AdminTriage;
