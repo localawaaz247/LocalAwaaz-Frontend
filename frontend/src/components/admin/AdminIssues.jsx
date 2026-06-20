@@ -8,7 +8,7 @@ import {
     CheckCircle, AlertTriangle, Trash2, Search, Shield,
     Leaf, Flame, Clock, History, Briefcase, Download, ArrowRight, RotateCcw,
     ShieldAlert, Zap, MoreVertical, Ban, AlertOctagon, Trophy, Medal, Star, CheckSquare,
-    ListIcon, Filter
+    ListIcon, Filter, Camera
 } from 'lucide-react';
 import MiniLoader from '../MiniLoader';
 import CustomSelect from '../../components/CustomSelect';
@@ -16,6 +16,7 @@ import { cscApi } from '../../utils/cscAPI';
 
 // --- HELPERS ---
 const getAvatar = (name) => `https://ui-avatars.com/api/?name=${encodeURIComponent(name || 'U')}&background=random&color=fff&size=128&bold=true`;
+
 const getCorsSafeUrl = (url) => {
     if (!url) return null;
     if (url.includes('ui-avatars.com')) return url;
@@ -40,8 +41,40 @@ const timeAgo = (dateInput) => {
     return Math.floor(seconds) + "s ago";
 };
 
+// --- TIMELINE GENERATOR ---
+const generateTimeline = (issue) => {
+    if (!issue) return [];
+    const combined = [];
+    combined.push({ type: 'create', label: 'Issue Reported', time: new Date(issue.createdAt), icon: <FileText size={14} />, color: 'text-blue-500 bg-blue-500/10 border-blue-500/30' });
+
+    if (issue.statusHistory) {
+        issue.statusHistory.forEach(sh => {
+            combined.push({ type: 'status', label: `Status changed to ${sh.status}`, time: new Date(sh.changedAt), detail: sh.remark, icon: <History size={14} />, color: 'text-yellow-500 bg-yellow-500/10 border-yellow-500/30' });
+        });
+    }
+    if (issue.auditLog) {
+        issue.auditLog.forEach(al => {
+            combined.push({ type: 'audit', label: al.action.replace(/_/g, ' '), time: new Date(al.timestamp), detail: al.details, icon: <Shield size={14} />, color: 'text-indigo-500 bg-indigo-500/10 border-indigo-500/30' });
+        });
+    }
+    return combined.sort((a, b) => b.time - a.time);
+};
+
+const statusColors = {
+    OPEN: "bg-yellow-500/10 text-yellow-500 border-yellow-500/30",
+    LOCKED: "bg-indigo-500/10 text-indigo-500 border-indigo-500/30",
+    PENDING_EXTENSION: "bg-amber-500/10 text-amber-500 border-amber-500/30",
+    AWAITING_HANDOVER: "bg-red-500/10 text-red-500 border-red-500/30",
+    IN_REVIEW: "bg-blue-500/10 text-blue-500 border-blue-500/30",
+    RESOLVED: "bg-green-500/10 text-green-500 border-green-500/30",
+    REJECTED: "bg-red-500/10 text-red-500 border-red-500/30",
+    FAILED: "bg-red-500/10 text-red-500 border-red-500/30",
+    DISPUTED: "bg-orange-500/10 text-orange-500 border-orange-500/30",
+    ORPHANED: "bg-purple-500/10 text-purple-500 border-purple-500/30",
+    RELEASED: "bg-amber-500/10 text-amber-500 border-amber-500/30"
+};
+
 const AdminIssues = () => {
-    // Portal hydration state
     const [isMounted, setIsMounted] = useState(false);
 
     const [issues, setIssues] = useState([]);
@@ -54,20 +87,16 @@ const AdminIssues = () => {
     const [statesList, setStatesList] = useState([]);
     const [districtsList, setDistrictsList] = useState([]);
 
-    // Mobile Filter State
     const [isMobileFilterOpen, setIsMobileFilterOpen] = useState(false);
-
-    const [selectedIssue, setSelectedIssue] = useState(null);
+    const [selectedIssueForDetail, setSelectedIssueForDetail] = useState(null);
     const [isModalVisible, setIsModalVisible] = useState(false);
 
     // --- MODALS & EXTENDED UI STATES ---
     const [careerModal, setCareerModal] = useState({ isOpen: false, profile: null, history: null, view: 'OVERVIEW', selectedCategory: '', issueList: [] });
     const [actionMenuOpen, setActionMenuOpen] = useState(false);
 
-    // 🟢 DYNAMIC Z-INDEX TRACKER (Solves the infinite stacking bug)
     const [modalZ, setModalZ] = useState({ issue: 200, career: 200 });
 
-    // Action States
     const [actionTab, setActionTab] = useState('STATUS');
     const [updateData, setUpdateData] = useState({ status: '', adminRemark: '', resolvedByAuthority: '' });
     const [assignData, setAssignData] = useState({ authorityId: '', commitmentTimeHours: '' });
@@ -75,6 +104,8 @@ const AdminIssues = () => {
     const [isUpdating, setIsUpdating] = useState(false);
     const [actionMedia, setActionMedia] = useState(null);
 
+    // Media Viewer States
+    const [mediaTab, setMediaTab] = useState('REPORTED');
     const [currentMediaIndex, setCurrentMediaIndex] = useState(0);
     const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
     const [isDeleting, setIsDeleting] = useState(false);
@@ -83,12 +114,14 @@ const AdminIssues = () => {
 
     const FILTER_STATUS_OPTIONS = [
         { value: '', label: 'All Statuses' },
-        { value: 'OPEN', label: 'Open' },
+        { value: 'OPEN', label: 'Open (Auction)' },
         { value: 'LOCKED', label: 'Locked (Assigned)' },
-        { value: 'IN_REVIEW', label: 'In Review' },
+        { value: 'PENDING_EXTENSION', label: 'Pending Extension' },
+        { value: 'AWAITING_HANDOVER', label: 'Awaiting Handover' },
         { value: 'RESOLVED', label: 'Resolved' },
-        { value: 'REJECTED', label: 'Rejected' },
+        { value: 'FAILED', label: 'Failed (Ghosted/Missed)' },
         { value: 'DISPUTED', label: 'Disputed' },
+        { value: 'RELEASED', label: 'Released' },
         { value: 'ORPHANED', label: 'Orphaned' }
     ];
 
@@ -99,12 +132,16 @@ const AdminIssues = () => {
         { value: 'ngo', label: 'NGOs' }
     ];
 
+    // 🟢 UPDATED: Full God-Mode Status List
     const UPDATE_STATUS_OPTIONS = [
-        { value: 'OPEN', label: 'OPEN (Attention)' },
-        { value: 'IN_REVIEW', label: 'IN REVIEW (Initiated)' },
+        { value: 'OPEN', label: 'OPEN (Auction)' },
+        { value: 'LOCKED', label: 'LOCKED (Assigned)' },
+        { value: 'PENDING_EXTENSION', label: 'PENDING EXTENSION' },
+        { value: 'AWAITING_HANDOVER', label: 'AWAITING HANDOVER' },
         { value: 'RESOLVED', label: 'RESOLVED (Fixed)' },
-        { value: 'REJECTED', label: 'REJECTED (Spam)' },
+        { value: 'FAILED', label: 'FAILED' },
         { value: 'DISPUTED', label: 'DISPUTED (Conflict)' },
+        { value: 'RELEASED', label: 'RELEASED' },
         { value: 'ORPHANED', label: 'ORPHANED (Stagnant)' }
     ];
 
@@ -131,18 +168,20 @@ const AdminIssues = () => {
     }, [filters, page]);
 
     useEffect(() => {
-        if (selectedIssue || showDeleteConfirm || careerModal.isOpen) document.body.style.overflow = 'hidden';
+        if (selectedIssueForDetail || showDeleteConfirm || careerModal.isOpen) document.body.style.overflow = 'hidden';
         else document.body.style.overflow = 'unset';
         return () => { document.body.style.overflow = 'unset'; };
-    }, [selectedIssue, showDeleteConfirm, careerModal.isOpen]);
+    }, [selectedIssueForDetail, showDeleteConfirm, careerModal.isOpen]);
+
+    useEffect(() => { setCurrentMediaIndex(0); }, [mediaTab]);
 
     useEffect(() => {
-        const isVideo = selectedIssue?.media?.[currentMediaIndex]?.url?.match(/\.(mp4|webm|ogg)$/i);
+        const isVideo = selectedIssueForDetail?.media?.[currentMediaIndex]?.url?.match(/\.(mp4|webm|ogg)$/i);
         if (isModalVisible && isVideo && videoRef.current) {
             videoRef.current.currentTime = 0;
             videoRef.current.play().catch(err => console.warn("Autoplay blocked:", err));
         }
-    }, [isModalVisible, currentMediaIndex, selectedIssue]);
+    }, [isModalVisible, currentMediaIndex, selectedIssueForDetail, mediaTab]);
 
     const fetchIssues = async () => {
         try {
@@ -189,7 +228,6 @@ const AdminIssues = () => {
         } catch (error) { showToast({ icon: 'error', title: 'Export failed' }); }
     };
 
-    // --- QUICK ACTION HANDLERS ---
     const handleQuickSuspend = async (userId) => {
         try {
             await axiosInstance.patch(`/admin/user/${userId}/status`, { accountStatus: 'SUSPENDED' });
@@ -209,10 +247,7 @@ const AdminIssues = () => {
         if (!userId) return;
         try {
             const res = await axiosInstance.get(`/admin/user/${userId}`);
-
-            // 🟢 Bring Career Modal to the front!
             setModalZ(prev => ({ ...prev, career: prev.issue + 10 }));
-
             setCareerModal({
                 isOpen: true,
                 profile: res.data.data.user,
@@ -244,70 +279,72 @@ const AdminIssues = () => {
                 headers = { 'Content-Type': 'multipart/form-data' };
             }
 
-            await axiosInstance.patch(`/admin/issue/${selectedIssue._id}`, payload, { headers });
-            showToast({ icon: 'success', title: 'Status updated and users notified' });
-            closeModal();
+            await axiosInstance.patch(`/admin/issue/${selectedIssueForDetail._id}`, payload, { headers });
+            showToast({ icon: 'success', title: 'Status updated successfully' });
+            closeIssueModal();
             fetchIssues();
         } catch (error) {
             showToast({ icon: 'error', title: error.response?.data?.message || 'Update failed' });
         } finally { setIsUpdating(false); }
     };
 
-    const handleForceAssign = async (e) => {
+    const handleForceAssignTable = async (e) => {
         e.preventDefault();
         setIsUpdating(true);
         try {
-            await axiosInstance.patch(`/admin/issue/${selectedIssue._id}/force-assign`, assignData);
-
-            const assignedAuth = authorities.find(a => a.value === assignData.authorityId);
-            const issueDistrict = selectedIssue.location?.city || selectedIssue.location?.district;
-            const authDistrict = assignedAuth?.district;
-
-            const isMismatch = issueDistrict?.toLowerCase() !== authDistrict?.toLowerCase();
-
-            if (isMismatch) {
-                showToast({ icon: 'info', title: `Assigned! Note: Official is from ${authDistrict || 'another district'}.` });
-            } else {
-                showToast({ icon: 'success', title: 'Issue forcefully assigned!' });
-            }
-
-            closeModal();
+            await axiosInstance.patch(`/admin/issue/${selectedIssueForDetail._id}/force-assign`, { authorityId: assignData.authorityId, commitmentTimeHours: Number(assignData.commitmentTimeHours) });
+            showToast({ icon: 'success', title: 'Issue forcefully assigned!' });
+            closeIssueModal();
             fetchIssues();
-        } catch (error) {
-            showToast({ icon: 'error', title: error.response?.data?.message || 'Assignment failed' });
-        } finally { setIsUpdating(false); }
+        } catch (error) { showToast({ icon: 'error', title: 'Assignment failed' }); }
+        finally { setIsUpdating(false); }
     };
 
     const handleRevokeAssign = async (e) => {
         e.preventDefault();
         setIsUpdating(true);
         try {
-            await axiosInstance.patch(`/admin/issue/${selectedIssue._id}/force-unassign`, {
+            await axiosInstance.patch(`/admin/issue/${selectedIssueForDetail._id}/force-unassign`, {
                 reason: revokeData.reason,
                 penaltyPoints: Number(revokeData.penaltyPoints)
             });
             showToast({ icon: 'success', title: 'Assignment revoked. Issue is OPEN.' });
-            closeModal();
+            closeIssueModal();
             fetchIssues();
         } catch (error) {
             showToast({ icon: 'error', title: error.response?.data?.message || 'Revocation failed' });
         } finally { setIsUpdating(false); }
     };
 
+    // 🟢 Extension Request Handler
+    const handleExtensionAction = async (action) => {
+        setIsUpdating(true);
+        try {
+            await axiosInstance.patch(`/admin/issue/${selectedIssueForDetail._id}/extension`, { action });
+            showToast({ icon: 'success', title: `Extension ${action.toLowerCase()}!` });
+            closeIssueModal();
+            fetchIssues();
+        } catch (error) {
+            showToast({ icon: 'error', title: error.response?.data?.message || 'Failed to process extension' });
+        } finally {
+            setIsUpdating(false);
+        }
+    };
+
     const handleDeleteIssue = async () => {
         setIsDeleting(true);
         try {
-            await axiosInstance.delete(`/admin/issue/${selectedIssue._id}`);
-            setIssues(issues.filter(iss => iss._id !== selectedIssue._id));
+            await axiosInstance.delete(`/admin/issue/${selectedIssueForDetail._id}`);
+            setIssues(issues.filter(iss => iss._id !== selectedIssueForDetail._id));
             showToast({ icon: 'success', title: 'Issue permanently deleted' });
-            closeModal();
+            closeIssueModal();
         } catch (error) {
             showToast({ icon: 'error', title: error.response?.data?.message || 'Delete failed' });
         } finally { setIsDeleting(false); }
     };
 
     const openModal = async (issue) => {
-        setSelectedIssue(issue);
+        setSelectedIssueForDetail(issue);
         setUpdateData({
             status: issue.status,
             adminRemark: issue.adminRemark || '',
@@ -319,22 +356,19 @@ const AdminIssues = () => {
         setActionTab('STATUS');
         setActionMenuOpen(false);
 
-        const vMedia = Array.isArray(issue.media) ? issue.media : [];
-        const firstVideoIndex = vMedia.findIndex(m => m.url?.match(/\.(mp4|webm|ogg)$/i));
-        setCurrentMediaIndex(firstVideoIndex !== -1 ? firstVideoIndex : 0);
+        setMediaTab('REPORTED'); // Reset media tab
+        setCurrentMediaIndex(0);
 
-        // 🟢 Bring Issue Modal to the front!
         setModalZ(prev => ({ ...prev, issue: prev.career + 10 }));
-
         setTimeout(() => setIsModalVisible(true), 10);
     };
 
-    const closeModal = () => {
+    const closeIssueModal = () => {
         setIsModalVisible(false);
         setShowDeleteConfirm(false);
         setActionMenuOpen(false);
         setTimeout(() => {
-            setSelectedIssue(null);
+            setSelectedIssueForDetail(null);
             setActionMedia(null);
         }, 300);
     };
@@ -342,35 +376,32 @@ const AdminIssues = () => {
     const stateOptions = [{ value: '', label: 'All States' }, ...statesList.map(s => ({ value: s.name, label: s.name }))];
     const districtOptions = [{ value: '', label: 'All Districts' }, ...districtsList.map(d => ({ value: d.name, label: d.name }))];
 
-    const statusColors = {
-        OPEN: "bg-yellow-500/10 text-yellow-500 border-yellow-500/20",
-        LOCKED: "bg-indigo-500/10 text-indigo-500 border-indigo-500/20",
-        IN_REVIEW: "bg-blue-500/10 text-blue-500 border-blue-500/20",
-        RESOLVED: "bg-green-500/10 text-green-500 border-green-500/20",
-        REJECTED: "bg-red-500/10 text-red-500 border-red-500/20",
-        FAILED: "bg-red-500/10 text-red-500 border-red-500/20",
-        DISPUTED: "bg-orange-500/10 text-orange-500 border-orange-500/20",
-        ORPHANED: "bg-purple-500/10 text-purple-500 border-purple-500/20",
-        RELEASED: "bg-amber-500/10 text-amber-500 border-amber-500/20"
-    };
+    // 🟢 Media Tabs Logic
+    let claimedUrls = [];
+    let opposedUrls = [];
+    let reportedUrls = [];
+    let activeMediaArray = [];
 
-    const generateTimeline = (issue) => {
-        if (!issue) return [];
-        const combined = [];
-        combined.push({ type: 'create', label: 'Issue Reported', time: new Date(issue.createdAt), icon: <FileText size={14} />, color: 'text-blue-500 bg-blue-500/10' });
+    if (selectedIssueForDetail) {
+        claimedUrls = [
+            selectedIssueForDetail.resolutionEvidence?.mediaUrl,
+            ...(selectedIssueForDetail.workCycle?.handoverReports?.map(h => h.photoUrl) || [])
+        ].filter(Boolean);
 
-        if (issue.statusHistory) {
-            issue.statusHistory.forEach(sh => {
-                combined.push({ type: 'status', label: `Status changed to ${sh.status}`, time: new Date(sh.changedAt), detail: sh.remark, icon: <History size={14} />, color: 'text-yellow-500 bg-yellow-500/10' });
-            });
-        }
-        if (issue.auditLog) {
-            issue.auditLog.forEach(al => {
-                combined.push({ type: 'audit', label: al.action.replace(/_/g, ' '), time: new Date(al.timestamp), detail: al.details, icon: <Shield size={14} />, color: 'text-indigo-500 bg-indigo-500/10' });
-            });
-        }
-        return combined.sort((a, b) => b.time - a.time);
-    };
+        opposedUrls = [
+            selectedIssueForDetail.disputeEvidence?.mediaUrl,
+            selectedIssueForDetail.reportedByVerdictMedia,
+            ...(selectedIssueForDetail.confirmations?.map(c => c.verdictMedia) || [])
+        ].filter(Boolean);
+
+        reportedUrls = (selectedIssueForDetail.media || [])
+            .map(m => m.url)
+            .filter(url => !claimedUrls.includes(url) && !opposedUrls.includes(url));
+
+        activeMediaArray = mediaTab === 'REPORTED' ? reportedUrls
+            : mediaTab === 'CLAIMED' ? claimedUrls
+                : opposedUrls;
+    }
 
     return (
         <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} className="space-y-4 md:space-y-6 flex flex-col h-full pb-10">
@@ -428,88 +459,7 @@ const AdminIssues = () => {
                 </div>
             </div>
 
-            {/* 🟢 Mobile Card View Wrapper (Hidden on md+) */}
-            <div className="md:hidden flex flex-col gap-3 relative z-[10]">
-                <AnimatePresence>
-                    {loading ? (
-                        [...Array(4)].map((_, i) => (
-                            <div key={i} className="bg-card/60 border border-border/60 rounded-xl p-4 flex flex-col gap-3 animate-pulse">
-                                <div className="flex justify-between items-start gap-3">
-                                    <div className="flex-1 space-y-2">
-                                        <div className="h-4 w-3/4 bg-muted rounded"></div>
-                                        <div className="h-3 w-1/4 bg-muted/50 rounded"></div>
-                                    </div>
-                                    <div className="h-5 w-16 bg-muted rounded"></div>
-                                </div>
-                                <div className="flex justify-between items-end mt-1 pt-3 border-t border-border/30">
-                                    <div className="space-y-2">
-                                        <div className="h-3 w-24 bg-muted rounded"></div>
-                                        <div className="h-2 w-16 bg-muted/50 rounded"></div>
-                                    </div>
-                                    <div className="h-4 w-12 bg-muted rounded"></div>
-                                </div>
-                            </div>
-                        ))
-                    ) : issues.length === 0 ? (
-                        <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="p-10 text-center bg-card/40 border border-border/50 rounded-2xl">
-                            <Search className="w-8 h-8 opacity-20 mx-auto mb-2 text-muted-foreground" />
-                            <p className="text-sm font-medium text-muted-foreground">No issues found matching parameters.</p>
-                        </motion.div>
-                    ) : (
-                        issues.map((issue) => (
-                            <motion.div
-                                layout
-                                initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }}
-                                key={issue._id}
-                                onClick={() => openModal(issue)}
-                                className="bg-card/60 backdrop-blur-md border border-border/60 rounded-xl p-4 flex flex-col gap-3 shadow-sm hover:border-primary/50 transition-all cursor-pointer group"
-                            >
-                                <div className="flex justify-between items-start gap-3">
-                                    <div className="flex-1 min-w-0">
-                                        <div className="flex items-center gap-2">
-                                            {issue.priority === 'CRITICAL' && <Flame className="w-3.5 h-3.5 text-red-500 shrink-0" />}
-                                            <h4 className="font-bold text-sm text-foreground truncate">{issue.title}</h4>
-                                        </div>
-                                        <p className="text-[10px] text-muted-foreground mt-1.5 uppercase tracking-wider font-semibold">{issue.category}</p>
-                                    </div>
-                                    <span className={`shrink-0 text-[9px] border px-2 py-1 rounded-md font-bold uppercase tracking-widest shadow-sm ${statusColors[issue.status] || statusColors.OPEN}`}>
-                                        {issue.status}
-                                    </span>
-                                </div>
-
-                                <div className="flex items-center justify-between mt-1">
-                                    <div className="flex items-center gap-1.5 text-[10px] text-muted-foreground bg-muted/50 w-max px-2 py-0.5 rounded border border-border/50">
-                                        {issue.isAnonymous ? <User size={10} className="opacity-50" /> : issue.reportedBy?.role === 'official' ? <Shield size={10} className="text-emerald-500" /> : issue.reportedBy?.role === 'ngo' ? <Leaf size={10} className="text-indigo-500" /> : <User size={10} className="text-foreground" />}
-                                        <span className="capitalize font-bold">{issue.isAnonymous ? 'Anonymous' : issue.reportedBy?.role || 'Citizen'}</span>
-                                    </div>
-                                    <span className="text-[10px] text-muted-foreground flex items-center gap-1 font-medium"><Clock size={10} /> {timeAgo(issue.createdAt)}</span>
-                                </div>
-
-                                <div className="flex justify-between items-end mt-1 pt-3 border-t border-border/30">
-                                    <div className="min-w-0 pr-2">
-                                        <p className="text-xs font-semibold text-foreground flex items-center gap-1 truncate"><MapPin size={12} className="opacity-50 shrink-0" /><span className="truncate">{issue.location?.city || issue.location?.district || 'Unknown'}</span></p>
-                                        {issue.bidding?.winningBid?.authorityId && (
-                                            <p className="text-[10px] text-indigo-500 font-bold mt-1 truncate max-w-[150px]">
-                                                {issue.bidding.winningBid.authorityId.name || 'Assigned'} • {issue.bidding.winningBid.commitmentTimeHours}h
-                                            </p>
-                                        )}
-                                    </div>
-                                    <div className="flex flex-col items-end gap-2 shrink-0">
-                                        <span className="inline-flex items-center justify-end gap-1 text-xs font-black text-yellow-500">
-                                            <Zap size={12} className="fill-yellow-500/20" /> {issue.impactScore || 0}
-                                        </span>
-                                        <button onClick={(e) => { e.stopPropagation(); openModal(issue); }} className="text-[10px] px-3 py-1.5 bg-primary/10 text-primary hover:bg-primary hover:text-white border border-primary/20 rounded-md shadow-sm transition-all font-bold">
-                                            Triage
-                                        </button>
-                                    </div>
-                                </div>
-                            </motion.div>
-                        ))
-                    )}
-                </AnimatePresence>
-            </div>
-
-            {/* 🟢 Desktop Table Wrapper (Hidden on mobile) */}
+            {/* 🟢 Desktop Table Wrapper */}
             <div className="hidden md:flex bg-card/40 backdrop-blur-2xl border border-border/60 rounded-2xl overflow-hidden shadow-xl flex-1 flex-col min-h-[400px] relative z-10">
                 <div className="overflow-x-auto thin-scrollbar flex-1 bg-background/20">
                     <table className="w-full text-left whitespace-nowrap">
@@ -615,17 +565,16 @@ const AdminIssues = () => {
             )}
 
             {/* ========================================================= */}
-            {/* PORTAL MODALS (Rendered completely outside DOM flow to prevent sidebar overlap) */}
+            {/* PORTAL MODALS */}
             {/* ========================================================= */}
 
             {isMounted && createPortal(
                 <>
-                    {/* 2. CAREER PAGE MODAL (Re-used for clicking users inside Issue Viewer) */}
+                    {/* Career Page Modal */}
                     <AnimatePresence>
                         {careerModal.isOpen && careerModal.profile && (
                             <div className="fixed inset-0 flex items-center justify-center p-4 sm:p-8 md:p-12 bg-black/60 backdrop-blur-sm" style={{ zIndex: modalZ.career }}>
                                 <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="absolute inset-0" onClick={() => setCareerModal({ ...careerModal, isOpen: false })} />
-
                                 <motion.div
                                     initial={{ opacity: 0, x: 100 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: 100 }} transition={{ type: "spring", damping: 25, stiffness: 200 }}
                                     className="bg-card border border-border/50 rounded-3xl w-full max-w-5xl shadow-2xl flex flex-col relative z-10 overflow-hidden max-h-full"
@@ -648,8 +597,6 @@ const AdminIssues = () => {
 
                                     {careerModal.view === 'OVERVIEW' ? (
                                         <div className="flex-1 overflow-y-auto thin-scrollbar p-4 md:p-6 bg-background/30">
-
-                                            {/* Core Details Box */}
                                             <div className="bg-card border border-border/50 rounded-2xl p-5 shadow-sm mb-6">
                                                 <h4 className="text-[10px] uppercase font-black tracking-widest text-primary mb-4 flex items-center gap-2"><Shield size={14} /> Profile Information</h4>
                                                 {['official', 'ngo'].includes(careerModal.profile.role) && careerModal.profile.authorityProfile ? (
@@ -669,7 +616,6 @@ const AdminIssues = () => {
                                                 )}
                                             </div>
 
-                                            {/* Clickable Platform History Metrics */}
                                             <h4 className="text-[10px] uppercase font-black tracking-widest text-muted-foreground pl-1 border-l-2 border-primary mb-4">Platform History (Click to View)</h4>
                                             <div className="grid grid-cols-2 md:grid-cols-4 gap-3 md:gap-4 mb-8">
                                                 {['official', 'ngo'].includes(careerModal.profile.role) ? (
@@ -756,11 +702,11 @@ const AdminIssues = () => {
                         )}
                     </AnimatePresence>
 
-                    {/* 3. ISSUE VIEWER MODAL (Deep Dive, Opens on top of everything) */}
+                    {/* 🟢 3. ISSUE VIEWER MODAL (Deep Dive, Opens on top of everything) */}
                     <AnimatePresence>
-                        {isModalVisible && selectedIssue && (
+                        {isModalVisible && selectedIssueForDetail && (
                             <div className="fixed inset-0 flex items-center justify-center p-4 sm:p-8 md:p-12 bg-black/80 backdrop-blur-md" style={{ zIndex: modalZ.issue }}>
-                                <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="absolute inset-0" onClick={closeModal} />
+                                <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="absolute inset-0" onClick={closeIssueModal} />
 
                                 <motion.div
                                     initial={{ opacity: 0, scale: 0.95, y: 20 }} animate={{ opacity: 1, scale: 1, y: 0 }} exit={{ opacity: 0, scale: 0.95, y: 20 }}
@@ -770,82 +716,94 @@ const AdminIssues = () => {
                                     {/* Header */}
                                     <div className="flex justify-between items-center p-4 md:p-5 border-b border-border/50 bg-muted/20 shrink-0">
                                         <div className="flex items-center gap-3">
-                                            <span className={`px-3 py-1.5 rounded-xl text-[10px] font-black uppercase tracking-widest border shadow-sm ${statusColors[selectedIssue.status] || statusColors.OPEN}`}>
-                                                {selectedIssue.status}
+                                            <span className={`px-3 py-1.5 rounded-xl text-[10px] font-black uppercase tracking-widest border shadow-sm ${statusColors[selectedIssueForDetail.status] || statusColors.OPEN}`}>
+                                                {selectedIssueForDetail.status}
                                             </span>
-                                            <span className="text-xs font-mono text-muted-foreground hidden sm:block">ID: {selectedIssue._id}</span>
+                                            <span className="text-xs font-mono text-muted-foreground hidden sm:block">ID: {selectedIssueForDetail._id}</span>
                                         </div>
                                         <div className="flex items-center gap-2">
                                             <button onClick={() => setShowDeleteConfirm(true)} title="Delete Issue" className="p-2 rounded-full text-red-500 bg-red-500/10 hover:bg-red-500 hover:text-white transition-colors"><Trash2 size={18} /></button>
-                                            <button onClick={closeModal} className="p-2 rounded-full bg-card border border-border/50 hover:bg-muted transition-colors"><X size={20} /></button>
+                                            <button onClick={closeIssueModal} className="p-2 rounded-full bg-card border border-border/50 hover:bg-muted transition-colors"><X size={20} /></button>
                                         </div>
                                     </div>
 
+                                    {/* Split Body */}
                                     <div className="flex flex-col lg:flex-row flex-1 min-h-0 overflow-y-auto lg:overflow-hidden thin-scrollbar">
 
                                         {/* LEFT COLUMN: Media & Core Data */}
                                         <div className="w-full lg:w-1/2 p-4 md:p-6 lg:border-r border-border/50 flex flex-col gap-5 shrink-0 lg:shrink lg:overflow-y-auto thin-scrollbar bg-background/50">
-                                            <h3 className="text-2xl font-black text-foreground leading-tight">{selectedIssue.title}</h3>
+                                            <h3 className="text-2xl md:text-3xl font-black text-foreground leading-tight">{selectedIssueForDetail.title}</h3>
 
+                                            {/* 🟢 MEDIA TABS */}
+                                            <div className="flex bg-muted/40 p-1.5 rounded-xl border border-border/50 w-full md:w-max">
+                                                <button onClick={() => setMediaTab('REPORTED')} className={`flex-1 md:flex-none px-4 py-2 rounded-lg text-[10px] sm:text-xs font-black uppercase tracking-widest transition-all ${mediaTab === 'REPORTED' ? 'bg-primary text-primary-foreground shadow-md' : 'text-muted-foreground hover:bg-muted'}`}>
+                                                    Reported
+                                                </button>
+                                                <button onClick={() => setMediaTab('CLAIMED')} disabled={!claimedUrls.length} className={`flex-1 md:flex-none px-4 py-2 rounded-lg text-[10px] sm:text-xs font-black uppercase tracking-widest transition-all ${mediaTab === 'CLAIMED' ? 'bg-green-500 text-white shadow-md' : 'text-muted-foreground hover:bg-muted'} ${!claimedUrls.length && 'opacity-40 cursor-not-allowed'}`}>
+                                                    Claimed
+                                                </button>
+                                                <button onClick={() => setMediaTab('OPPOSED')} disabled={!opposedUrls.length} className={`flex-1 md:flex-none px-4 py-2 rounded-lg text-[10px] sm:text-xs font-black uppercase tracking-widest transition-all ${mediaTab === 'OPPOSED' ? 'bg-red-500 text-white shadow-md' : 'text-muted-foreground hover:bg-muted'} ${!opposedUrls.length && 'opacity-40 cursor-not-allowed'}`}>
+                                                    Opposed
+                                                </button>
+                                            </div>
+
+                                            {/* 🟢 MEDIA VIEWER */}
                                             <div className="w-full bg-black/40 rounded-2xl border border-border/50 overflow-hidden relative flex items-center justify-center h-[250px] sm:h-[350px] shrink-0 group shadow-inner">
-                                                {selectedIssue.media && selectedIssue.media.length > 0 ? (
+                                                {activeMediaArray.length > 0 ? (
                                                     <>
-                                                        {selectedIssue.media[currentMediaIndex].url?.match(/\.(mp4|webm|ogg)$/i) ? (
-                                                            <video ref={videoRef} src={selectedIssue.media[currentMediaIndex].url} className="w-full h-full object-contain bg-black" controls autoPlay muted playsInline />
+                                                        {activeMediaArray[currentMediaIndex]?.match(/\.(mp4|webm|ogg)$/i) ? (
+                                                            <video ref={videoRef} src={activeMediaArray[currentMediaIndex]} className="w-full h-full object-contain bg-black" controls autoPlay muted playsInline />
                                                         ) : (
-                                                            <img src={selectedIssue.media[currentMediaIndex].url} alt="issue" className="w-full h-full object-contain" />
+                                                            <img src={activeMediaArray[currentMediaIndex]} alt="issue" className="w-full h-full object-contain" />
                                                         )}
-                                                        {selectedIssue.media.length > 1 && (
+
+                                                        {activeMediaArray.length > 1 && (
                                                             <>
-                                                                <button onClick={() => setCurrentMediaIndex((prev) => (prev - 1 + selectedIssue.media.length) % selectedIssue.media.length)} className="absolute left-3 p-2 bg-black/60 rounded-full text-white hover:bg-black/80 backdrop-blur-md opacity-0 group-hover:opacity-100 transition-opacity"><ChevronLeft size={20} /></button>
-                                                                <button onClick={() => setCurrentMediaIndex((prev) => (prev + 1) % selectedIssue.media.length)} className="absolute right-3 p-2 bg-black/60 rounded-full text-white hover:bg-black/80 backdrop-blur-md opacity-0 group-hover:opacity-100 transition-opacity"><ChevronRight size={20} /></button>
+                                                                <button onClick={() => setCurrentMediaIndex((prev) => (prev - 1 + activeMediaArray.length) % activeMediaArray.length)} className="absolute left-3 p-2 bg-black/60 rounded-full text-white hover:bg-black/80 backdrop-blur-md opacity-0 group-hover:opacity-100 transition-opacity"><ChevronLeft size={20} /></button>
+                                                                <button onClick={() => setCurrentMediaIndex((prev) => (prev + 1) % activeMediaArray.length)} className="absolute right-3 p-2 bg-black/60 rounded-full text-white hover:bg-black/80 backdrop-blur-md opacity-0 group-hover:opacity-100 transition-opacity"><ChevronRight size={20} /></button>
                                                             </>
                                                         )}
                                                     </>
                                                 ) : (
-                                                    <div className="flex flex-col items-center opacity-40"><AlertTriangle size={36} className="mb-3" /><p className="text-sm font-bold">No Media Attached</p></div>
+                                                    <div className="flex flex-col items-center opacity-40">
+                                                        <Camera size={36} className="mb-3" />
+                                                        <p className="text-sm font-bold text-center px-4">No {mediaTab.toLowerCase()} evidence attached.</p>
+                                                    </div>
                                                 )}
                                             </div>
 
                                             <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                                                 <div className="bg-card border border-border/50 rounded-2xl p-4 shadow-sm">
                                                     <p className="text-[10px] text-muted-foreground font-bold uppercase tracking-wider mb-1 flex items-center gap-1"><MapPin size={12} /> Location</p>
-                                                    <p className="text-sm font-bold text-foreground">{selectedIssue.location?.city}, {selectedIssue.location?.state}</p>
-                                                    <p className="text-[11px] text-muted-foreground mt-1 truncate">{selectedIssue.location?.address} • PIN: {selectedIssue.location?.pinCode}</p>
+                                                    <p className="text-sm font-bold text-foreground">{selectedIssueForDetail.location?.city}, {selectedIssueForDetail.location?.state}</p>
+                                                    <p className="text-[11px] text-muted-foreground mt-1 truncate">{selectedIssueForDetail.location?.address} • PIN: {selectedIssueForDetail.location?.pinCode}</p>
                                                 </div>
                                                 <div className="bg-card border border-border/50 rounded-2xl p-4 shadow-sm flex flex-col justify-center items-center text-center">
                                                     <p className="text-[10px] text-muted-foreground font-bold uppercase tracking-wider mb-1">Impact Score</p>
-                                                    <p className="text-2xl font-black text-yellow-500 flex items-center gap-1 justify-center"><Zap size={20} className="fill-yellow-500" /> {selectedIssue.impactScore || 0}</p>
+                                                    <p className="text-2xl font-black text-yellow-500 flex items-center gap-1 justify-center"><Zap size={20} className="fill-yellow-500" /> {selectedIssueForDetail.impactScore || 0}</p>
                                                 </div>
                                             </div>
 
-                                            <div className="bg-muted/20 border border-border/50 rounded-2xl p-5 mb-4 shadow-inner">
+                                            <div className="bg-muted/20 border border-border/50 rounded-2xl p-5 mb-4 lg:mb-0 shadow-inner">
                                                 <p className="text-[10px] text-muted-foreground font-bold uppercase tracking-wider mb-2">Description</p>
-                                                <p className="text-sm text-foreground/90 whitespace-pre-wrap leading-relaxed">{selectedIssue.description}</p>
+                                                <p className="text-sm text-foreground/90 whitespace-pre-wrap leading-relaxed">{selectedIssueForDetail.description}</p>
                                             </div>
                                         </div>
 
-                                        {/* RIGHT COLUMN: The Players, ACTION ZONE & Timeline */}
+                                        {/* RIGHT COLUMN: Players, Actions, Timeline */}
                                         <div className="w-full lg:w-1/2 flex flex-col bg-muted/5 shrink-0 lg:shrink relative z-30">
 
-                                            {/* --- PLAYERS SECTION (Now Clickable) --- */}
+                                            {/* Players Section */}
                                             <div className="p-4 md:p-5 border-b border-border/50 shrink-0">
                                                 <div className="grid grid-cols-2 gap-3">
-
-                                                    {/* Reporter Card */}
-                                                    <div className="bg-card border border-border/50 p-3 rounded-xl flex justify-between items-center group transition-colors hover:border-primary/50 relative">
-                                                        <div
-                                                            className="flex-1 cursor-pointer min-w-0 pr-2"
-                                                            onClick={() => !selectedIssue.isAnonymous && openCareerModal(selectedIssue.reportedBy?._id)}
-                                                        >
+                                                    <div className="bg-card border border-border/50 p-3 rounded-xl flex justify-between items-center group relative">
+                                                        <div className="flex-1 cursor-pointer min-w-0 pr-2" onClick={() => !selectedIssueForDetail.isAnonymous && openCareerModal(selectedIssueForDetail.reportedBy?._id)}>
                                                             <p className="text-[9px] text-muted-foreground font-bold uppercase mb-1">Reporter</p>
-                                                            <p className={`text-sm font-bold truncate ${selectedIssue.isAnonymous ? 'text-muted-foreground' : 'text-foreground group-hover:text-primary'}`}>
-                                                                {selectedIssue.isAnonymous ? 'Anonymous' : selectedIssue.reportedBy?.name || 'Unknown'}
+                                                            <p className={`text-sm font-bold truncate ${selectedIssueForDetail.isAnonymous ? 'text-muted-foreground' : 'text-foreground group-hover:text-primary'}`}>
+                                                                {selectedIssueForDetail.isAnonymous ? 'Anonymous' : selectedIssueForDetail.reportedBy?.name || 'Unknown'}
                                                             </p>
                                                         </div>
-
-                                                        {/* Action Menu (Warn/Suspend) */}
-                                                        {!selectedIssue.isAnonymous && selectedIssue.reportedBy?._id && (
+                                                        {!selectedIssueForDetail.isAnonymous && selectedIssueForDetail.reportedBy?._id && (
                                                             <div className="relative shrink-0">
                                                                 <button onClick={() => setActionMenuOpen(!actionMenuOpen)} className="p-1.5 rounded-md hover:bg-muted text-muted-foreground transition-colors">
                                                                     <MoreVertical size={16} />
@@ -855,7 +813,7 @@ const AdminIssues = () => {
                                                                         <button onClick={handleQuickWarn} className="w-full text-left px-4 py-2.5 text-xs font-bold hover:bg-muted flex items-center gap-2 text-amber-500">
                                                                             <AlertOctagon size={14} /> Send Warning
                                                                         </button>
-                                                                        <button onClick={() => handleQuickSuspend(selectedIssue.reportedBy._id)} className="w-full text-left px-4 py-2.5 text-xs font-bold hover:bg-red-500/10 flex items-center gap-2 text-red-500">
+                                                                        <button onClick={() => handleQuickSuspend(selectedIssueForDetail.reportedBy._id)} className="w-full text-left px-4 py-2.5 text-xs font-bold hover:bg-red-500/10 flex items-center gap-2 text-red-500">
                                                                             <Ban size={14} /> Suspend (24h)
                                                                         </button>
                                                                     </div>
@@ -864,29 +822,50 @@ const AdminIssues = () => {
                                                         )}
                                                     </div>
 
-                                                    {/* Authority Card */}
-                                                    <div
-                                                        className={`p-3 rounded-xl border transition-colors min-w-0 ${selectedIssue.bidding?.winningBid?.authorityId ? 'bg-indigo-500/5 border-indigo-500/20 cursor-pointer hover:bg-indigo-500/10 hover:border-indigo-500/40 group' : 'bg-card border-border/50'}`}
-                                                        onClick={() => selectedIssue.bidding?.winningBid?.authorityId && openCareerModal(selectedIssue.bidding.winningBid.authorityId._id)}
-                                                    >
-                                                        <p className={`text-[9px] font-bold uppercase mb-1 ${selectedIssue.bidding?.winningBid?.authorityId ? 'text-indigo-500' : 'text-muted-foreground'}`}>Assigned Official</p>
-                                                        {selectedIssue.bidding?.winningBid?.authorityId ? (
+                                                    <div className={`p-3 rounded-xl border transition-colors min-w-0 ${selectedIssueForDetail.bidding?.winningBid?.authorityId ? 'bg-indigo-500/5 border-indigo-500/20 cursor-pointer hover:bg-indigo-500/10 hover:border-indigo-500/40 group' : 'bg-card border-border/50'}`}
+                                                        onClick={() => selectedIssueForDetail.bidding?.winningBid?.authorityId && openCareerModal(selectedIssueForDetail.bidding.winningBid.authorityId._id)}>
+                                                        <p className={`text-[9px] font-bold uppercase mb-1 ${selectedIssueForDetail.bidding?.winningBid?.authorityId ? 'text-indigo-500' : 'text-muted-foreground'}`}>Assigned Official</p>
+                                                        {selectedIssueForDetail.bidding?.winningBid?.authorityId ? (
                                                             <div>
-                                                                <p className="text-sm font-bold text-indigo-600 dark:text-indigo-400 truncate group-hover:underline">{selectedIssue.bidding.winningBid.authorityId.name || 'ID Linked'}</p>
-                                                                <p className="text-[10px] text-indigo-500/80 font-bold mt-0.5 truncate">Commitment: {selectedIssue.bidding.winningBid.commitmentTimeHours}h</p>
+                                                                <p className="text-sm font-bold text-indigo-600 dark:text-indigo-400 truncate group-hover:underline">{selectedIssueForDetail.bidding.winningBid.authorityId.name || 'ID Linked'}</p>
+                                                                <p className="text-[10px] text-indigo-500/80 font-bold mt-0.5 truncate">Commitment: {selectedIssueForDetail.bidding.winningBid.commitmentTimeHours}h</p>
                                                             </div>
                                                         ) : (
                                                             <p className="text-xs text-muted-foreground italic mt-1 font-medium truncate">Unassigned</p>
                                                         )}
                                                     </div>
                                                 </div>
+
+                                                {/* 🟢 NEW: Pending Extension Request Banner */}
+                                                {selectedIssueForDetail.status === 'PENDING_EXTENSION' && (
+                                                    <div className="col-span-2 mt-4 bg-amber-500/10 border border-amber-500/20 p-4 rounded-xl relative overflow-hidden">
+                                                        <div className="absolute top-0 right-0 p-4 opacity-5 pointer-events-none"><Clock size={80} className="text-amber-500 -mr-6 -mt-6" /></div>
+                                                        <div className="relative z-10">
+                                                            <p className="text-[10px] text-amber-500 font-bold uppercase tracking-wider mb-1 flex items-center gap-1"><Clock size={12} /> Extension Requested</p>
+                                                            <p className="text-sm font-bold text-foreground">
+                                                                {selectedIssueForDetail.workCycle?.extensionRequests?.slice(-1)[0]?.hoursRequested} Hours
+                                                            </p>
+                                                            <p className="text-xs text-muted-foreground mt-1 mb-4 border-l-2 border-amber-500/50 pl-2">
+                                                                Reason: {selectedIssueForDetail.workCycle?.extensionRequests?.slice(-1)[0]?.reason}
+                                                            </p>
+                                                            <div className="flex gap-2">
+                                                                <button onClick={() => handleExtensionAction('APPROVED')} disabled={isUpdating} className="flex-1 bg-amber-500 text-white font-bold text-xs py-2.5 rounded-lg hover:bg-amber-600 transition-colors shadow-sm flex items-center justify-center gap-2">
+                                                                    <CheckCircle size={14} /> Approve
+                                                                </button>
+                                                                <button onClick={() => handleExtensionAction('REJECTED')} disabled={isUpdating} className="flex-1 bg-card text-muted-foreground border border-border/50 font-bold text-xs py-2.5 rounded-lg hover:text-foreground hover:bg-muted/50 transition-colors shadow-sm flex items-center justify-center gap-2">
+                                                                    <X size={14} /> Deny
+                                                                </button>
+                                                            </div>
+                                                        </div>
+                                                    </div>
+                                                )}
                                             </div>
 
-                                            {/* --- ACTIONS SECTION --- */}
+                                            {/* God Mode Action Zone */}
                                             <div className="p-4 md:p-5 border-b border-border/50 shrink-0 bg-background relative z-40">
                                                 <div className="flex gap-4 mb-3 border-b border-border/50">
                                                     <button onClick={() => setActionTab('STATUS')} className={`pb-2 text-xs font-bold uppercase tracking-wider ${actionTab === 'STATUS' ? 'text-primary border-b-2 border-primary' : 'text-muted-foreground'}`}>Update Status</button>
-                                                    {selectedIssue.bidding?.winningBid?.authorityId ? (
+                                                    {selectedIssueForDetail.bidding?.winningBid?.authorityId ? (
                                                         <button onClick={() => setActionTab('REVOKE')} className={`pb-2 text-xs font-bold uppercase tracking-wider ${actionTab === 'REVOKE' ? 'text-red-500 border-b-2 border-red-500' : 'text-muted-foreground'}`}>Revoke Assignment</button>
                                                     ) : (
                                                         <button onClick={() => setActionTab('ASSIGN')} className={`pb-2 text-xs font-bold uppercase tracking-wider ${actionTab === 'ASSIGN' ? 'text-indigo-500 border-b-2 border-indigo-500' : 'text-muted-foreground'}`}>Force Assign</button>
@@ -898,6 +877,7 @@ const AdminIssues = () => {
                                                         <div className="flex gap-2 relative z-40">
                                                             <div className="w-1/2 relative z-40">
                                                                 <label className="text-[10px] text-muted-foreground mb-1 block font-semibold uppercase">Change Status</label>
+                                                                {/* 🟢 Includes all 9 options */}
                                                                 <CustomSelect options={UPDATE_STATUS_OPTIONS} value={updateData.status} onChange={(val) => setUpdateData({ ...updateData, status: val })} />
                                                             </div>
                                                             <div className="w-1/2 relative z-10">
@@ -949,7 +929,7 @@ const AdminIssues = () => {
                                                 )}
 
                                                 {actionTab === 'ASSIGN' && (
-                                                    <form onSubmit={handleForceAssign} className="flex flex-col gap-2 relative z-50">
+                                                    <form onSubmit={handleForceAssignTable} className="flex flex-col gap-2 relative z-50">
                                                         <div className="flex gap-2 relative">
                                                             <div className="w-1/2 relative z-50">
                                                                 <CustomSelect options={authorities} value={assignData.authorityId} onChange={(val) => setAssignData({ ...assignData, authorityId: val })} placeholder="Select Official..." />
@@ -975,12 +955,12 @@ const AdminIssues = () => {
                                                 )}
                                             </div>
 
-                                            {/* --- TIMELINE SECTION --- */}
+                                            {/* Timeline */}
                                             <div className="flex-1 p-4 md:p-6 lg:overflow-y-auto thin-scrollbar relative z-10 bg-card/40">
                                                 <h4 className="text-xs font-black uppercase tracking-widest text-muted-foreground mb-6 pl-2 border-l-2 border-primary">System Timeline</h4>
                                                 <div className="space-y-6 relative before:absolute before:inset-0 before:ml-5 before:-translate-x-px before:h-full before:w-0.5 before:bg-gradient-to-b before:from-primary/50 before:via-border/50 before:to-transparent pb-4">
-                                                    {generateTimeline(selectedIssue).map((event, i) => (
-                                                        <div key={i} className="relative flex items-start gap-4 group">
+                                                    {generateTimeline(selectedIssueForDetail).map((event, i) => (
+                                                        <motion.div initial={{ opacity: 0, x: 20 }} animate={{ opacity: 1, x: 0 }} transition={{ delay: i * 0.1 }} key={i} className="relative flex items-start gap-4 group">
                                                             <div className={`flex items-center justify-center w-10 h-10 rounded-full border-4 border-background shrink-0 shadow-sm ${event.color} z-10 transition-transform group-hover:scale-110`}>
                                                                 {event.icon}
                                                             </div>
@@ -989,7 +969,7 @@ const AdminIssues = () => {
                                                                 <div className="text-[10px] text-muted-foreground font-mono mt-1 mb-2 font-medium">{event.time.toLocaleString([], { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' })}</div>
                                                                 {event.detail && <p className="text-[11px] text-foreground/80 bg-muted/40 p-2.5 rounded-xl border border-border/40 leading-relaxed font-medium">{event.detail}</p>}
                                                             </div>
-                                                        </div>
+                                                        </motion.div>
                                                     ))}
                                                 </div>
                                             </div>
@@ -1000,9 +980,9 @@ const AdminIssues = () => {
                         )}
                     </AnimatePresence>
 
-                    {/* 🟢 4. Delete Confirmation Overlay (Placed Last, absolute top) */}
+                    {/* 🟢 6. Delete Confirmation Overlay */}
                     {showDeleteConfirm && (
-                        <div className="fixed inset-0 flex items-center justify-center p-4 sm:p-8 md:p-12 bg-black/60 backdrop-blur-sm animate-fade-in" style={{ zIndex: Math.max(modalZ.issue, modalZ.career) + 50 }}>
+                        <div className="fixed inset-0 flex items-center justify-center p-4 sm:p-8 md:p-12 bg-black/60 backdrop-blur-sm animate-fade-in" style={{ zIndex: 10000 }}>
                             <div className="bg-card border border-red-500/30 rounded-2xl p-5 md:p-6 max-w-sm w-full shadow-2xl flex flex-col max-h-full" onClick={e => e.stopPropagation()}>
                                 <h3 className="text-lg font-bold text-red-500 mb-2 flex items-center gap-2 shrink-0">
                                     <AlertTriangle className="w-5 h-5" /> Nuclear Delete
@@ -1022,6 +1002,7 @@ const AdminIssues = () => {
                 </>,
                 document.body
             )}
+
         </motion.div>
     );
 };

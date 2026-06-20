@@ -1,19 +1,50 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { createPortal } from 'react-dom';
 import axiosInstance from '../../utils/axios';
 import { showToast } from '../../utils/toast';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
     AlertOctagon, Zap, Megaphone, Edit3, Briefcase,
-    MapPin, Clock, ArrowRight, ShieldAlert, Download, Eye, X, Search, Flame, Filter
+    MapPin, Clock, ArrowRight, ShieldAlert, Download, Eye, X, Search, Flame, Filter,
+    Camera, ChevronLeft, ChevronRight, FileText, History, Shield, Trash2, AlertTriangle,
+    CheckCircle, RotateCcw
 } from 'lucide-react';
 import CustomSelect from '../CustomSelect';
 import MiniLoader from '../MiniLoader';
 import { cscApi } from '../../utils/cscAPI';
-import IssueDetail from '../IssueDetail';
+
+// Helper for Timeline
+const generateTimeline = (issue) => {
+    if (!issue) return [];
+    const combined = [];
+    combined.push({ type: 'create', label: 'Issue Reported', time: new Date(issue.createdAt), icon: <FileText size={14} />, color: 'text-blue-500 bg-blue-500/10 border-blue-500/30' });
+
+    if (issue.statusHistory) {
+        issue.statusHistory.forEach(sh => {
+            combined.push({ type: 'status', label: `Status changed to ${sh.status}`, time: new Date(sh.changedAt), detail: sh.remark, icon: <History size={14} />, color: 'text-yellow-500 bg-yellow-500/10 border-yellow-500/30' });
+        });
+    }
+    if (issue.auditLog) {
+        issue.auditLog.forEach(al => {
+            combined.push({ type: 'audit', label: al.action.replace(/_/g, ' '), time: new Date(al.timestamp), detail: al.details, icon: <Shield size={14} />, color: 'text-indigo-500 bg-indigo-500/10 border-indigo-500/30' });
+        });
+    }
+    return combined.sort((a, b) => b.time - a.time);
+};
+
+const statusColors = {
+    OPEN: "bg-yellow-500/10 text-yellow-500 border-yellow-500/30",
+    LOCKED: "bg-indigo-500/10 text-indigo-500 border-indigo-500/30",
+    IN_REVIEW: "bg-blue-500/10 text-blue-500 border-blue-500/30",
+    RESOLVED: "bg-green-500/10 text-green-500 border-green-500/30",
+    REJECTED: "bg-red-500/10 text-red-500 border-red-500/30",
+    FAILED: "bg-red-500/10 text-red-500 border-red-500/30",
+    DISPUTED: "bg-orange-500/10 text-orange-500 border-orange-500/30",
+    ORPHANED: "bg-purple-500/10 text-purple-500 border-purple-500/30",
+    RELEASED: "bg-amber-500/10 text-amber-500 border-amber-500/30"
+};
 
 const AdminTriage = () => {
-    // Portal hydration state
     const [isMounted, setIsMounted] = useState(false);
 
     const [issues, setIssues] = useState([]);
@@ -26,22 +57,35 @@ const AdminTriage = () => {
     const [districtsList, setDistrictsList] = useState([]);
     const [authorities, setAuthorities] = useState([]);
 
-    // Mobile Filter State
     const [isMobileFilterOpen, setIsMobileFilterOpen] = useState(false);
 
-    // Issue Detail Modal State
+    // Modal States
     const [isIssueModalOpen, setIsIssueModalOpen] = useState(false);
     const [selectedIssueForDetail, setSelectedIssueForDetail] = useState(null);
     const [fetchingIssueId, setFetchingIssueId] = useState(null);
+    const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
+    const [isDeleting, setIsDeleting] = useState(false);
 
-    // Action Modal States
+    // 🟢 Media Viewer States
+    const [mediaTab, setMediaTab] = useState('REPORTED');
+    const [currentMediaIndex, setCurrentMediaIndex] = useState(0);
+    const videoRef = useRef(null);
+
+    // 🟢 Action Zone (God Mode) States
+    const [actionTab, setActionTab] = useState('STATUS');
+    const [updateData, setUpdateData] = useState({ status: '', adminRemark: '', resolvedByAuthority: '' });
+    const [assignData, setAssignData] = useState({ authorityId: '', commitmentTimeHours: '' });
+    const [revokeData, setRevokeData] = useState({ reason: '', penaltyPoints: 0 });
+    const [isUpdating, setIsUpdating] = useState(false);
+    const [actionMedia, setActionMedia] = useState(null);
+
+    // Minor Modal States
     const [boostModal, setBoostModal] = useState({ isOpen: false, issueId: '', amount: '' });
     const [categoryModal, setCategoryModal] = useState({ isOpen: false, issueId: '', category: '', priority: '' });
     const [assignModal, setAssignModal] = useState({ isOpen: false, issueId: '', authorityId: '', hours: '' });
     const [sosModal, setSosModal] = useState({ isOpen: false, issueId: '' });
     const [isActionLoading, setIsActionLoading] = useState(false);
 
-    // Filter Options
     const CATEGORIES = [
         { value: '', label: 'All Categories' },
         { value: 'ROAD_DAMAGE', label: 'Road Damage & Potholes' },
@@ -61,6 +105,14 @@ const AdminTriage = () => {
         { value: '', label: 'All Escalations' },
         { value: 'ORPHANED', label: 'Orphaned (>7 Days)' },
         { value: 'DISPUTED', label: 'Disputed (Conflicts)' }
+    ];
+    const UPDATE_STATUS_OPTIONS = [
+        { value: 'OPEN', label: 'OPEN (Auction)' },
+        { value: 'IN_REVIEW', label: 'IN REVIEW (Initiated)' },
+        { value: 'RESOLVED', label: 'RESOLVED (Fixed)' },
+        { value: 'REJECTED', label: 'REJECTED (Spam)' },
+        { value: 'DISPUTED', label: 'DISPUTED (Conflict)' },
+        { value: 'ORPHANED', label: 'ORPHANED (Stagnant)' }
     ];
 
     useEffect(() => {
@@ -83,15 +135,23 @@ const AdminTriage = () => {
         return () => clearTimeout(delayDebounceFn);
     }, [page, filters]);
 
-    // Lock Body Scroll for Modals
     useEffect(() => {
-        if (boostModal.isOpen || categoryModal.isOpen || assignModal.isOpen || sosModal.isOpen || isIssueModalOpen) {
+        if (boostModal.isOpen || categoryModal.isOpen || assignModal.isOpen || sosModal.isOpen || isIssueModalOpen || showDeleteConfirm) {
             document.body.style.overflow = 'hidden';
         } else {
             document.body.style.overflow = 'unset';
         }
         return () => { document.body.style.overflow = 'unset'; };
-    }, [boostModal.isOpen, categoryModal.isOpen, assignModal.isOpen, sosModal.isOpen, isIssueModalOpen]);
+    }, [boostModal.isOpen, categoryModal.isOpen, assignModal.isOpen, sosModal.isOpen, isIssueModalOpen, showDeleteConfirm]);
+
+    useEffect(() => { setCurrentMediaIndex(0); }, [mediaTab]);
+
+    useEffect(() => {
+        if (isIssueModalOpen && videoRef.current) {
+            videoRef.current.currentTime = 0;
+            videoRef.current.play().catch(e => console.warn("Autoplay blocked:", e));
+        }
+    }, [isIssueModalOpen, currentMediaIndex, mediaTab]);
 
     const fetchTriageIssues = async () => {
         try {
@@ -101,9 +161,7 @@ const AdminTriage = () => {
             setTotalPages(res.data.data.pagination.totalPages);
         } catch (error) {
             showToast({ icon: 'error', title: 'Failed to fetch triage issues' });
-        } finally {
-            setLoading(false);
-        }
+        } finally { setLoading(false); }
     };
 
     const fetchAuthorities = async () => {
@@ -135,7 +193,20 @@ const AdminTriage = () => {
         try {
             setFetchingIssueId(issueId);
             const res = await axiosInstance.get(`/admin/issue/${issueId}`);
-            setSelectedIssueForDetail(res.data.data);
+            const issueData = res.data.data;
+
+            setSelectedIssueForDetail(issueData);
+            setUpdateData({
+                status: issueData.status,
+                adminRemark: issueData.adminRemark || '',
+                resolvedByAuthority: issueData.resolvedByAuthority || issueData.resolutionEvidence?.resolvedByAuthority || ''
+            });
+            setAssignData({ authorityId: '', commitmentTimeHours: '' });
+            setRevokeData({ reason: '', penaltyPoints: 0 });
+            setActionMedia(null);
+            setActionTab('STATUS');
+            setMediaTab('REPORTED');
+            setCurrentMediaIndex(0);
             setIsIssueModalOpen(true);
         } catch (e) {
             showToast({ icon: 'error', title: 'Failed to load full issue details' });
@@ -146,7 +217,20 @@ const AdminTriage = () => {
 
     const closeIssueModal = () => {
         setIsIssueModalOpen(false);
+        setShowDeleteConfirm(false);
         setTimeout(() => setSelectedIssueForDetail(null), 300);
+    };
+
+    const handleDeleteIssue = async () => {
+        setIsDeleting(true);
+        try {
+            await axiosInstance.delete(`/admin/issue/${selectedIssueForDetail._id}`);
+            setIssues(issues.filter(iss => iss._id !== selectedIssueForDetail._id));
+            showToast({ icon: 'success', title: 'Issue permanently deleted' });
+            closeIssueModal();
+        } catch (error) {
+            showToast({ icon: 'error', title: error.response?.data?.message || 'Delete failed' });
+        } finally { setIsDeleting(false); }
     };
 
     const getDaysStagnant = (dateInput) => {
@@ -177,7 +261,7 @@ const AdminTriage = () => {
         finally { setIsActionLoading(false); }
     };
 
-    const handleForceAssign = async (e) => {
+    const handleForceAssignTable = async (e) => {
         e.preventDefault();
         setIsActionLoading(true);
         try {
@@ -201,13 +285,94 @@ const AdminTriage = () => {
             setSosModal({ isOpen: false, issueId: '' });
         } catch (error) {
             showToast({ icon: 'error', title: error.response?.data?.message || 'Failed to send SOS' });
-        } finally {
-            setIsActionLoading(false);
-        }
+        } finally { setIsActionLoading(false); }
+    };
+
+    // 🟢 Action Zone Submit Handlers (Inside Modal)
+    const handleUpdateStatus = async (e) => {
+        e.preventDefault();
+        setIsUpdating(true);
+        try {
+            let payload = updateData;
+            let headers = {};
+
+            if (['DISPUTED', 'RESOLVED'].includes(updateData.status) && actionMedia) {
+                payload = new FormData();
+                payload.append('status', updateData.status);
+                payload.append('adminRemark', updateData.adminRemark);
+                if (updateData.resolvedByAuthority) {
+                    payload.append('resolvedByAuthority', updateData.resolvedByAuthority);
+                }
+                payload.append('media', actionMedia);
+                headers = { 'Content-Type': 'multipart/form-data' };
+            }
+
+            await axiosInstance.patch(`/admin/issue/${selectedIssueForDetail._id}`, payload, { headers });
+            showToast({ icon: 'success', title: 'Status updated successfully' });
+            closeIssueModal();
+            fetchTriageIssues();
+        } catch (error) {
+            showToast({ icon: 'error', title: error.response?.data?.message || 'Update failed' });
+        } finally { setIsUpdating(false); }
+    };
+
+    const handleInlineForceAssign = async (e) => {
+        e.preventDefault();
+        setIsUpdating(true);
+        try {
+            await axiosInstance.patch(`/admin/issue/${selectedIssueForDetail._id}/force-assign`, { authorityId: assignData.authorityId, commitmentTimeHours: Number(assignData.commitmentTimeHours) });
+            showToast({ icon: 'success', title: 'Issue forcefully assigned!' });
+            closeIssueModal();
+            fetchTriageIssues();
+        } catch (error) { showToast({ icon: 'error', title: 'Assignment failed' }); }
+        finally { setIsUpdating(false); }
+    };
+
+    const handleRevokeAssign = async (e) => {
+        e.preventDefault();
+        setIsUpdating(true);
+        try {
+            await axiosInstance.patch(`/admin/issue/${selectedIssueForDetail._id}/force-unassign`, {
+                reason: revokeData.reason,
+                penaltyPoints: Number(revokeData.penaltyPoints)
+            });
+            showToast({ icon: 'success', title: 'Assignment revoked. Issue is OPEN.' });
+            closeIssueModal();
+            fetchTriageIssues();
+        } catch (error) {
+            showToast({ icon: 'error', title: error.response?.data?.message || 'Revocation failed' });
+        } finally { setIsUpdating(false); }
     };
 
     const stateOptions = [{ value: '', label: 'All States' }, ...statesList.map(s => ({ value: s.name, label: s.name }))];
     const districtOptions = [{ value: '', label: 'All Districts' }, ...districtsList.map(d => ({ value: d.name, label: d.name }))];
+
+    // 🟢 Calculate Media Tabs for the Modal
+    let claimedUrls = [];
+    let opposedUrls = [];
+    let reportedUrls = [];
+    let activeMediaArray = [];
+
+    if (selectedIssueForDetail) {
+        claimedUrls = [
+            selectedIssueForDetail.resolutionEvidence?.mediaUrl,
+            ...(selectedIssueForDetail.workCycle?.handoverReports?.map(h => h.photoUrl) || [])
+        ].filter(Boolean);
+
+        opposedUrls = [
+            selectedIssueForDetail.disputeEvidence?.mediaUrl,
+            selectedIssueForDetail.reportedByVerdictMedia,
+            ...(selectedIssueForDetail.confirmations?.map(c => c.verdictMedia) || [])
+        ].filter(Boolean);
+
+        reportedUrls = (selectedIssueForDetail.media || [])
+            .map(m => m.url)
+            .filter(url => !claimedUrls.includes(url) && !opposedUrls.includes(url));
+
+        activeMediaArray = mediaTab === 'REPORTED' ? reportedUrls
+            : mediaTab === 'CLAIMED' ? claimedUrls
+                : opposedUrls;
+    }
 
     return (
         <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} className="space-y-4 md:space-y-6 flex flex-col h-full relative pb-10">
@@ -463,12 +628,12 @@ const AdminTriage = () => {
             )}
 
             {/* ========================================================= */}
-            {/* PORTAL MODALS (Rendered completely outside DOM flow to prevent sidebar overlap) */}
+            {/* PORTAL MODALS */}
             {/* ========================================================= */}
 
             {isMounted && createPortal(
                 <>
-                    {/* 1. Boost Modal */}
+                    {/* Minor Action Modals */}
                     <AnimatePresence>
                         {boostModal.isOpen && (
                             <div className="fixed inset-0 z-[9999] flex items-center justify-center p-4">
@@ -499,7 +664,6 @@ const AdminTriage = () => {
                         )}
                     </AnimatePresence>
 
-                    {/* 2. Re-Categorize Modal */}
                     <AnimatePresence>
                         {categoryModal.isOpen && (
                             <div className="fixed inset-0 z-[9999] flex items-center justify-center p-4">
@@ -537,14 +701,13 @@ const AdminTriage = () => {
                         )}
                     </AnimatePresence>
 
-                    {/* 3. Force Assign Modal */}
                     <AnimatePresence>
                         {assignModal.isOpen && (
                             <div className="fixed inset-0 z-[9999] flex items-center justify-center p-4">
                                 <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="absolute inset-0 bg-black/60 backdrop-blur-sm" onClick={() => setAssignModal({ isOpen: false, issueId: '', authorityId: '', hours: '' })} />
                                 <motion.form
                                     initial={{ opacity: 0, scale: 0.95, y: 20 }} animate={{ opacity: 1, scale: 1, y: 0 }} exit={{ opacity: 0, scale: 0.95, y: 20 }}
-                                    onSubmit={handleForceAssign}
+                                    onSubmit={handleForceAssignTable}
                                     className="bg-card p-6 rounded-3xl border border-indigo-500/30 shadow-[0_0_50px_rgba(99,102,241,0.15)] w-full max-w-md relative z-10"
                                 >
                                     <div className="flex items-center gap-3 mb-2 text-indigo-500">
@@ -566,7 +729,7 @@ const AdminTriage = () => {
 
                                     <div className="flex justify-end gap-3">
                                         <button type="button" onClick={() => setAssignModal({ isOpen: false, issueId: '', authorityId: '', hours: '' })} className="px-5 py-2.5 text-sm font-bold text-muted-foreground hover:bg-muted rounded-xl transition-colors">Cancel</button>
-                                        <button type="submit" disabled={isActionLoading || !assignModal.authorityId || !assignModal.commitmentTimeHours} className="px-5 py-2.5 text-sm bg-indigo-500 text-white font-black rounded-xl flex items-center justify-center min-w-[140px] shadow-[0_0_15px_rgba(99,102,241,0.4)] hover:bg-indigo-600 disabled:opacity-50 transition-all hover:scale-[1.02] active:scale-[0.98]">
+                                        <button type="submit" disabled={isActionLoading || !assignModal.authorityId || !assignModal.hours} className="px-5 py-2.5 text-sm bg-indigo-500 text-white font-black rounded-xl flex items-center justify-center min-w-[140px] shadow-[0_0_15px_rgba(99,102,241,0.4)] hover:bg-indigo-600 disabled:opacity-50 transition-all hover:scale-[1.02] active:scale-[0.98]">
                                             {isActionLoading ? <MiniLoader className="text-white" /> : <>Lock & Warn <ArrowRight size={14} className="ml-1" /></>}
                                         </button>
                                     </div>
@@ -575,7 +738,6 @@ const AdminTriage = () => {
                         )}
                     </AnimatePresence>
 
-                    {/* 4. SOS Confirmation Modal */}
                     <AnimatePresence>
                         {sosModal.isOpen && (
                             <div className="fixed inset-0 z-[9999] flex items-center justify-center p-4">
@@ -602,16 +764,262 @@ const AdminTriage = () => {
                         )}
                     </AnimatePresence>
 
-                    {/* 5. Issue Detail Modal */}
-                    <div style={{ zIndex: 9999, position: 'relative' }}>
-                        <IssueDetail
-                            issue={selectedIssueForDetail}
-                            isOpen={isIssueModalOpen}
-                            onClose={closeIssueModal}
-                            hideConfirm={true}
-                            isAdminView={true}
-                        />
-                    </div>
+                    {/* 🟢 5. NEW CUSTOM INLINE ISSUE DETAIL, MEDIA & ACTION (GOD MODE) MODAL */}
+                    <AnimatePresence>
+                        {isIssueModalOpen && selectedIssueForDetail && (
+                            <div className="fixed inset-0 z-[9999] flex items-center justify-center p-2 sm:p-4">
+                                <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="absolute inset-0 bg-black/80 backdrop-blur-sm" onClick={closeIssueModal} />
+
+                                <motion.div
+                                    initial={{ opacity: 0, scale: 0.95, y: 20 }} animate={{ opacity: 1, scale: 1, y: 0 }} exit={{ opacity: 0, scale: 0.95, y: 20 }}
+                                    className="relative bg-background border border-border/50 rounded-3xl w-full max-w-6xl shadow-2xl flex flex-col max-h-[85dvh] overflow-hidden z-10"
+                                    onClick={e => e.stopPropagation()}
+                                >
+                                    {/* Modal Header */}
+                                    <div className="flex justify-between items-center p-4 md:p-5 border-b border-border/50 bg-muted/20 shrink-0">
+                                        <div className="flex items-center gap-3">
+                                            <span className={`px-3 py-1.5 rounded-xl text-[10px] font-black uppercase tracking-widest border shadow-sm ${statusColors[selectedIssueForDetail.status] || statusColors.OPEN}`}>
+                                                {selectedIssueForDetail.status}
+                                            </span>
+                                            <span className="text-xs font-mono text-muted-foreground hidden sm:block">ID: {selectedIssueForDetail._id}</span>
+                                        </div>
+                                        <div className="flex items-center gap-2">
+                                            <button onClick={() => setShowDeleteConfirm(true)} title="Delete Issue" className="p-2 rounded-full text-red-500 bg-red-500/10 hover:bg-red-500 hover:text-white transition-colors"><Trash2 size={18} /></button>
+                                            <button onClick={closeIssueModal} className="p-2 rounded-full bg-card border border-border/50 hover:bg-muted transition-colors"><X size={20} /></button>
+                                        </div>
+                                    </div>
+
+                                    {/* Split Body */}
+                                    <div className="flex flex-col lg:flex-row flex-1 min-h-0 overflow-y-auto lg:overflow-hidden thin-scrollbar">
+
+                                        {/* LEFT COLUMN: Media & Core Data */}
+                                        <div className="w-full lg:w-1/2 p-4 md:p-6 lg:border-r border-border/50 flex flex-col gap-5 shrink-0 lg:shrink lg:overflow-y-auto thin-scrollbar bg-background/50">
+                                            <h3 className="text-2xl md:text-3xl font-black text-foreground leading-tight">{selectedIssueForDetail.title}</h3>
+
+                                            {/* 🟢 MEDIA TABS (Only shown if Disputed, to match your logic request) */}
+                                            {selectedIssueForDetail.status === 'DISPUTED' ? (
+                                                <div className="flex bg-muted/40 p-1.5 rounded-xl border border-border/50 w-full md:w-max">
+                                                    <button onClick={() => setMediaTab('REPORTED')} className={`flex-1 md:flex-none px-4 py-2 rounded-lg text-[10px] sm:text-xs font-black uppercase tracking-widest transition-all ${mediaTab === 'REPORTED' ? 'bg-primary text-primary-foreground shadow-md' : 'text-muted-foreground hover:bg-muted'}`}>
+                                                        Reported
+                                                    </button>
+                                                    <button onClick={() => setMediaTab('CLAIMED')} disabled={!claimedUrls.length} className={`flex-1 md:flex-none px-4 py-2 rounded-lg text-[10px] sm:text-xs font-black uppercase tracking-widest transition-all ${mediaTab === 'CLAIMED' ? 'bg-green-500 text-white shadow-md' : 'text-muted-foreground hover:bg-muted'} ${!claimedUrls.length && 'opacity-40 cursor-not-allowed'}`}>
+                                                        Claimed
+                                                    </button>
+                                                    <button onClick={() => setMediaTab('OPPOSED')} disabled={!opposedUrls.length} className={`flex-1 md:flex-none px-4 py-2 rounded-lg text-[10px] sm:text-xs font-black uppercase tracking-widest transition-all ${mediaTab === 'OPPOSED' ? 'bg-red-500 text-white shadow-md' : 'text-muted-foreground hover:bg-muted'} ${!opposedUrls.length && 'opacity-40 cursor-not-allowed'}`}>
+                                                        Opposed
+                                                    </button>
+                                                </div>
+                                            ) : null}
+
+                                            {/* 🟢 MEDIA VIEWER */}
+                                            <div className="w-full bg-black/40 rounded-2xl border border-border/50 overflow-hidden relative flex items-center justify-center h-[250px] sm:h-[350px] shrink-0 group shadow-inner">
+                                                {activeMediaArray.length > 0 ? (
+                                                    <>
+                                                        {activeMediaArray[currentMediaIndex]?.match(/\.(mp4|webm|ogg)$/i) ? (
+                                                            <video ref={videoRef} src={activeMediaArray[currentMediaIndex]} className="w-full h-full object-contain bg-black" controls autoPlay muted playsInline />
+                                                        ) : (
+                                                            <img src={activeMediaArray[currentMediaIndex]} alt="issue" className="w-full h-full object-contain" />
+                                                        )}
+
+                                                        {activeMediaArray.length > 1 && (
+                                                            <>
+                                                                <button onClick={() => setCurrentMediaIndex((prev) => (prev - 1 + activeMediaArray.length) % activeMediaArray.length)} className="absolute left-3 p-2 bg-black/60 rounded-full text-white hover:bg-black/80 backdrop-blur-md opacity-0 group-hover:opacity-100 transition-opacity"><ChevronLeft size={20} /></button>
+                                                                <button onClick={() => setCurrentMediaIndex((prev) => (prev + 1) % activeMediaArray.length)} className="absolute right-3 p-2 bg-black/60 rounded-full text-white hover:bg-black/80 backdrop-blur-md opacity-0 group-hover:opacity-100 transition-opacity"><ChevronRight size={20} /></button>
+                                                            </>
+                                                        )}
+                                                    </>
+                                                ) : (
+                                                    <div className="flex flex-col items-center opacity-40">
+                                                        <Camera size={36} className="mb-3" />
+                                                        <p className="text-sm font-bold text-center px-4">No {mediaTab.toLowerCase()} evidence attached.</p>
+                                                    </div>
+                                                )}
+                                            </div>
+
+                                            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                                                <div className="bg-card border border-border/50 rounded-2xl p-4 shadow-sm">
+                                                    <p className="text-[10px] text-muted-foreground font-bold uppercase tracking-wider mb-1 flex items-center gap-1"><MapPin size={12} /> Location</p>
+                                                    <p className="text-sm font-bold text-foreground">{selectedIssueForDetail.location?.city}, {selectedIssueForDetail.location?.state}</p>
+                                                    <p className="text-[11px] text-muted-foreground mt-1 truncate">{selectedIssueForDetail.location?.address} • PIN: {selectedIssueForDetail.location?.pinCode}</p>
+                                                </div>
+                                                <div className="bg-card border border-border/50 rounded-2xl p-4 shadow-sm flex flex-col justify-center items-center text-center">
+                                                    <p className="text-[10px] text-muted-foreground font-bold uppercase tracking-wider mb-1">Impact Score</p>
+                                                    <p className="text-2xl font-black text-yellow-500 flex items-center gap-1 justify-center"><Zap size={20} className="fill-yellow-500" /> {selectedIssueForDetail.impactScore || 0}</p>
+                                                </div>
+                                            </div>
+
+                                            <div className="bg-muted/20 border border-border/50 rounded-2xl p-5 mb-4 lg:mb-0 shadow-inner">
+                                                <p className="text-[10px] text-muted-foreground font-bold uppercase tracking-wider mb-2">Description</p>
+                                                <p className="text-sm text-foreground/90 whitespace-pre-wrap leading-relaxed">{selectedIssueForDetail.description}</p>
+                                            </div>
+                                        </div>
+
+                                        {/* RIGHT COLUMN: The Players, ACTION ZONE & Timeline */}
+                                        <div className="w-full lg:w-1/2 flex flex-col bg-muted/5 shrink-0 lg:shrink relative z-30">
+
+                                            {/* --- PLAYERS SECTION --- */}
+                                            <div className="p-4 md:p-5 border-b border-border/50 shrink-0">
+                                                <div className="grid grid-cols-2 gap-3">
+                                                    <div className="bg-card border border-border/50 p-3 rounded-xl flex justify-between items-center group relative">
+                                                        <div className="flex-1 min-w-0 pr-2">
+                                                            <p className="text-[9px] text-muted-foreground font-bold uppercase mb-1">Reporter</p>
+                                                            <p className="text-sm font-bold truncate text-foreground">
+                                                                {selectedIssueForDetail.isAnonymous ? 'Anonymous' : selectedIssueForDetail.reportedBy?.name || 'Unknown'}
+                                                            </p>
+                                                        </div>
+                                                    </div>
+
+                                                    <div className={`p-3 rounded-xl border transition-colors min-w-0 ${selectedIssueForDetail.bidding?.winningBid?.authorityId ? 'bg-indigo-500/5 border-indigo-500/20' : 'bg-card border-border/50'}`}>
+                                                        <p className={`text-[9px] font-bold uppercase mb-1 ${selectedIssueForDetail.bidding?.winningBid?.authorityId ? 'text-indigo-500' : 'text-muted-foreground'}`}>Assigned Official</p>
+                                                        {selectedIssueForDetail.bidding?.winningBid?.authorityId ? (
+                                                            <div>
+                                                                <p className="text-sm font-bold text-indigo-600 dark:text-indigo-400 truncate">{selectedIssueForDetail.bidding.winningBid.authorityId.name || 'ID Linked'}</p>
+                                                                <p className="text-[10px] text-indigo-500/80 font-bold mt-0.5 truncate">Commitment: {selectedIssueForDetail.bidding.winningBid.commitmentTimeHours}h</p>
+                                                            </div>
+                                                        ) : (
+                                                            <p className="text-xs text-muted-foreground italic mt-1 font-medium truncate">Unassigned</p>
+                                                        )}
+                                                    </div>
+                                                </div>
+                                            </div>
+
+                                            {/* --- ACTIONS SECTION (GOD MODE) --- */}
+                                            <div className="p-4 md:p-5 border-b border-border/50 shrink-0 bg-background relative z-40">
+                                                <div className="flex gap-4 mb-3 border-b border-border/50">
+                                                    <button onClick={() => setActionTab('STATUS')} className={`pb-2 text-xs font-bold uppercase tracking-wider ${actionTab === 'STATUS' ? 'text-primary border-b-2 border-primary' : 'text-muted-foreground'}`}>Update Status</button>
+                                                    {selectedIssueForDetail.bidding?.winningBid?.authorityId ? (
+                                                        <button onClick={() => setActionTab('REVOKE')} className={`pb-2 text-xs font-bold uppercase tracking-wider ${actionTab === 'REVOKE' ? 'text-red-500 border-b-2 border-red-500' : 'text-muted-foreground'}`}>Revoke Assignment</button>
+                                                    ) : (
+                                                        <button onClick={() => setActionTab('ASSIGN')} className={`pb-2 text-xs font-bold uppercase tracking-wider ${actionTab === 'ASSIGN' ? 'text-indigo-500 border-b-2 border-indigo-500' : 'text-muted-foreground'}`}>Force Assign</button>
+                                                    )}
+                                                </div>
+
+                                                {actionTab === 'STATUS' && (
+                                                    <form onSubmit={handleUpdateStatus} className="flex flex-col gap-3 relative z-40">
+                                                        <div className="flex gap-2 relative z-40">
+                                                            <div className="w-1/2 relative z-40">
+                                                                <label className="text-[10px] text-muted-foreground mb-1 block font-semibold uppercase">Change Status</label>
+                                                                <CustomSelect options={UPDATE_STATUS_OPTIONS} value={updateData.status} onChange={(val) => setUpdateData({ ...updateData, status: val })} />
+                                                            </div>
+                                                            <div className="w-1/2 relative z-10">
+                                                                <label className="text-[10px] text-muted-foreground mb-1 block font-semibold uppercase truncate">
+                                                                    {['DISPUTED', 'ORPHANED', 'RESOLVED'].includes(updateData.status) ? 'Audit Remark (Optional)' : 'Audit Remark (Required)'}
+                                                                </label>
+                                                                <input
+                                                                    type="text"
+                                                                    value={updateData.adminRemark}
+                                                                    onChange={(e) => setUpdateData({ ...updateData, adminRemark: e.target.value })}
+                                                                    placeholder={['DISPUTED', 'ORPHANED', 'RESOLVED'].includes(updateData.status) ? "Optional context..." : "State reason..."}
+                                                                    className="w-full px-3 py-2 bg-muted border border-border/50 rounded-xl text-xs font-medium focus:border-primary outline-none transition-colors"
+                                                                    required={!['DISPUTED', 'ORPHANED', 'RESOLVED'].includes(updateData.status)}
+                                                                />
+                                                            </div>
+                                                        </div>
+
+                                                        {updateData.status === 'RESOLVED' && (
+                                                            <div className="relative z-30 mb-1 animate-fade-in">
+                                                                <label className="text-[10px] text-green-500 mb-1 block font-bold uppercase flex items-center gap-1">
+                                                                    <ShieldAlert size={12} /> Resolved By (Optional)
+                                                                </label>
+                                                                <CustomSelect
+                                                                    options={[{ value: '', label: 'Unknown / System Resolved' }, ...authorities]}
+                                                                    value={updateData.resolvedByAuthority || ''}
+                                                                    onChange={(val) => setUpdateData({ ...updateData, resolvedByAuthority: val })}
+                                                                />
+                                                            </div>
+                                                        )}
+
+                                                        {['DISPUTED', 'RESOLVED'].includes(updateData.status) && (
+                                                            <div className={`relative z-10 p-3 border rounded-xl animate-fade-in ${updateData.status === 'RESOLVED' ? 'bg-green-500/5 border-green-500/20' : 'bg-red-500/5 border-red-500/20'}`}>
+                                                                <label className={`text-xs mb-2 block font-bold flex items-center gap-1 ${updateData.status === 'RESOLVED' ? 'text-green-500' : 'text-red-500'}`}>
+                                                                    <ShieldAlert size={12} /> {updateData.status === 'RESOLVED' ? 'Attach Evidence (Optional)' : 'Dispute Evidence (Optional)'}
+                                                                </label>
+                                                                <input
+                                                                    type="file"
+                                                                    accept="image/*"
+                                                                    onChange={(e) => setActionMedia(e.target.files[0])}
+                                                                    className={`w-full text-xs file:mr-3 file:py-1.5 file:px-3 file:rounded-lg file:border-0 file:font-bold cursor-pointer text-muted-foreground ${updateData.status === 'RESOLVED' ? 'file:bg-green-500/10 file:text-green-500 hover:file:bg-green-500/20' : 'file:bg-red-500/10 file:text-red-500 hover:file:bg-red-500/20'}`}
+                                                                />
+                                                            </div>
+                                                        )}
+
+                                                        <button type="submit" disabled={isUpdating} className="w-full py-2.5 mt-1 bg-primary text-primary-foreground font-bold text-xs rounded-xl shadow-md flex items-center justify-center gap-1.5 relative z-10 hover:scale-[1.01] transition-transform">
+                                                            {isUpdating ? <MiniLoader className="w-3.5 h-3.5" /> : <>Log Action <CheckCircle size={14} /></>}
+                                                        </button>
+                                                    </form>
+                                                )}
+
+                                                {actionTab === 'ASSIGN' && (
+                                                    <form onSubmit={handleInlineForceAssign} className="flex flex-col gap-2 relative z-50">
+                                                        <div className="flex gap-2 relative">
+                                                            <div className="w-1/2 relative z-50">
+                                                                <CustomSelect options={authorities} value={assignData.authorityId} onChange={(val) => setAssignData({ ...assignData, authorityId: val })} placeholder="Select Official..." />
+                                                            </div>
+                                                            <input type="number" min="1" value={assignData.commitmentTimeHours} onChange={(e) => setAssignData({ ...assignData, commitmentTimeHours: e.target.value })} placeholder="Hrs (e.g. 24)" className="w-1/2 px-3 py-2 bg-muted border border-border/50 rounded-xl text-xs font-medium focus:border-indigo-500 outline-none relative z-10 transition-colors" required />
+                                                        </div>
+                                                        <button type="submit" disabled={isUpdating || !assignData.authorityId || !assignData.commitmentTimeHours} className="w-full mt-1 py-2.5 bg-indigo-500 text-white disabled:bg-indigo-500/50 font-bold text-xs rounded-xl shadow-md flex items-center justify-center gap-1.5 relative z-10 hover:scale-[1.01] transition-transform">
+                                                            {isUpdating ? <MiniLoader className="w-3.5 h-3.5" /> : <>Lock Job <ArrowRight size={14} /></>}
+                                                        </button>
+                                                    </form>
+                                                )}
+
+                                                {actionTab === 'REVOKE' && (
+                                                    <form onSubmit={handleRevokeAssign} className="flex flex-col gap-2 relative z-10">
+                                                        <div className="flex gap-2 relative">
+                                                            <input type="number" min="0" value={revokeData.penaltyPoints} onChange={(e) => setRevokeData({ ...revokeData, penaltyPoints: e.target.value })} placeholder="Penalty Pts" className="w-1/3 px-3 py-2 bg-muted border border-border/50 rounded-xl text-xs font-medium focus:border-red-500 outline-none transition-colors" required />
+                                                            <input type="text" value={revokeData.reason} onChange={(e) => setRevokeData({ ...revokeData, reason: e.target.value })} placeholder="Reason for revocation..." className="w-2/3 px-3 py-2 bg-muted border border-border/50 rounded-xl text-xs font-medium focus:border-red-500 outline-none transition-colors" required />
+                                                        </div>
+                                                        <button type="submit" disabled={isUpdating || !revokeData.reason} className="w-full py-2.5 mt-1 bg-red-500 text-white disabled:bg-red-500/50 font-bold text-xs rounded-xl shadow-md flex items-center justify-center gap-1.5 hover:scale-[1.01] transition-transform">
+                                                            {isUpdating ? <MiniLoader className="w-3.5 h-3.5" /> : <>Revoke <RotateCcw size={14} /></>}
+                                                        </button>
+                                                    </form>
+                                                )}
+                                            </div>
+
+                                            {/* --- TIMELINE SECTION --- */}
+                                            <div className="flex-1 p-4 md:p-6 lg:overflow-y-auto thin-scrollbar relative z-10 bg-card/40">
+                                                <h4 className="text-xs font-black uppercase tracking-widest text-muted-foreground mb-6 pl-2 border-l-2 border-primary">System Timeline</h4>
+                                                <div className="space-y-6 relative before:absolute before:inset-0 before:ml-5 before:-translate-x-px before:h-full before:w-0.5 before:bg-gradient-to-b before:from-primary/50 before:via-border/50 before:to-transparent pb-4">
+                                                    {generateTimeline(selectedIssueForDetail).map((event, i) => (
+                                                        <motion.div initial={{ opacity: 0, x: 20 }} animate={{ opacity: 1, x: 0 }} transition={{ delay: i * 0.1 }} key={i} className="relative flex items-start gap-4 group">
+                                                            <div className={`flex items-center justify-center w-10 h-10 rounded-full border-4 border-background shrink-0 shadow-sm ${event.color} z-10 transition-transform group-hover:scale-110`}>
+                                                                {event.icon}
+                                                            </div>
+                                                            <div className="w-full p-4 rounded-2xl bg-card border border-border/50 shadow-sm mt-1 group-hover:border-primary/30 transition-colors">
+                                                                <h5 className="font-bold text-[11px] md:text-xs uppercase tracking-wider">{event.label}</h5>
+                                                                <div className="text-[10px] text-muted-foreground font-mono mt-1 mb-2 font-medium">{event.time.toLocaleString([], { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' })}</div>
+                                                                {event.detail && <p className="text-[11px] text-foreground/80 bg-muted/40 p-2.5 rounded-xl border border-border/40 leading-relaxed font-medium">{event.detail}</p>}
+                                                            </div>
+                                                        </motion.div>
+                                                    ))}
+                                                </div>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </motion.div>
+                            </div>
+                        )}
+                    </AnimatePresence>
+
+                    {/* 🟢 6. Delete Confirmation Overlay (Placed Last, absolute top) */}
+                    {showDeleteConfirm && (
+                        <div className="fixed inset-0 flex items-center justify-center p-4 sm:p-8 md:p-12 bg-black/60 backdrop-blur-sm animate-fade-in" style={{ zIndex: 10000 }}>
+                            <div className="bg-card border border-red-500/30 rounded-2xl p-5 md:p-6 max-w-sm w-full shadow-2xl flex flex-col max-h-full" onClick={e => e.stopPropagation()}>
+                                <h3 className="text-lg font-bold text-red-500 mb-2 flex items-center gap-2 shrink-0">
+                                    <AlertTriangle className="w-5 h-5" /> Nuclear Delete
+                                </h3>
+                                <p className="text-xs text-muted-foreground mb-6 leading-relaxed overflow-y-auto thin-scrollbar">
+                                    This will permanently wipe this issue, all associated bids, and scrub all related notifications from existence. This cannot be undone.
+                                </p>
+                                <div className="flex justify-end gap-3 shrink-0">
+                                    <button onClick={() => setShowDeleteConfirm(false)} disabled={isDeleting} className="px-4 py-2 rounded-xl text-sm font-bold bg-muted/50 hover:bg-muted transition-colors">Cancel</button>
+                                    <button onClick={handleDeleteIssue} disabled={isDeleting} className="px-4 py-2 rounded-xl text-sm font-black bg-red-500 text-white hover:bg-red-600 transition-colors flex items-center justify-center min-w-[80px]">
+                                        {isDeleting ? <MiniLoader className="w-4 h-4 text-white" /> : 'Delete'}
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
+                    )}
                 </>,
                 document.body
             )}

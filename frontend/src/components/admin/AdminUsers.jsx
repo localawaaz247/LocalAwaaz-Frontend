@@ -8,7 +8,7 @@ import {
     CheckCircle, AlertTriangle, Trash2, Search, Shield,
     Leaf, Flame, Clock, History, Briefcase, Download, ArrowRight, RotateCcw,
     ShieldAlert, Zap, MoreVertical, Ban, AlertOctagon, Trophy, Medal, Star, CheckSquare,
-    UserCog, Plus, Minus, FileSignature, Activity, Target, Filter
+    UserCog, FileSignature, Target, Filter, Camera, ListIcon
 } from 'lucide-react';
 import MiniLoader from '../MiniLoader';
 import CustomSelect from '../../components/CustomSelect';
@@ -43,6 +43,8 @@ const timeAgo = (dateInput) => {
 const statusColors = {
     OPEN: "bg-yellow-500/10 text-yellow-500 border-yellow-500/30",
     LOCKED: "bg-indigo-500/10 text-indigo-500 border-indigo-500/30",
+    PENDING_EXTENSION: "bg-amber-500/10 text-amber-500 border-amber-500/30",
+    AWAITING_HANDOVER: "bg-red-500/10 text-red-500 border-red-500/30",
     IN_REVIEW: "bg-blue-500/10 text-blue-500 border-blue-500/30",
     RESOLVED: "bg-green-500/10 text-green-500 border-green-500/30",
     REJECTED: "bg-red-500/10 text-red-500 border-red-500/30",
@@ -84,7 +86,6 @@ const Avatar = ({ src, name, size = "w-10 h-10", iconSize = "w-5 h-5" }) => {
 };
 
 const AdminUsers = () => {
-    // Portal hydration state
     const [isMounted, setIsMounted] = useState(false);
 
     const [users, setUsers] = useState([]);
@@ -100,10 +101,9 @@ const AdminUsers = () => {
     const [districtsList, setDistrictsList] = useState([]);
     const [authorities, setAuthorities] = useState([]);
 
-    // Mobile Filter State
     const [isMobileFilterOpen, setIsMobileFilterOpen] = useState(false);
 
-    // 🟢 DYNAMIC Z-INDEX MANAGER (Solves Infinite Stacking)
+    // 🟢 DYNAMIC Z-INDEX MANAGER
     const [modalZ, setModalZ] = useState({ profile: 200, list: 200, issue: 200 });
 
     const [isModalOpen, setIsModalOpen] = useState(false);
@@ -118,6 +118,7 @@ const AdminUsers = () => {
     const [selectedIssue, setSelectedIssue] = useState(null);
     const [fetchingIssueId, setFetchingIssueId] = useState(null);
     const [currentMediaIndex, setCurrentMediaIndex] = useState(0);
+    const [mediaTab, setMediaTab] = useState('REPORTED');
     const videoRef = useRef(null);
 
     // 🟢 CSI HISTORY MODAL STATE
@@ -155,30 +156,31 @@ const AdminUsers = () => {
     const FILTER_ROLE_OPTIONS = [{ value: '', label: 'All Roles' }, ...ROLE_OPTIONS];
     const STATUS_OPTIONS = [{ value: 'ACTIVE', label: 'Active' }, { value: 'SUSPENDED', label: 'Suspended' }, { value: 'BANNED', label: 'Banned' }];
 
+    // 🟢 ALL 9 GOD-MODE STATUSES
     const UPDATE_STATUS_OPTIONS = [
-        { value: 'OPEN', label: 'OPEN (Attention)' },
-        { value: 'IN_REVIEW', label: 'IN REVIEW (Initiated)' },
+        { value: 'OPEN', label: 'OPEN (Auction)' },
+        { value: 'LOCKED', label: 'LOCKED (Assigned)' },
+        { value: 'PENDING_EXTENSION', label: 'PENDING EXTENSION' },
+        { value: 'AWAITING_HANDOVER', label: 'AWAITING HANDOVER' },
         { value: 'RESOLVED', label: 'RESOLVED (Fixed)' },
-        { value: 'REJECTED', label: 'REJECTED (Spam)' },
+        { value: 'FAILED', label: 'FAILED' },
         { value: 'DISPUTED', label: 'DISPUTED (Conflict)' },
+        { value: 'RELEASED', label: 'RELEASED' },
         { value: 'ORPHANED', label: 'ORPHANED (Stagnant)' }
     ];
 
-    // Fetch Global States & Authorities
     useEffect(() => {
         setIsMounted(true);
         cscApi.get("/countries/IN/states").then(res => setStatesList(res.data)).catch(console.error);
         fetchAuthorities();
     }, []);
 
-    // Fetch Districts for Main Filter
     useEffect(() => {
         if (!stateFilter) return setDistrictsList([]);
         const stateObj = statesList.find(s => s.name === stateFilter);
         if (stateObj) cscApi.get(`/countries/IN/states/${stateObj.iso2}/cities`).then(res => setDistrictsList(res.data)).catch(console.error);
     }, [stateFilter, statesList]);
 
-    // Fetch Districts for Edit Modal (Contact Location)
     useEffect(() => {
         if (editProfileModal.isOpen && editProfileModal.formData.state) {
             const stateObj = statesList.find(s => s.name === editProfileModal.formData.state);
@@ -190,7 +192,6 @@ const AdminUsers = () => {
         }
     }, [editProfileModal.formData.state, editProfileModal.isOpen, statesList]);
 
-    // Fetch Districts for Edit Modal (Authority Assigned Location)
     useEffect(() => {
         if (editProfileModal.isOpen && editProfileModal.formData.assignedState) {
             const stateObj = statesList.find(s => s.name === editProfileModal.formData.assignedState);
@@ -232,7 +233,7 @@ const AdminUsers = () => {
             videoRef.current.currentTime = 0;
             videoRef.current.play().catch(err => console.warn("Autoplay blocked:", err));
         }
-    }, [isIssueModalOpen, currentMediaIndex, selectedIssue]);
+    }, [isIssueModalOpen, currentMediaIndex, selectedIssue, mediaTab]);
 
     // --- FETCHERS ---
     const fetchUsers = async () => {
@@ -295,9 +296,8 @@ const AdminUsers = () => {
             setActionTab('STATUS');
             setActionMenuOpen(false);
 
-            const vMedia = Array.isArray(issueData.media) ? issueData.media : [];
-            const firstVideoIndex = vMedia.findIndex(m => m.url?.match(/\.(mp4|webm|ogg)$/i));
-            setCurrentMediaIndex(firstVideoIndex !== -1 ? firstVideoIndex : 0);
+            setMediaTab('REPORTED');
+            setCurrentMediaIndex(0);
 
             setIsIssueModalOpen(true);
         } catch (e) {
@@ -315,7 +315,6 @@ const AdminUsers = () => {
         }, 300);
     };
 
-    // Computes the CSI History Ledger from Completed/Failed arrays
     const getCsiLedger = () => {
         if (!selectedUserDetails?.history) return [];
         const completed = (selectedUserDetails.history.COMPLETED || []).map(i => ({ ...i, type: 'EARNED', points: i.impactScore || 50 }));
@@ -349,6 +348,21 @@ const AdminUsers = () => {
             setPointsModal({ isOpen: false, points: '', reason: '' });
             fetchUserFullDetails(selectedUserDetails.user._id);
         } catch (error) { showToast({ icon: 'error', title: 'Failed to adjust points' }); }
+    };
+
+    // 🟢 EXTENSION REQUEST HANDLER
+    const handleExtensionAction = async (action) => {
+        setIsUpdating(true);
+        try {
+            await axiosInstance.patch(`/admin/issue/${selectedIssue._id}/extension`, { action });
+            showToast({ icon: 'success', title: `Extension ${action.toLowerCase()}!` });
+            closeIssueModal();
+            fetchUserFullDetails(selectedUserDetails.user._id);
+        } catch (error) {
+            showToast({ icon: 'error', title: error.response?.data?.message || 'Failed to process extension' });
+        } finally {
+            setIsUpdating(false);
+        }
     };
 
     const handleEditProfileSubmit = async (e) => {
@@ -497,9 +511,35 @@ const AdminUsers = () => {
         });
     };
 
+    // 🟢 MEDIA TABS LOGIC
+    let claimedUrls = [];
+    let opposedUrls = [];
+    let reportedUrls = [];
+    let activeMediaArray = [];
+
+    if (selectedIssue) {
+        claimedUrls = [
+            selectedIssue.resolutionEvidence?.mediaUrl,
+            ...(selectedIssue.workCycle?.handoverReports?.map(h => h.photoUrl) || [])
+        ].filter(Boolean);
+
+        opposedUrls = [
+            selectedIssue.disputeEvidence?.mediaUrl,
+            selectedIssue.reportedByVerdictMedia,
+            ...(selectedIssue.confirmations?.map(c => c.verdictMedia) || [])
+        ].filter(Boolean);
+
+        reportedUrls = (selectedIssue.media || [])
+            .map(m => m.url)
+            .filter(url => !claimedUrls.includes(url) && !opposedUrls.includes(url));
+
+        activeMediaArray = mediaTab === 'REPORTED' ? reportedUrls
+            : mediaTab === 'CLAIMED' ? claimedUrls
+                : opposedUrls;
+    }
+
     return (
         <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} className="space-y-4 md:space-y-6 flex flex-col h-full pb-10">
-
             {/* HEADER */}
             <div className="flex flex-col xl:flex-row justify-between items-start xl:items-center gap-4 relative z-[50]">
                 <div className="flex flex-col gap-1">
@@ -582,9 +622,7 @@ const AdminUsers = () => {
                                 layout
                                 initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }}
                                 key={user._id}
-                                // 👇 ADDED 'relative' class here
                                 className="relative bg-card/60 backdrop-blur-md border border-border/60 rounded-xl p-4 flex flex-col gap-3 shadow-sm hover:border-primary/50 transition-all cursor-pointer group"
-                                // 👇 ADDED dynamic z-index here
                                 style={{ zIndex: users.length - index }}
                                 onClick={() => fetchUserFullDetails(user._id)}
                             >
@@ -967,23 +1005,43 @@ const AdminUsers = () => {
                                         <div className="w-full lg:w-1/2 p-4 md:p-6 lg:border-r border-border/50 flex flex-col gap-5 shrink-0 lg:shrink lg:overflow-y-auto thin-scrollbar bg-background/50">
                                             <h3 className="text-2xl font-black text-foreground leading-tight">{selectedIssue.title}</h3>
 
+                                            {/* 🟢 MEDIA TABS */}
+                                            {['DISPUTED', 'RESOLVED', 'REJECTED', 'AWAITING_HANDOVER'].includes(selectedIssue.status) || claimedUrls.length || opposedUrls.length ? (
+                                                <div className="flex bg-muted/40 p-1.5 rounded-xl border border-border/50 w-full md:w-max">
+                                                    <button onClick={() => setMediaTab('REPORTED')} className={`flex-1 md:flex-none px-4 py-2 rounded-lg text-[10px] sm:text-xs font-black uppercase tracking-widest transition-all ${mediaTab === 'REPORTED' ? 'bg-primary text-primary-foreground shadow-md' : 'text-muted-foreground hover:bg-muted'}`}>
+                                                        Reported
+                                                    </button>
+                                                    <button onClick={() => setMediaTab('CLAIMED')} disabled={!claimedUrls.length} className={`flex-1 md:flex-none px-4 py-2 rounded-lg text-[10px] sm:text-xs font-black uppercase tracking-widest transition-all ${mediaTab === 'CLAIMED' ? 'bg-green-500 text-white shadow-md' : 'text-muted-foreground hover:bg-muted'} ${!claimedUrls.length && 'opacity-40 cursor-not-allowed'}`}>
+                                                        Claimed
+                                                    </button>
+                                                    <button onClick={() => setMediaTab('OPPOSED')} disabled={!opposedUrls.length} className={`flex-1 md:flex-none px-4 py-2 rounded-lg text-[10px] sm:text-xs font-black uppercase tracking-widest transition-all ${mediaTab === 'OPPOSED' ? 'bg-red-500 text-white shadow-md' : 'text-muted-foreground hover:bg-muted'} ${!opposedUrls.length && 'opacity-40 cursor-not-allowed'}`}>
+                                                        Opposed
+                                                    </button>
+                                                </div>
+                                            ) : null}
+
+                                            {/* 🟢 MEDIA VIEWER */}
                                             <div className="w-full bg-black/40 rounded-2xl border border-border/50 overflow-hidden relative flex items-center justify-center h-[250px] sm:h-[350px] shrink-0 group shadow-inner">
-                                                {selectedIssue.media && selectedIssue.media.length > 0 ? (
+                                                {activeMediaArray.length > 0 ? (
                                                     <>
-                                                        {selectedIssue.media[currentMediaIndex].url?.match(/\.(mp4|webm|ogg)$/i) ? (
-                                                            <video ref={videoRef} src={selectedIssue.media[currentMediaIndex].url} className="w-full h-full object-contain bg-black" controls autoPlay muted playsInline />
+                                                        {activeMediaArray[currentMediaIndex]?.match(/\.(mp4|webm|ogg)$/i) ? (
+                                                            <video ref={videoRef} src={activeMediaArray[currentMediaIndex]} className="w-full h-full object-contain bg-black" controls autoPlay muted playsInline />
                                                         ) : (
-                                                            <img src={selectedIssue.media[currentMediaIndex].url} alt="issue" className="w-full h-full object-contain" />
+                                                            <img src={activeMediaArray[currentMediaIndex]} alt="issue" className="w-full h-full object-contain" />
                                                         )}
-                                                        {selectedIssue.media.length > 1 && (
+
+                                                        {activeMediaArray.length > 1 && (
                                                             <>
-                                                                <button onClick={() => setCurrentMediaIndex((prev) => (prev - 1 + selectedIssue.media.length) % selectedIssue.media.length)} className="absolute left-3 p-2 bg-black/60 rounded-full text-white hover:bg-black/80 backdrop-blur-md opacity-0 group-hover:opacity-100 transition-opacity"><ChevronLeft size={20} /></button>
-                                                                <button onClick={() => setCurrentMediaIndex((prev) => (prev + 1) % selectedIssue.media.length)} className="absolute right-3 p-2 bg-black/60 rounded-full text-white hover:bg-black/80 backdrop-blur-md opacity-0 group-hover:opacity-100 transition-opacity"><ChevronRight size={20} /></button>
+                                                                <button onClick={() => setCurrentMediaIndex((prev) => (prev - 1 + activeMediaArray.length) % activeMediaArray.length)} className="absolute left-3 p-2 bg-black/60 rounded-full text-white hover:bg-black/80 backdrop-blur-md opacity-0 group-hover:opacity-100 transition-opacity"><ChevronLeft size={20} /></button>
+                                                                <button onClick={() => setCurrentMediaIndex((prev) => (prev + 1) % activeMediaArray.length)} className="absolute right-3 p-2 bg-black/60 rounded-full text-white hover:bg-black/80 backdrop-blur-md opacity-0 group-hover:opacity-100 transition-opacity"><ChevronRight size={20} /></button>
                                                             </>
                                                         )}
                                                     </>
                                                 ) : (
-                                                    <div className="flex flex-col items-center opacity-40"><AlertTriangle size={36} className="mb-3" /><p className="text-sm font-bold">No Media Attached</p></div>
+                                                    <div className="flex flex-col items-center opacity-40">
+                                                        <Camera size={36} className="mb-3" />
+                                                        <p className="text-sm font-bold text-center px-4">No {mediaTab.toLowerCase()} evidence attached.</p>
+                                                    </div>
                                                 )}
                                             </div>
 
@@ -1025,6 +1083,124 @@ const AdminUsers = () => {
                                                         </div>
                                                     )}
                                                 </div>
+
+                                                {/* 🟢 PENDING EXTENSION BANNER */}
+                                                {selectedIssue.status === 'PENDING_EXTENSION' && (
+                                                    <div className="col-span-2 mt-4 bg-amber-500/10 border border-amber-500/20 p-4 rounded-xl relative overflow-hidden">
+                                                        <div className="absolute top-0 right-0 p-4 opacity-5 pointer-events-none"><Clock size={80} className="text-amber-500 -mr-6 -mt-6" /></div>
+                                                        <div className="relative z-10">
+                                                            <p className="text-[10px] text-amber-500 font-bold uppercase tracking-wider mb-1 flex items-center gap-1"><Clock size={12} /> Extension Requested</p>
+                                                            <p className="text-sm font-bold text-foreground">
+                                                                {selectedIssue.workCycle?.extensionRequests?.slice(-1)[0]?.hoursRequested} Hours
+                                                            </p>
+                                                            <p className="text-xs text-muted-foreground mt-1 mb-4 border-l-2 border-amber-500/50 pl-2">
+                                                                Reason: {selectedIssue.workCycle?.extensionRequests?.slice(-1)[0]?.reason}
+                                                            </p>
+                                                            <div className="flex gap-2">
+                                                                <button onClick={() => handleExtensionAction('APPROVED')} disabled={isUpdating} className="flex-1 bg-amber-500 text-white font-bold text-xs py-2.5 rounded-lg hover:bg-amber-600 transition-colors shadow-sm flex items-center justify-center gap-2">
+                                                                    <CheckCircle size={14} /> Approve
+                                                                </button>
+                                                                <button onClick={() => handleExtensionAction('REJECTED')} disabled={isUpdating} className="flex-1 bg-card text-muted-foreground border border-border/50 font-bold text-xs py-2.5 rounded-lg hover:text-foreground hover:bg-muted/50 transition-colors shadow-sm flex items-center justify-center gap-2">
+                                                                    <X size={14} /> Deny
+                                                                </button>
+                                                            </div>
+                                                        </div>
+                                                    </div>
+                                                )}
+                                            </div>
+
+                                            {/* God Mode Action Zone */}
+                                            <div className="p-4 md:p-5 border-b border-border/50 shrink-0 bg-background relative z-40">
+                                                <div className="flex gap-4 mb-3 border-b border-border/50">
+                                                    <button onClick={() => setActionTab('STATUS')} className={`pb-2 text-xs font-bold uppercase tracking-wider ${actionTab === 'STATUS' ? 'text-primary border-b-2 border-primary' : 'text-muted-foreground'}`}>Update Status</button>
+                                                    {selectedIssue.bidding?.winningBid?.authorityId ? (
+                                                        <button onClick={() => setActionTab('REVOKE')} className={`pb-2 text-xs font-bold uppercase tracking-wider ${actionTab === 'REVOKE' ? 'text-red-500 border-b-2 border-red-500' : 'text-muted-foreground'}`}>Revoke Assignment</button>
+                                                    ) : (
+                                                        <button onClick={() => setActionTab('ASSIGN')} className={`pb-2 text-xs font-bold uppercase tracking-wider ${actionTab === 'ASSIGN' ? 'text-indigo-500 border-b-2 border-indigo-500' : 'text-muted-foreground'}`}>Force Assign</button>
+                                                    )}
+                                                </div>
+
+                                                {actionTab === 'STATUS' && (
+                                                    <form onSubmit={handleUpdateStatus} className="flex flex-col gap-3 relative z-40">
+                                                        <div className="flex gap-2 relative z-40">
+                                                            <div className="w-1/2 relative z-40">
+                                                                <label className="text-[10px] text-muted-foreground mb-1 block font-semibold uppercase">Change Status</label>
+                                                                <CustomSelect options={UPDATE_STATUS_OPTIONS} value={updateData.status} onChange={(val) => setUpdateData({ ...updateData, status: val })} />
+                                                            </div>
+                                                            <div className="w-1/2 relative z-10">
+                                                                <label className="text-[10px] text-muted-foreground mb-1 block font-semibold uppercase truncate">
+                                                                    {['DISPUTED', 'ORPHANED', 'RESOLVED'].includes(updateData.status) ? 'Audit Remark (Optional)' : 'Audit Remark (Required)'}
+                                                                </label>
+                                                                <input
+                                                                    type="text"
+                                                                    value={updateData.adminRemark}
+                                                                    onChange={(e) => setUpdateData({ ...updateData, adminRemark: e.target.value })}
+                                                                    placeholder={['DISPUTED', 'ORPHANED', 'RESOLVED'].includes(updateData.status) ? "Optional context..." : "State reason..."}
+                                                                    className="w-full px-3 py-2 bg-muted border border-border/50 rounded-xl text-xs font-medium focus:border-primary outline-none transition-colors"
+                                                                    required={!['DISPUTED', 'ORPHANED', 'RESOLVED'].includes(updateData.status)}
+                                                                />
+                                                            </div>
+                                                        </div>
+
+                                                        {updateData.status === 'RESOLVED' && (
+                                                            <div className="relative z-30 mb-1 animate-fade-in">
+                                                                <label className="text-[10px] text-green-500 mb-1 block font-bold uppercase flex items-center gap-1">
+                                                                    <ShieldAlert size={12} /> Resolved By (Optional)
+                                                                </label>
+                                                                <CustomSelect
+                                                                    options={[{ value: '', label: 'Unknown / System Resolved' }, ...authorities]}
+                                                                    value={updateData.resolvedByAuthority || ''}
+                                                                    onChange={(val) => setUpdateData({ ...updateData, resolvedByAuthority: val })}
+                                                                />
+                                                            </div>
+                                                        )}
+
+                                                        {/* 🟢 DISPUTE / RESOLVE EVIDENCE INPUT */}
+                                                        {['DISPUTED', 'RESOLVED'].includes(updateData.status) && (
+                                                            <div className={`relative z-10 p-3 border rounded-xl animate-fade-in ${updateData.status === 'RESOLVED' ? 'bg-green-500/5 border-green-500/20' : 'bg-red-500/5 border-red-500/20'}`}>
+                                                                <label className={`text-xs mb-2 block font-bold flex items-center gap-1 ${updateData.status === 'RESOLVED' ? 'text-green-500' : 'text-red-500'}`}>
+                                                                    <ShieldAlert size={12} /> {updateData.status === 'RESOLVED' ? 'Attach Evidence (Optional)' : 'Dispute Evidence (Optional)'}
+                                                                </label>
+                                                                <input
+                                                                    type="file"
+                                                                    accept="image/*,video/mp4,video/webm"
+                                                                    onChange={(e) => setDisputeMedia(e.target.files[0])}
+                                                                    className={`w-full text-xs file:mr-3 file:py-1.5 file:px-3 file:rounded-lg file:border-0 file:font-bold cursor-pointer text-muted-foreground ${updateData.status === 'RESOLVED' ? 'file:bg-green-500/10 file:text-green-500 hover:file:bg-green-500/20' : 'file:bg-red-500/10 file:text-red-500 hover:file:bg-red-500/20'}`}
+                                                                />
+                                                            </div>
+                                                        )}
+
+                                                        <button type="submit" disabled={isUpdating} className="w-full py-2.5 mt-1 bg-primary text-primary-foreground font-bold text-xs rounded-xl shadow-md flex items-center justify-center gap-1.5 relative z-10 hover:scale-[1.01] transition-transform">
+                                                            {isUpdating ? <MiniLoader className="w-3.5 h-3.5" /> : <>Log Action <CheckCircle size={14} /></>}
+                                                        </button>
+                                                    </form>
+                                                )}
+
+                                                {actionTab === 'ASSIGN' && (
+                                                    <form onSubmit={handleForceAssign} className="flex flex-col gap-2 relative z-50">
+                                                        <div className="flex gap-2 relative">
+                                                            <div className="w-1/2 relative z-50">
+                                                                <CustomSelect options={authorities} value={assignData.authorityId} onChange={(val) => setAssignData({ ...assignData, authorityId: val })} placeholder="Select Official..." />
+                                                            </div>
+                                                            <input type="number" min="1" value={assignData.commitmentTimeHours} onChange={(e) => setAssignData({ ...assignData, commitmentTimeHours: e.target.value })} placeholder="Hrs (e.g. 24)" className="w-1/2 px-3 py-2 bg-muted border border-border/50 rounded-xl text-xs font-medium focus:border-indigo-500 outline-none relative z-10 transition-colors" required />
+                                                        </div>
+                                                        <button type="submit" disabled={isUpdating || !assignData.authorityId || !assignData.commitmentTimeHours} className="w-full mt-1 py-2.5 bg-indigo-500 text-white disabled:bg-indigo-500/50 font-bold text-xs rounded-xl shadow-md flex items-center justify-center gap-1.5 relative z-10 hover:scale-[1.01] transition-transform">
+                                                            {isUpdating ? <MiniLoader className="w-3.5 h-3.5" /> : <>Lock Job <ArrowRight size={14} /></>}
+                                                        </button>
+                                                    </form>
+                                                )}
+
+                                                {actionTab === 'REVOKE' && (
+                                                    <form onSubmit={handleRevokeAssign} className="flex flex-col gap-2 relative z-10">
+                                                        <div className="flex gap-2 relative">
+                                                            <input type="number" min="0" value={revokeData.penaltyPoints} onChange={(e) => setRevokeData({ ...revokeData, penaltyPoints: e.target.value })} placeholder="Penalty Pts" className="w-1/3 px-3 py-2 bg-muted border border-border/50 rounded-xl text-xs font-medium focus:border-red-500 outline-none transition-colors" required />
+                                                            <input type="text" value={revokeData.reason} onChange={(e) => setRevokeData({ ...revokeData, reason: e.target.value })} placeholder="Reason for revocation..." className="w-2/3 px-3 py-2 bg-muted border border-border/50 rounded-xl text-xs font-medium focus:border-red-500 outline-none transition-colors" required />
+                                                        </div>
+                                                        <button type="submit" disabled={isUpdating || !revokeData.reason} className="w-full py-2.5 mt-1 bg-red-500 text-white disabled:bg-red-500/50 font-bold text-xs rounded-xl shadow-md flex items-center justify-center gap-1.5 hover:scale-[1.01] transition-transform">
+                                                            {isUpdating ? <MiniLoader className="w-3.5 h-3.5" /> : <>Revoke <RotateCcw size={14} /></>}
+                                                        </button>
+                                                    </form>
+                                                )}
                                             </div>
 
                                             {/* Timeline */}
