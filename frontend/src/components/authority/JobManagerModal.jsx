@@ -43,6 +43,9 @@ const JobManagerModal = ({ job, onClose, onSuccess }) => {
     const uppyRef = useRef(null);
     const isCancelledRef = useRef(false);
 
+    const [timeValue, setTimeValue] = useState(''); // 🟢 NEW
+    const [timeUnit, setTimeUnit] = useState('HOURS'); // 🟢 NEW
+
     useEffect(() => {
         document.body.style.overflow = 'hidden';
         return () => {
@@ -180,7 +183,12 @@ const JobManagerModal = ({ job, onClose, onSuccess }) => {
         e.preventDefault();
         setLoading(true);
         try {
-            await axiosInstance.post(`/authority/issues/${job._id}/extend`, { extensionDate, reason: remarks });
+            // Send the new fields that match the backend expectation
+            await axiosInstance.post(`/authority/issues/${job._id}/extend`, {
+                requestedTimeValue: timeValue,
+                requestedTimeUnit: timeUnit,
+                reason: remarks
+            });
             showToast({ icon: 'success', title: 'Extension requested successfully' });
             onSuccess();
         } catch (err) {
@@ -312,10 +320,21 @@ const JobManagerModal = ({ job, onClose, onSuccess }) => {
 
                         {view === 'extend' && (
                             <motion.form key="extend-form" id="extend-form" initial={{ opacity: 0, x: 20 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: -20 }} onSubmit={handleExtendSubmit} className="space-y-6">
-                                <div className="space-y-3">
-                                    <label className="text-xs font-bold uppercase tracking-widest text-foreground">Requested Deadline Date</label>
-                                    <input type="datetime-local" required disabled={loading} value={extensionDate} onChange={(e) => setExtensionDate(e.target.value)} className="w-full bg-background/50 backdrop-blur-sm border border-border/60 rounded-2xl p-4 text-sm font-medium focus:ring-4 focus:ring-amber-500/10 focus:border-amber-500 outline-none disabled:opacity-50 transition-all shadow-inner" />
+                                <div className="flex gap-4">
+                                    <div className="w-1/3 space-y-3">
+                                        <label className="text-xs font-bold uppercase tracking-widest text-foreground">Value</label>
+                                        <input type="number" min="1" required disabled={loading} value={timeValue} onChange={(e) => setTimeValue(e.target.value)} className="w-full p-4 bg-background/50 border border-border/60 rounded-2xl text-sm font-bold focus:border-amber-500 outline-none transition-all shadow-inner" placeholder="e.g. 24" />
+                                    </div>
+                                    <div className="w-2/3 space-y-3">
+                                        <label className="text-xs font-bold uppercase tracking-widest text-foreground">Unit</label>
+                                        <CustomSelect
+                                            options={[{ value: 'HOURS', label: 'Hours' }, { value: 'DAYS', label: 'Days' }, { value: 'WEEKS', label: 'Weeks' }, { value: 'MONTHS', label: 'Months' }]}
+                                            value={timeUnit}
+                                            onChange={setTimeUnit}
+                                        />
+                                    </div>
                                 </div>
+
                                 <div className="space-y-3">
                                     <label className="text-xs font-bold uppercase tracking-widest text-foreground">Justification (Required)</label>
                                     <textarea required disabled={loading} value={remarks} onChange={(e) => setRemarks(e.target.value)} className="w-full bg-background/50 backdrop-blur-sm border border-border/60 rounded-2xl p-4 text-sm font-medium focus:ring-4 focus:ring-amber-500/10 focus:border-amber-500 outline-none disabled:opacity-50 transition-all shadow-inner resize-none" rows="4" placeholder="Why do you need more time?"></textarea>
