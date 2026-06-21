@@ -9,6 +9,9 @@ import { Provider } from "react-redux";
 import { appStore } from "./store/store";
 import { validateToken } from "./reducer/authReducer";
 
+// 🟢 NEW: Import Toaster from react-hot-toast
+import { Toaster } from "react-hot-toast";
+
 // --- PWA IMPORT ---
 import { useRegisterSW } from 'virtual:pwa-register/react';
 
@@ -207,6 +210,52 @@ const App = () => {
     <HelmetProvider>
       <ThemeProvider>
         <Provider store={appStore}>
+          {/* 🟢 THE GLOBAL TOASTER WITH FORCED Z-INDEX */}
+          <Toaster
+            position="top-right"
+            toastOptions={{
+              // Global styles for all toasts (Matching your Glass-Card aesthetic)
+              style: {
+                zIndex: 999999,
+                background: 'rgba(11, 19, 30, 0.85)', // Deep navy matching your sidebar and cards
+                color: '#F8FAFC', // Crisp white text
+                border: '1px solid rgba(45, 212, 191, 0.2)', // Subtle teal/cyan glass border
+                borderRadius: '12px', // Matches the rounding of your top navigation pills
+                padding: '16px 20px',
+                fontSize: '14px',
+                fontWeight: '600',
+                boxShadow: '0 10px 30px -5px rgba(0, 0, 0, 0.8), 0 0 15px rgba(45, 212, 191, 0.05)',
+                backdropFilter: 'blur(12px)', // True glassmorphism effect
+                WebkitBackdropFilter: 'blur(12px)', // Safari support for glassmorphism
+              },
+              // Custom theme for Success toasts
+              success: {
+                iconTheme: {
+                  primary: '#0D9488', // The exact teal from your "Recently Resolved" checkmark
+                  secondary: '#ffffff',
+                },
+              },
+              // Custom theme for Error toasts
+              error: {
+                iconTheme: {
+                  primary: '#EF4444', // Sharp red for errors
+                  secondary: '#ffffff',
+                },
+              },
+              // Custom theme for Loading toasts
+              loading: {
+                iconTheme: {
+                  primary: '#06B6D4', // The bright cyan from your "New Issue" button
+                  secondary: '#1E293B', // Dark track for the spinner
+                },
+              },
+            }}
+            containerStyle={{
+              zIndex: 999999,
+              bottom: 40, // Lifts the toast slightly higher so it hovers cleanly
+            }}
+          />
+
           <AppContent />
         </Provider>
       </ThemeProvider>

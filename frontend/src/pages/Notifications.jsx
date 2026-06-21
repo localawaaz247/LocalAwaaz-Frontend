@@ -7,6 +7,31 @@ import {
   FileText, MessageSquare, AtSign, Heart, Trash2
 } from "lucide-react";
 
+// --- Skeleton Loader Component ---
+const NotificationSkeleton = () => {
+  return (
+    <div className="divide-y divide-border/50 w-full">
+      {[...Array(5)].map((_, i) => (
+        <div key={i} className="flex items-start gap-4 p-5 w-full">
+          {/* Icon Skeleton */}
+          <div className="w-12 h-12 rounded-full bg-muted/40 animate-pulse flex-shrink-0" />
+
+          {/* Content Skeleton */}
+          <div className="flex-1 min-w-0 pt-1 space-y-3">
+            <div className="h-4 bg-muted/40 rounded w-3/4 animate-pulse" />
+            <div className="h-3 bg-muted/40 rounded w-1/2 animate-pulse" />
+          </div>
+
+          {/* Timestamp Skeleton */}
+          <div className="flex flex-col items-end pt-1 h-full min-h-[48px]">
+            <div className="w-10 h-3 bg-muted/40 rounded animate-pulse" />
+          </div>
+        </div>
+      ))}
+    </div>
+  );
+};
+
 const Notifications = () => {
   const user = useSelector((state) => state.auth?.user);
 
@@ -155,10 +180,7 @@ const Notifications = () => {
         {/* Notification List Container */}
         <div className="glass-card rounded-2xl shadow-sm border border-border/50 overflow-hidden bg-background/50 backdrop-blur-xl">
           {loading ? (
-            <div className="flex flex-col items-center justify-center py-20">
-              <div className="animate-spin rounded-full h-10 w-10 border-b-2 border-primary mb-4"></div>
-              <p className="text-muted-foreground font-medium animate-pulse">Fetching updates...</p>
-            </div>
+            <NotificationSkeleton />
           ) : notifications.length === 0 ? (
             <div className="flex flex-col items-center justify-center py-24 text-center px-4">
               <div className="w-20 h-20 bg-muted/50 rounded-full flex items-center justify-center mb-6">

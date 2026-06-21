@@ -6,8 +6,8 @@ import ExcelJS from 'exceljs';
 import {
     Trophy, Medal, Award, Camera, X, Download, Share2,
     Instagram, Facebook, ChevronRight, ChevronLeft, MapPin,
-    Briefcase, CheckSquare, AlertTriangle, Clock, Zap, Shield, Search, History,
-    ShieldCheck, FileSpreadsheet, ListIcon
+    Briefcase, CheckSquare, AlertTriangle, Clock, Zap, Shield, Search,
+    ShieldCheck, FileSpreadsheet
 } from 'lucide-react';
 
 import { Capacitor } from '@capacitor/core';
@@ -16,7 +16,6 @@ import { Filesystem, Directory } from '@capacitor/filesystem';
 
 import axiosInstance from '../../utils/axios';
 import { showToast } from '../../utils/toast';
-import MiniLoader from '../MiniLoader';
 
 const WhatsAppIcon = ({ size = 20, className = "" }) => (
     <svg xmlns="http://www.w3.org/2000/svg" width={size} height={size} viewBox="0 0 24 24" fill="currentColor" className={className}>
@@ -32,6 +31,60 @@ const getCorsSafeUrl = (url) => {
     const baseUrl = axiosInstance.defaults.baseURL || '';
     return `${baseUrl}/proxy-image?url=${encodeURIComponent(url)}`;
 };
+
+// --- YOUTUBE STYLE SHIMMER SKELETON COMPONENT ---
+const LeaderBoardSkeleton = () => (
+    <div className="min-h-screen bg-texture flex justify-center py-10 relative overflow-hidden">
+        <div className="flex-1 overflow-y-auto thin-scrollbar relative flex justify-center w-full">
+            <div className="w-full max-w-3xl px-4 relative flex flex-col h-max pb-10 gap-8">
+                {/* Header Skeleton */}
+                <div className="flex items-center gap-4 mb-2">
+                    <div className="w-14 h-14 rounded-2xl bg-muted animate-pulse flex-shrink-0" />
+                    <div className="flex flex-col gap-2 flex-1">
+                        <div className="w-48 h-8 rounded-md bg-muted animate-pulse" />
+                        <div className="w-32 h-4 rounded-md bg-muted animate-pulse" />
+                    </div>
+                </div>
+
+                {/* Action Tabs & Buttons Skeleton */}
+                <div className="flex justify-between items-center gap-4 flex-wrap">
+                    <div className="w-56 h-12 rounded-xl bg-muted/50 animate-pulse" />
+                    <div className="flex gap-3">
+                        <div className="w-32 h-10 rounded-xl bg-muted animate-pulse hidden sm:block" />
+                        <div className="w-32 h-10 rounded-xl bg-muted animate-pulse" />
+                    </div>
+                </div>
+
+                {/* Hero Card Skeleton */}
+                <div className="w-full rounded-3xl bg-muted/30 border border-border/20 p-6 md:p-8 flex flex-col sm:flex-row items-center sm:items-start gap-6 animate-pulse">
+                    <div className="w-24 h-24 md:w-28 md:h-28 rounded-full bg-muted flex-shrink-0" />
+                    <div className="flex flex-col gap-3 w-full items-center sm:items-start pt-2">
+                        <div className="w-2/3 md:w-1/2 h-10 rounded-lg bg-muted" />
+                        <div className="w-1/2 md:w-1/3 h-4 rounded-md bg-muted mt-2" />
+                        <div className="w-24 h-8 rounded-lg bg-muted mt-4" />
+                    </div>
+                </div>
+
+                {/* List Items Skeleton */}
+                <div className="glass-card rounded-2xl shadow-sm border border-border/50 bg-background/50 backdrop-blur-xl p-2 flex flex-col gap-2">
+                    {[1, 2, 3, 4, 5].map((item) => (
+                        <div key={item} className="flex items-start sm:items-center justify-between p-4 rounded-xl hover:bg-muted/30 animate-pulse">
+                            <div className="flex items-center gap-4 flex-1">
+                                <div className="w-12 h-12 rounded-full bg-muted flex-shrink-0" />
+                                <div className="w-12 h-12 rounded-full bg-muted flex-shrink-0 hidden sm:block" />
+                                <div className="flex-1 space-y-2 pt-1">
+                                    <div className="w-1/3 min-w-[120px] h-5 rounded-md bg-muted" />
+                                    <div className="w-1/2 min-w-[150px] h-4 rounded-md bg-muted" />
+                                </div>
+                            </div>
+                            <div className="w-20 h-8 rounded-lg bg-muted flex-shrink-0 ml-4 hidden sm:block" />
+                        </div>
+                    ))}
+                </div>
+            </div>
+        </div>
+    </div>
+);
 
 const LeaderBoard = () => {
     const { user: currentUser } = useSelector((state) => state.auth);
@@ -53,7 +106,6 @@ const LeaderBoard = () => {
     const [isExporting, setIsExporting] = useState(false);
     const captureRef = useRef(null);
 
-    // 🟢 UPDATED: Added history and issueList to state
     const [careerModal, setCareerModal] = useState({
         isOpen: false, profile: null, history: {}, view: 'OVERVIEW', selectedCategory: null, issueList: [], selectedIssue: null
     });
@@ -86,7 +138,6 @@ const LeaderBoard = () => {
         }
     };
 
-    // 🟢 NEW: Fetch full user profile and history when clicking on a user
     const openCareerModal = async (userId) => {
         try {
             const res = await axiosInstance.get(`/admin/user/${userId}`);
@@ -228,13 +279,12 @@ const LeaderBoard = () => {
 
             await new Promise(resolve => setTimeout(resolve, 100));
 
-            // 🟢 FIXED: html2canvas configuration to eliminate white bars
             const canvas = await html2canvas(element, {
-                backgroundColor: '#0f172a', // Ensures background is filled
+                backgroundColor: '#0f172a', // Ensures background is filled on capture
                 scale: 2,
                 useCORS: true,
                 allowTaint: false,
-                scrollY: 0, // Ignore scroll position to prevent blank tops
+                scrollY: 0,
                 scrollX: 0,
                 windowWidth: element.scrollWidth,
                 windowHeight: element.scrollHeight,
@@ -245,7 +295,6 @@ const LeaderBoard = () => {
             setCapturedImage(imgData);
             setShareModalOpen(true);
 
-            // 🟢 FIXED: Trigger the flash AFTER capture is complete so it doesn't get recorded
             setShowFlash(true);
             setTimeout(() => setShowFlash(false), 150);
 
@@ -306,65 +355,62 @@ const LeaderBoard = () => {
         link.click();
     };
 
-    const getPodiumColors = (index) => {
-        if (index === 0) return "bg-yellow-500/10 border-yellow-500/50 text-yellow-500";
-        if (index === 1) return "bg-slate-300/10 border-slate-300/50 text-slate-300";
-        if (index === 2) return "bg-amber-700/10 border-amber-700/50 text-amber-600";
-        return "bg-card border-border/50 text-foreground";
+    const getPodiumStyle = (index) => {
+        if (index === 0) return "bg-yellow-500/10 text-yellow-500";
+        if (index === 1) return "bg-slate-300/10 text-slate-300";
+        if (index === 2) return "bg-amber-700/10 text-amber-600";
+        return "bg-slate-500/10 text-slate-500";
     };
 
     const currentList = activeTab === 'CITIZENS' ? leaderboardData.citizens : leaderboardData.authorities;
     const weeklyHero = currentList.find(u => u.isHero) || currentList[0];
 
-    if (loading) return <div className="flex items-center justify-center h-[60vh]"><MiniLoader /></div>;
+    // YOUTUBE STYLE LOADER SWAP
+    if (loading) return <LeaderBoardSkeleton />;
 
     return (
-        <div className="flex flex-col h-full bg-background relative overflow-hidden">
+        <div className="min-h-screen bg-texture flex justify-center py-10 relative overflow-hidden">
             <AnimatePresence>
                 {showFlash && (
                     <motion.div initial={{ opacity: 1 }} animate={{ opacity: 0 }} exit={{ opacity: 0 }} transition={{ duration: 0.6, ease: "easeOut" }} className="fixed inset-0 z-[9999] bg-white pointer-events-none" />
                 )}
             </AnimatePresence>
 
-            {/* Scrollable Container (This exact area is captured) */}
-            <div className="flex-1 overflow-y-auto thin-scrollbar relative">
-                <div id="capture-wrap" ref={captureRef} className="p-4 md:p-8 w-full max-w-4xl mx-auto h-max relative flex flex-col items-center bg-background">
+            {/* Scrollable Container */}
+            <div className="flex-1 overflow-y-auto thin-scrollbar relative flex justify-center w-full">
+                {/* Capture Area */}
+                <div id="capture-wrap" ref={captureRef} className="w-full max-w-3xl px-4 relative flex flex-col h-max pb-10">
 
-                    {/* Decorative Background Blob inside capture area */}
+                    {/* Decorative Background Blob */}
                     <div className="absolute top-0 right-0 w-96 h-96 bg-primary/10 rounded-full blur-[100px] pointer-events-none" />
 
-                    {/* --- BEAUTIFUL HEADER (Now visually at the very top of the page!) --- */}
-                    <div className="text-center w-full flex flex-col items-center justify-center pt-4 pb-8 relative z-10">
-                        <div className="w-16 h-16 bg-primary/10 rounded-2xl border border-primary/20 flex items-center justify-center mb-4 shadow-sm">
-                            <ShieldCheck className="w-8 h-8 text-primary" />
-                        </div>
-
-                        <h1 className={`text-4xl md:text-5xl font-black drop-shadow-sm mb-2 ${isCapturing
-                            ? 'text-indigo-400 px-4 pb-2 tracking-normal' // Extra breathing room for the screenshot
-                            : 'bg-clip-text text-transparent bg-gradient-to-r from-indigo-400 via-purple-400 to-primary px-2 tracking-tight'
-                            }`}>
-                            LocalAwaaz Leaderboard
-                        </h1>
-
-                        <p className="text-xs md:text-sm font-bold text-muted-foreground uppercase tracking-[0.2em] mb-4">
-                            Official {activeTab === 'CITIZENS' ? 'Citizen' : 'Authority'} Ranking
-                        </p>
-
-                        {/* Timestamp Pill */}
-                        <div className="inline-flex items-center gap-2 px-4 py-2 bg-card/60 backdrop-blur-md border border-border/50 rounded-xl text-xs font-bold text-muted-foreground shadow-sm">
-                            <Clock size={14} className="text-primary" />
-                            Last Updated: {formatTimestamp(lastUpdated)}
+                    {/* --- HEADER SECTION --- */}
+                    <div className="flex items-center justify-between mb-8 flex-wrap gap-4 relative z-10">
+                        <div className="flex items-center gap-4">
+                            <div className="w-14 h-14 rounded-2xl bg-gradient-to-tr from-primary to-secondary flex items-center justify-center shadow-xl shadow-primary/20 flex-shrink-0">
+                                <ShieldCheck className="w-7 h-7 text-primary-foreground" />
+                            </div>
+                            <div>
+                                <h1 className={`text-3xl font-extrabold tracking-tight text-foreground mb-1 ${isCapturing ? 'px-2 pb-1' : ''}`}>
+                                    Leaderboard
+                                </h1>
+                                <p className="text-sm font-medium text-muted-foreground flex flex-wrap items-center gap-2">
+                                    Official {activeTab === 'CITIZENS' ? 'Citizen' : 'Authority'} Ranking
+                                    <span className="hidden sm:inline opacity-50">•</span>
+                                    <span className="inline-flex items-center gap-1 opacity-80"><Clock size={12} /> Updated: {formatTimestamp(lastUpdated)}</span>
+                                </p>
+                            </div>
                         </div>
                     </div>
 
-                    {/* Sticky Action Bar - Sticks right under the header when scrolling */}
-                    <div data-html2canvas-ignore="true" className="bg-card/60 backdrop-blur-xl sticky top-0 md:top-2 z-40 w-full p-3 md:p-4 rounded-xl md:rounded-2xl shadow-lg border border-border/60 flex justify-between items-center gap-4 flex-wrap mb-8">
+                    {/* Action Tabs & Export/Share Buttons */}
+                    <div data-html2canvas-ignore="true" className="flex justify-between items-center gap-4 flex-wrap mb-8 relative z-10">
                         <div className="flex bg-muted/50 p-1 rounded-xl w-max border border-border/50">
                             <button onClick={() => setActiveTab('CITIZENS')} className={`px-4 py-2 rounded-lg text-sm font-bold transition-all ${activeTab === 'CITIZENS' ? 'bg-primary text-white shadow-md' : 'text-muted-foreground hover:text-foreground'}`}>Citizens</button>
                             <button onClick={() => setActiveTab('AUTHORITIES')} className={`px-4 py-2 rounded-lg text-sm font-bold transition-all ${activeTab === 'AUTHORITIES' ? 'bg-primary text-white shadow-md' : 'text-muted-foreground hover:text-foreground'}`}>Authorities</button>
                         </div>
 
-                        <div className="flex items-center gap-2">
+                        <div className="flex items-center gap-3">
                             {canExportExcel && (
                                 <motion.button
                                     whileHover={{ scale: 1.05 }} whileTap={{ scale: 0.95 }}
@@ -378,7 +424,7 @@ const LeaderBoard = () => {
                             <motion.button
                                 whileHover={{ scale: 1.05 }} whileTap={{ scale: 0.95 }}
                                 onClick={handleCaptureShare} disabled={isCapturing}
-                                className="flex items-center gap-2 px-4 py-2.5 bg-gradient-to-tr from-indigo-500 to-purple-500 text-white font-bold text-sm rounded-xl shadow-[0_0_15px_rgba(99,102,241,0.4)] hover:shadow-[0_0_25px_rgba(99,102,241,0.6)] transition-all"
+                                className="flex items-center gap-2 px-4 py-2.5 bg-gradient-to-tr from-primary to-secondary text-white font-bold text-sm rounded-xl shadow-[0_0_15px_rgba(var(--primary),0.4)] hover:shadow-[0_0_25px_rgba(var(--primary),0.6)] transition-all"
                             >
                                 <Camera size={18} className={isCapturing ? "animate-pulse" : ""} />
                                 <span className="hidden sm:inline">Share Rank</span>
@@ -421,83 +467,94 @@ const LeaderBoard = () => {
                         )}
 
                         {/* Live Rankings List */}
-                        <div className="space-y-3">
-                            <h3 className="text-xs font-black uppercase tracking-widest text-muted-foreground ml-2 border-l-2 border-primary pl-2 mb-4">Top 10 Rankings</h3>
+                        <div className="glass-card rounded-2xl shadow-sm border border-border/50 overflow-hidden bg-background/50 backdrop-blur-xl">
                             {currentList.length === 0 ? (
-                                <div className="p-12 text-center bg-card/40 border border-border/50 rounded-3xl text-muted-foreground font-medium shadow-inner">
-                                    <Trophy className="w-12 h-12 mx-auto opacity-20 mb-3" />
+                                <div className="p-16 text-center text-muted-foreground font-medium flex flex-col items-center">
+                                    <Trophy className="w-12 h-12 opacity-20 mb-3" />
                                     No rankings established for this category yet.
                                 </div>
                             ) : (
-                                <AnimatePresence>
-                                    {currentList.map((entry, index) => {
-                                        if (!entry.userId) return null;
-                                        const isMe = currentUser && entry.userId._id === currentUser._id;
-                                        const podiumStyles = getPodiumColors(index);
-                                        const isCitizenTab = activeTab === 'CITIZENS';
-                                        const isAuthorityTab = activeTab === 'AUTHORITIES';
-                                        const canViewProfile = isAuthorityTab || (isCitizenTab && isAdmin);
+                                <div className="divide-y divide-border/50">
+                                    <AnimatePresence>
+                                        {currentList.map((entry, index) => {
+                                            if (!entry.userId) return null;
+                                            const isMe = currentUser && entry.userId._id === currentUser._id;
+                                            const iconStyle = getPodiumStyle(index);
+                                            const isCitizenTab = activeTab === 'CITIZENS';
+                                            const isAuthorityTab = activeTab === 'AUTHORITIES';
+                                            const canViewProfile = isAuthorityTab || (isCitizenTab && isAdmin);
 
-                                        return (
-                                            <motion.div
-                                                key={entry.userId._id}
-                                                initial={{ opacity: 0, x: -20 }} animate={{ opacity: 1, x: 0 }} transition={{ delay: index * 0.05 }}
-                                                className={`relative flex items-center justify-between p-3 sm:p-4 rounded-2xl border transition-all bg-card/60 backdrop-blur-sm group ${podiumStyles} ${isMe ? 'ring-2 ring-primary shadow-[0_0_20px_rgba(var(--primary),0.2)] bg-primary/10' : 'shadow-sm'}`}
-                                            >
-                                                <div className="flex items-center gap-3 sm:gap-4 flex-1 min-w-0">
-                                                    <div className="w-10 h-10 flex items-center justify-center rounded-full bg-black/40 border border-border/50 font-black text-sm shrink-0 shadow-inner">
-                                                        {index === 0 ? <Trophy size={20} className="text-yellow-500" />
-                                                            : index === 1 ? <Medal size={20} className="text-slate-300" />
-                                                                : index === 2 ? <Medal size={20} className="text-amber-600" />
-                                                                    : `#${entry.rank}`}
+                                            return (
+                                                <motion.div
+                                                    key={entry.userId._id}
+                                                    initial={{ opacity: 0, x: -20 }} animate={{ opacity: 1, x: 0 }} transition={{ delay: index * 0.05 }}
+                                                    className={`group relative flex items-start sm:items-center justify-between p-5 cursor-pointer hover:bg-muted/30 transition-all duration-200 ${isMe ? 'bg-primary/5' : ''}`}
+                                                >
+                                                    {/* Unread/Highlight Indicator Pill for the user */}
+                                                    {isMe && (
+                                                        <div className="absolute left-0 top-1/2 -translate-y-1/2 w-1 h-12 bg-primary rounded-r-full shadow-[0_0_8px_rgba(var(--primary),0.5)]"></div>
+                                                    )}
+
+                                                    <div className="flex items-center gap-4 flex-1 min-w-0">
+                                                        {/* Dynamic Icon */}
+                                                        <div className={`w-12 h-12 rounded-full flex items-center justify-center flex-shrink-0 transition-transform group-hover:scale-110 ${iconStyle}`}>
+                                                            {index === 0 ? <Trophy size={20} />
+                                                                : index === 1 ? <Medal size={20} />
+                                                                    : index === 2 ? <Medal size={20} />
+                                                                        : <span className="font-bold text-sm">#{entry.rank}</span>}
+                                                        </div>
+
+                                                        {/* Avatar */}
+                                                        <img src={getCorsSafeUrl(entry.userId.profilePic) || getAvatar(entry.userId.name)} alt="avatar" crossOrigin="anonymous" className="w-12 h-12 rounded-full border border-border/50 flex-shrink-0 object-cover bg-muted hidden sm:block" />
+
+                                                        {/* Content */}
+                                                        <div className="flex-1 min-w-0 pt-1">
+                                                            <div className="flex items-center gap-2">
+                                                                <h4 className={`font-semibold text-foreground text-[15px] ${isCapturing ? 'pr-1' : 'truncate'}`}>
+                                                                    {entry.userId.name}
+                                                                </h4>
+                                                                {isMe && <span className="inline-flex items-center px-2 py-0.5 rounded text-[10px] font-bold bg-primary/20 text-primary uppercase tracking-wider">You</span>}
+                                                            </div>
+
+                                                            {isCitizenTab ? (
+                                                                <p className={`text-[13px] leading-relaxed text-muted-foreground mt-0.5 ${isCapturing ? 'whitespace-nowrap pb-2' : 'truncate'}`}>
+                                                                    Score: <span className="font-semibold text-foreground">{entry.csi}</span> •
+                                                                    Reported: <span className="text-foreground/80">{entry.userId.issuesReported?.length ?? entry.userId.issuesReported ?? 0}</span> •
+                                                                    Resolved: <span className="text-foreground/80">{entry.userId.issuesResolved?.length ?? entry.userId.issuesResolved ?? 0}</span>
+                                                                </p>
+                                                            ) : (
+                                                                <p className={`text-[13px] leading-relaxed text-muted-foreground mt-0.5 ${isCapturing ? 'whitespace-nowrap pb-2' : 'truncate'}`}>
+                                                                    Score: <span className="font-semibold text-foreground">{entry.csi}</span> •
+                                                                    Active: <span className="text-indigo-400">{Math.max(0, entry.userId.authorityProfile?.activeJobsCount || 0)}</span> •
+                                                                    Completed: <span className="text-emerald-500">{Math.max(0, entry.userId.authorityProfile?.jobsCompleted || 0)}</span>
+                                                                </p>
+                                                            )}
+                                                        </div>
                                                     </div>
-                                                    <img src={getCorsSafeUrl(entry.userId.profilePic) || getAvatar(entry.userId.name)} alt="avatar" crossOrigin="anonymous" className="w-10 h-10 md:w-12 md:h-12 rounded-full border border-border/50 shrink-0 object-cover bg-muted" />
-                                                    <div className="flex-1 min-w-0 pr-2">
-                                                        <h4 className={`font-bold text-foreground flex items-center gap-2 text-sm sm:text-base leading-tight m-0 ${isCapturing ? 'pr-1' : 'truncate'}`}>
-                                                            <span className={isCapturing ? "whitespace-nowrap pr-2" : "truncate"}>
-                                                                {entry.userId.name}
-                                                            </span>
-                                                            {isMe && <span className="text-[9px] bg-primary/20 text-primary px-2 py-0.5 rounded-md uppercase tracking-wider shrink-0 leading-none">You</span>}
-                                                        </h4>
 
-                                                        {isCitizenTab ? (
-                                                            <p className={`text-[10px] sm:text-[11px] text-muted-foreground font-medium mt-1 m-0 ${isCapturing ? 'whitespace-nowrap pb-2 leading-loose' : 'truncate pb-1 leading-normal'
-                                                                }`}>
-                                                                Score: <span className="font-bold text-foreground">{entry.csi}</span> •
-                                                                Reported: <span className="text-foreground/80">{entry.userId.issuesReported?.length ?? entry.userId.issuesReported ?? 0}</span> •
-                                                                Resolved: <span className="text-foreground/80">{entry.userId.issuesResolved?.length ?? entry.userId.issuesResolved ?? 0}</span> •
-                                                                Contribution: <span className="text-amber-500">{entry.userId.issuesFlagged?.length ?? entry.userId.issuesFlagged ?? 0}</span>
-                                                            </p>
-                                                        ) : (
-                                                            <p className={`text-[10px] sm:text-[11px] text-muted-foreground font-medium mt-1 m-0 ${isCapturing ? 'whitespace-nowrap pb-2 leading-loose' : 'truncate pb-1 leading-normal'}`}>
-                                                                Score: <span className="font-bold text-foreground">{entry.csi}</span> •
-                                                                {/* 🟢 FIXED: Added Math.max(0, value) to prevent negative database counters from leaking into the UI */}
-                                                                Active Jobs: <span className="text-indigo-400">{Math.max(0, entry.userId.authorityProfile?.activeJobsCount || 0)}</span> •
-                                                                Completed: <span className="text-emerald-500">{Math.max(0, entry.userId.authorityProfile?.jobsCompleted || 0)}</span>
-                                                            </p>
-                                                        )}
-                                                    </div>
-                                                </div>
-
-                                                {canViewProfile && (
-                                                    <button
-                                                        data-html2canvas-ignore="true"
-                                                        onClick={() => openCareerModal(entry.userId._id)}
-                                                        className="shrink-0 px-3 py-2 rounded-xl bg-background border border-border/50 text-muted-foreground text-xs font-bold shadow-sm flex items-center gap-2 hover:bg-muted transition-colors"
-                                                    >
-                                                        <Briefcase size={14} className="shrink-0" /> <span className="hidden sm:inline">Profile</span>
-                                                    </button>
-                                                )}
-                                            </motion.div>
-                                        );
-                                    })}
-                                </AnimatePresence>
+                                                    {/* Profile Button */}
+                                                    {canViewProfile && (
+                                                        <div className="flex flex-col items-end justify-center h-full flex-shrink-0 pl-4">
+                                                            <button
+                                                                data-html2canvas-ignore="true"
+                                                                onClick={() => openCareerModal(entry.userId._id)}
+                                                                className="px-3 py-1.5 rounded-lg bg-muted/50 hover:bg-muted text-muted-foreground text-xs font-bold transition-colors flex items-center gap-1.5"
+                                                            >
+                                                                <Briefcase size={14} /> <span className="hidden sm:inline">Profile</span>
+                                                            </button>
+                                                        </div>
+                                                    )}
+                                                </motion.div>
+                                            );
+                                        })}
+                                    </AnimatePresence>
+                                </div>
                             )}
                         </div>
                     </div>
 
                     {/* --- CAPTURE FOOTER --- */}
-                    <div className="w-full mt-10 pt-6 border-t border-border/50 flex flex-col items-center justify-center gap-2 relative z-10">
+                    <div className="w-full mt-10 pt-6 flex flex-col items-center justify-center gap-2 relative z-10 opacity-70">
                         <div className="flex items-center gap-2 text-primary">
                             <Shield size={16} />
                             <span className="text-xs font-bold uppercase tracking-[0.15em]">Empowering Local Communities</span>
@@ -543,7 +600,7 @@ const LeaderBoard = () => {
                 )}
             </AnimatePresence>
 
-            {/* 🟢 Sliding Career Modal (Now with Real Fetched Data) */}
+            {/* Sliding Career Modal */}
             <AnimatePresence>
                 {careerModal.isOpen && careerModal.profile && (
                     <div className="fixed inset-0 z-[150] flex items-center justify-center p-2 sm:p-4">
@@ -594,7 +651,6 @@ const LeaderBoard = () => {
                                         <div className="grid grid-cols-2 md:grid-cols-4 gap-3 md:gap-4">
                                             {['official', 'ngo'].includes(careerModal.profile.role) ? (
                                                 <>
-                                                    {/* 🟢 FIXED: Checking the length of the actual history arrays first to guarantee perfect sync */}
                                                     <MetricBox
                                                         icon={<Clock className="text-indigo-500" />}
                                                         title="Jobs Active"

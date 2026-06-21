@@ -12,13 +12,11 @@ import axiosInstance from "../utils/axios";
 import { fetchIssues, clearIssues } from "../reducer/issueFeedReducer";
 import { showToast } from "../utils/toast";
 import { useTranslation } from "react-i18next";
-
-// --- NEW IMPORTS FOR VISITOR ODOMETER ---
 import { socket } from "../utils/socket";
 import Odometer from 'react-odometerjs';
 import 'odometer/themes/odometer-theme-minimal.css';
-
 import axios from "axios";
+import toast from "react-hot-toast";
 
 const Feed = () => {
   const { t } = useTranslation();
@@ -32,24 +30,80 @@ const Feed = () => {
 
   const [sortBy, setSortBy] = useState("newest");
   const [page, setPage] = useState(1);
-
-  // --- NEW STATE FOR VISITORS ---
   const [visitors, setVisitors] = useState(0);
 
   const location = useLocation();
   const navigate = useNavigate();
   const dispatch = useDispatch();
-
   const context = useOutletContext();
   const selectedIssueId = context?.selectedIssueId;
   const setSelectedIssueId = context?.setSelectedIssueId;
 
   const { issues, loading, error, pagination } = useSelector((state) => state.issueFeed);
 
-  const displayLocation = chosenLocation ? formatLocationDisplay(chosenLocation) : t('locating');
-  const activeIssuesCount = pagination?.totalIssues || issues?.length || 0;
+  // --- REAL-TIME FEED ENGINE ---
+  // We mirror the Redux issues into a local state so we can mutate them instantly via sockets
+  const [liveIssues, setLiveIssues] = useState([]);
 
-  // --- NEW REAL-TIME SOCKET EFFECT ---
+  useEffect(() => {
+    setLiveIssues(issues || []);
+  }, [issues]);
+
+  useEffect(() => {
+    if (!socket) return;
+
+    const handleIssueUpdated = (data) => {
+      setLiveIssues(prev => prev.map(issue => issue._id === data.issueId ? { ...issue, ...data.updatedData } : issue));
+      setSelectedIssue(prev => prev?._id === data.issueId ? { ...prev, ...data.updatedData } : prev);
+    };
+
+    const handleIssueStatusUpdated = (data) => {
+      setLiveIssues(prev => prev.map(issue => issue._id === data.issueId ? { ...issue, status: data.newStatus } : issue));
+      setSelectedIssue(prev => prev?._id === data.issueId ? { ...prev, status: data.newStatus } : prev);
+    };
+
+    const handleIssueStatsUpdated = (data) => {
+      setLiveIssues(prev => prev.map(issue => issue._id === data.issueId ? {
+        ...issue,
+        confirmationCount: data.confirmationCount ?? issue.confirmationCount,
+        impactScore: data.impactScore ?? issue.impactScore,
+        flagCount: data.flagCount ?? issue.flagCount,
+        shareCount: data.shareCount ?? issue.shareCount
+      } : issue));
+      setSelectedIssue(prev => prev?._id === data.issueId ? {
+        ...prev,
+        confirmationCount: data.confirmationCount ?? prev.confirmationCount,
+        impactScore: data.impactScore ?? prev.impactScore,
+        flagCount: data.flagCount ?? prev.flagCount,
+        shareCount: data.shareCount ?? prev.shareCount
+      } : prev);
+    };
+
+    const handleIssueDeleted = (data) => {
+      setLiveIssues(prev => prev.filter(issue => issue._id !== data.issueId));
+      if (selectedIssue?._id === data.issueId) {
+        setIsDetailOpen(false);
+        setSelectedIssue(null);
+        toast.error(t('issue_removed', 'This issue was removed by an administrator.'));
+      }
+    };
+
+    socket.on('issue_updated', handleIssueUpdated);
+    socket.on('issue_status_updated', handleIssueStatusUpdated);
+    socket.on('issue_stats_updated', handleIssueStatsUpdated);
+    socket.on('issue_deleted', handleIssueDeleted);
+
+    return () => {
+      socket.off('issue_updated', handleIssueUpdated);
+      socket.off('issue_status_updated', handleIssueStatusUpdated);
+      socket.off('issue_stats_updated', handleIssueStatsUpdated);
+      socket.off('issue_deleted', handleIssueDeleted);
+    };
+  }, [selectedIssue, t]);
+
+  const displayLocation = chosenLocation ? formatLocationDisplay(chosenLocation) : t('locating');
+  const activeIssuesCount = pagination?.totalIssues || liveIssues?.length || 0;
+
   useEffect(() => {
     socket.on('live_visitor_update', (data) => {
       setVisitors(data.count);
@@ -57,7 +111,6 @@ const Feed = () => {
 
     const fetchVisits = async () => {
       try {
-        // 2. DO NOT use axiosInstance here. Use raw axios exactly like VisitCounter does.
         const response = await axios.get(
           `${import.meta.env.VITE_BASE_URL || 'http://localhost:1111'}/api/community-stats`,
           { withCredentials: true }
@@ -69,14 +122,12 @@ const Feed = () => {
     };
 
     fetchVisits();
-
-    return () => socket.disconnect();
   }, []);
 
   useEffect(() => {
     const fetchAndOpenIssue = async () => {
       if (!selectedIssueId) return;
-      const existingIssue = issues?.find(i => i._id === selectedIssueId);
+      const existingIssue = liveIssues?.find(i => i._id === selectedIssueId);
       if (existingIssue) {
         setSelectedIssue(existingIssue);
         setIsDetailOpen(true);
@@ -93,7 +144,7 @@ const Feed = () => {
       }
     };
     fetchAndOpenIssue();
-  }, [selectedIssueId, issues, setSelectedIssueId, t]);
+  }, [selectedIssueId, liveIssues, setSelectedIssueId, t]);
 
   const fetchData = (currentPage, specificLocation = null) => {
     const locToUse = specificLocation || getChosenLocation();
@@ -204,9 +255,9 @@ const Feed = () => {
 
   const dynamicStats = useMemo(() => {
     let resolved = 0; let pending = 0; let totalImpact = 0;
-    if (!issues || issues.length === 0) return { resolved: 0, pending: 0, impactLevel: t('evaluating') };
+    if (!liveIssues || liveIssues.length === 0) return { resolved: 0, pending: 0, impactLevel: t('evaluating') };
 
-    issues.forEach(issue => {
+    liveIssues.forEach(issue => {
       const stat = issue.status?.toUpperCase() || 'OPEN';
       if (stat === "RESOLVED") resolved += 1;
       else if (["IN_REVIEW", "UNDER REVIEW", "OPEN", "PENDING"].includes(stat)) pending += 1;
@@ -220,11 +271,11 @@ const Feed = () => {
     else if (totalImpact > 0) impactLevel = t('emerging');
 
     return { resolved, pending, impactLevel };
-  }, [issues, t]);
+  }, [liveIssues, t]);
 
   const sortedIssues = useMemo(() => {
-    if (!issues) return [];
-    return [...issues].sort((a, b) => {
+    if (!liveIssues) return [];
+    return [...liveIssues].sort((a, b) => {
       if (sortBy === "impactful") {
         const impactA = a.impactScore || a.impact || 0;
         const impactB = b.impactScore || b.impact || 0;
@@ -234,7 +285,7 @@ const Feed = () => {
       const dateB = new Date(b.createdAt || b._id || 0).getTime();
       return dateB - dateA;
     });
-  }, [issues, sortBy]);
+  }, [liveIssues, sortBy]);
 
   return (
     <div className="bg-texture min-h-[100dvh] pb-20 md:pb-8">
@@ -265,8 +316,6 @@ const Feed = () => {
           </div>
 
           <div className="flex items-center gap-2 md:gap-3 flex-shrink-0">
-
-            {/* --- NEW: RESPONSIVE VISITOR ODOMETER PILL --- */}
             <div className="flex items-center gap-1.5 bg-background/50 backdrop-blur-sm border border-border/60 px-2.5 py-1.5 md:px-3 md:py-2 rounded-full shadow-sm text-muted-foreground transition-all">
               <Users size={14} className="text-primary flex-shrink-0" />
               <span className="hidden md:inline text-xs md:text-sm font-medium tracking-wide">
@@ -277,12 +326,10 @@ const Feed = () => {
               </div>
             </div>
 
-            {/* --- EXISTING: ACTIVE ISSUES PILL --- */}
             <span className="hidden lg:block text-xs md:text-sm bg-cyan-800 text-accent-foreground px-3 py-1.5 md:py-2 rounded-full border border-accent/30">
               ● {activeIssuesCount} {t('active')} {activeIssuesCount === 1 ? t('issue_singular') : t('issues_label')}
             </span>
 
-            {/* --- EXISTING: NEW ISSUE BUTTON --- */}
             <button
               className="btn-gradient flex items-center gap-1.5 md:gap-2 px-3 md:px-4 py-1.5 md:py-2 rounded-xl whitespace-nowrap shadow-sm hover:shadow-md transition-all hover:scale-[1.02]"
               onClick={() => navigate("/dashboard/report")}
@@ -291,7 +338,6 @@ const Feed = () => {
               <span className="hidden sm:inline text-sm">{t('new_issue')}</span>
               <span className="sm:hidden text-xs">{t('report')}</span>
             </button>
-
           </div>
         </div>
       </div>

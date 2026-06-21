@@ -1,7 +1,8 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { ChevronDown, Check } from 'lucide-react';
 
-const CustomSelect = ({ value, onChange, options }) => {
+// 1. Added className, disabled, and placeholder to props
+const CustomSelect = ({ value, onChange, options, className, disabled, placeholder }) => {
     const [isOpen, setIsOpen] = useState(false);
     const dropdownRef = useRef(null);
 
@@ -19,24 +20,24 @@ const CustomSelect = ({ value, onChange, options }) => {
     const selectedOption = options.find(opt => opt.value === value);
 
     return (
-        // CSS FIXED: Outer wrapper is simply w-full. No forced min-widths that break grids.
         <div className="relative w-full" ref={dropdownRef}>
 
             <button
                 type="button"
+                disabled={disabled} // 2. Handle disabled state
                 onClick={() => setIsOpen(!isOpen)}
-                className="w-full flex items-center justify-between bg-card border border-border/50 hover:border-border rounded-lg sm:rounded-xl px-3 py-2 sm:px-4 sm:py-2.5 text-xs sm:text-sm font-medium outline-none focus:ring-2 focus:ring-primary/50 text-foreground shadow-sm transition-all duration-200"
+                // 3. Injected `${className || 'bg-card'}` and disabled opacity
+                className={`w-full flex items-center justify-between border border-border/50 hover:border-border rounded-lg sm:rounded-xl px-3 py-2 sm:px-4 sm:py-2.5 text-xs sm:text-sm font-medium outline-none focus:ring-2 focus:ring-primary/50 text-foreground shadow-sm transition-all duration-200 ${disabled ? 'opacity-50 cursor-not-allowed' : ''} ${className || 'bg-card'}`}
             >
-                <span className="truncate pr-2 text-left">{selectedOption?.label || "Select..."}</span>
+                {/* 4. Use dynamic placeholder */}
+                <span className="truncate pr-2 text-left">{selectedOption?.label || placeholder || "Select..."}</span>
                 <ChevronDown
                     size={14}
                     className={`shrink-0 text-muted-foreground transition-transform duration-200 ${isOpen ? 'rotate-180' : ''}`}
                 />
             </button>
 
-            {isOpen && (
-                // CSS FIXED: w-full and left-0 ensures the menu is the EXACT width of the button above it. 
-                // It will never bleed off the screen, get clipped by the modal, or overlap in a grid again!
+            {isOpen && !disabled && (
                 <div className="absolute z-[9999] w-full left-0 mt-1.5 bg-card/95 backdrop-blur-xl border border-border/50 rounded-lg sm:rounded-xl shadow-xl overflow-hidden animate-in fade-in zoom-in-95 origin-top">
                     <div className="max-h-56 overflow-y-auto thin-scrollbar py-1">
                         {options.map((option) => (
