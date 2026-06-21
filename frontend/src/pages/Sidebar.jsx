@@ -11,7 +11,7 @@ import { useNotifications } from "../hooks/useNotifications";
 import SettingsModal from "../components/modals/SettingsModal";
 import { useTranslation } from "react-i18next";
 
-// NEW: Added imports for Download logic
+// Download logic
 import { Capacitor } from '@capacitor/core';
 import axiosInstance from "../utils/axios";
 import { showToast } from "../utils/toast";
@@ -153,7 +153,7 @@ const Sidebar = () => {
       <aside className="
         fixed bottom-0 left-0 w-full h-16 z-40 bg-card border-t border-border transition-all duration-300
         md:top-0 md:bottom-auto md:border-t-0 md:border-b md:px-6
-        lg:sticky lg:h-screen lg:w-64 lg:border-b-0 lg:border-r lg:py-6 lg:px-4
+        lg:sticky lg:h-screen lg:w-72 lg:border-b-0 lg:border-r lg:py-6 lg:px-4
       ">
         <div className="flex w-full h-full flex-row items-center justify-between lg:flex-col lg:items-stretch lg:justify-start">
 
@@ -178,7 +178,7 @@ const Sidebar = () => {
               <SidebarItem icon={Sparkle} label={t('nav_lokai')} active={path === "/dashboard/assistant"} />
             </NavLink>
 
-            {/* 🟢 NEW: Leaderboard Button - Visible to all, placed above special panels */}
+            {/* 🟢 NEW: Leaderboard Button */}
             <NavLink to="leaderboard" className="w-auto lg:w-full">
               <SidebarItem icon={Trophy} label={t('nav_leaderboard', 'Leaderboard')} active={path.startsWith("/dashboard/leaderboard")} />
             </NavLink>
@@ -208,7 +208,7 @@ const Sidebar = () => {
 
             <div className="flex lg:hidden flex-shrink-0 relative items-center justify-center">
               <button
-                className="flex items-center justify-center p-2"
+                className="flex items-center justify-center p-2 transition-transform active:scale-95"
                 onClick={() => setOpenModal(true)}
               >
                 <div className={`w-8 h-8 rounded-full border text-xs flex justify-center items-center overflow-hidden transition-colors 
@@ -224,25 +224,30 @@ const Sidebar = () => {
             </div>
           </nav>
 
-          <div className="hidden lg:flex flex-col mt-auto w-full">
+          {/* Upgraded Desktop Profile Section */}
+          <div className="hidden lg:flex flex-col mt-auto w-full pt-4 border-t border-border/50">
             <button
-              className="flex items-center gap-3 w-full border-t pt-6 border-foreground/30 hover:opacity-80 transition-opacity"
+              className="flex items-center gap-3 w-full p-2.5 rounded-xl hover:bg-muted transition-all duration-200 group active:scale-95 text-left"
               onClick={() => setOpenModal(true)}
             >
-              <div className="w-8 h-8 rounded-full border border-accent text-xs flex justify-center items-center overflow-hidden">
+              <div className="w-10 h-10 rounded-full border border-accent text-xs flex justify-center items-center overflow-hidden flex-shrink-0 bg-background group-hover:border-primary transition-colors">
                 {profilePic ? (
                   <img src={profilePic} alt={name} className="w-full h-full object-cover" referrerPolicy="no-referrer" />
                 ) : (
-                  <span className="text-gradient">{getInitials(name)}</span>
+                  <span className="text-gradient font-bold">{getInitials(name)}</span>
                 )}
               </div>
-              <span className="text-gradient font-semibold truncate">{name}</span>
+              <div className="flex flex-col overflow-hidden">
+                <span className="text-gradient font-semibold truncate leading-tight">{name}</span>
+                <span className="text-[11px] text-muted-foreground capitalize truncate mt-0.5">{currentRole || 'User'}</span>
+              </div>
             </button>
           </div>
 
         </div>
       </aside>
 
+      {/* Modal remains visually identical */}
       {openModal && (
         <div
           className="fixed inset-0 z-[100] flex items-center justify-center bg-black/60 backdrop-blur-sm p-4 animate-fade-in"
@@ -292,7 +297,7 @@ const Sidebar = () => {
               <NavLink
                 to="profile"
                 onClick={() => setOpenModal(false)}
-                className="w-full flex items-center gap-3 px-4 py-3 rounded-xl text-foreground/80 hover:text-foreground hover:bg-black/10 dark:hover:bg-black/40 transition-all duration-200 text-left"
+                className="w-full flex items-center gap-3 px-4 py-3 rounded-xl text-foreground/80 hover:text-foreground hover:bg-black/10 dark:hover:bg-black/40 transition-all duration-200 text-left active:scale-95"
               >
                 <User className="w-5 h-5" />
                 <span className="text-sm md:text-base font-medium">{t('my_profile')}</span>
@@ -321,7 +326,7 @@ const Sidebar = () => {
               </div>
 
               <button
-                className="w-full flex items-center gap-3 px-4 py-3 rounded-xl text-foreground/80 hover:text-foreground hover:bg-black/10 dark:hover:bg-black/40 transition-all duration-200 text-left"
+                className="w-full flex items-center gap-3 px-4 py-3 rounded-xl text-foreground/80 hover:text-foreground hover:bg-black/10 dark:hover:bg-black/40 transition-all duration-200 text-left active:scale-95"
                 onClick={() => {
                   setOpenModal(false);
                   setIsSettingsOpen(true);
@@ -332,7 +337,7 @@ const Sidebar = () => {
               </button>
 
               <button
-                className="w-full flex items-center gap-3 px-4 py-3 rounded-xl text-foreground/80 hover:text-foreground hover:bg-black/10 dark:hover:bg-black/40 transition-all duration-200 text-left"
+                className="w-full flex items-center gap-3 px-4 py-3 rounded-xl text-foreground/80 hover:text-foreground hover:bg-black/10 dark:hover:bg-black/40 transition-all duration-200 text-left active:scale-95"
                 onClick={() => {
                   setOpenModal(false);
                   navigate('/dashboard/help');
@@ -344,7 +349,7 @@ const Sidebar = () => {
 
               <div className="pt-2 mt-2 border-t border-border/50">
                 <button
-                  className="w-full flex items-center gap-3 px-4 py-3 rounded-xl text-red-500/80 hover:text-red-500 hover:bg-red-500/10 transition-all duration-200 text-left disabled:opacity-50 disabled:cursor-not-allowed"
+                  className="w-full flex items-center gap-3 px-4 py-3 rounded-xl text-red-500/80 hover:text-red-500 hover:bg-red-500/10 transition-all duration-200 text-left disabled:opacity-50 disabled:cursor-not-allowed active:scale-95"
                   onClick={handleLogout}
                   disabled={isLoggingOut}
                 >
@@ -374,23 +379,23 @@ const Sidebar = () => {
   );
 };
 
-// 🟢 Updated SidebarItem to handle Authority styling
+// 🟢 Updated SidebarItem: kept hover:scale-105 and active:scale-95 for enlarging effects
 const SidebarItem = ({ icon: Icon, label, active, unreadCount, isAdminLink, isAuthorityLink }) => {
   return (
     <div
       title={label}
-      className={`flex items-center justify-center lg:justify-start px-3 py-2 md:px-4 md:py-2.5 lg:px-4 lg:py-3 rounded-xl cursor-pointer transition-all duration-200 relative w-auto lg:w-full
+      className={`group flex items-center justify-center lg:justify-start px-3 py-2 md:px-4 md:py-2.5 lg:px-4 lg:py-3 rounded-xl cursor-pointer transition-all duration-200 relative w-auto lg:w-full hover:scale-105 active:scale-95
         ${active && (isAdminLink || isAuthorityLink)
-          ? "bg-red-500/10 text-red-500 border border-red-500/20 shadow-lg scale-105"
+          ? "bg-red-500/10 text-red-500 border border-red-500/20 shadow-lg scale-105 hover:scale-110"
           : active
-            ? "bg-gradient-to-r from-primary to-secondary text-primary-foreground shadow-lg scale-105"
+            ? "bg-gradient-to-r from-primary to-secondary text-primary-foreground shadow-lg scale-105 hover:scale-110"
             : (isAdminLink || isAuthorityLink)
               ? "text-red-500/80 hover:bg-red-500/10 hover:text-red-500"
               : "text-foreground/80 hover:bg-muted hover:text-foreground"
         }`}
     >
       <div className="flex items-center gap-3">
-        <Icon className="w-6 h-6 md:w-5 md:h-5 lg:w-5 lg:h-5" />
+        <Icon className="w-6 h-6 md:w-5 md:h-5 lg:w-5 lg:h-5 transition-transform group-hover:scale-110" />
         <span className="hidden lg:inline text-sm font-medium">{label}</span>
       </div>
 

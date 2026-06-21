@@ -13,6 +13,7 @@ import {
 import MiniLoader from '../MiniLoader';
 import CustomSelect from '../../components/CustomSelect';
 import { cscApi } from '../../utils/cscAPI';
+import { socket } from '../../utils/socket';
 
 // --- HELPERS ---
 const getAvatar = (name) => `https://ui-avatars.com/api/?name=${encodeURIComponent(name || 'U')}&background=random&color=fff&size=128&bold=true`;
@@ -234,6 +235,54 @@ const AdminUsers = () => {
             videoRef.current.play().catch(err => console.warn("Autoplay blocked:", err));
         }
     }, [isIssueModalOpen, currentMediaIndex, selectedIssue, mediaTab]);
+
+    useEffect(() => {
+        // 1. Listen for full issue updates (Crucial if you have the issue modal open)
+        socket.on('issue_updated', (data) => {
+            // If the issue the admin is currently viewing gets updated, swap it out instantly
+            setSelectedIssue((prev) =>
+                prev && prev._id === data.issueId ? data.updatedData : prev
+            );
+        });
+
+        // 2. Listen for status changes
+        socket.on('issue_status_updated', (data) => {
+            setSelectedIssue((prev) =>
+                prev && prev._id === data.issueId ? { ...prev, status: data.newStatus } : prev
+            );
+        });
+
+        // 3. Listen for nuclear deletions
+        socket.on('issue_deleted', (data) => {
+            // If someone deletes the exact issue you are looking at, close the modal to prevent crashes
+            setSelectedIssue((prev) => {
+                if (prev && prev._id === data.issueId) {
+                    setIsIssueModalOpen(false);
+                    return null;
+                }
+                return prev;
+            });
+
+            // Also remove it from the user's active history list without a page refresh
+            if (careerModal.isOpen) {
+                setCareerModal(prev => ({
+                    ...prev,
+                    issueList: prev.issueList.filter(issue => issue._id !== data.issueId),
+                    history: {
+                        ...prev.history,
+                        [activeHistoryTab]: prev.history?.[activeHistoryTab]?.filter(issue => issue._id !== data.issueId)
+                    }
+                }));
+            }
+        });
+
+        // Cleanup listeners
+        return () => {
+            socket.off('issue_updated');
+            socket.off('issue_status_updated');
+            socket.off('issue_deleted');
+        };
+    }, [careerModal.isOpen, activeHistoryTab]);
 
     // --- FETCHERS ---
     const fetchUsers = async () => {

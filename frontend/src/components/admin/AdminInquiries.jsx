@@ -123,7 +123,7 @@ const AdminInquiries = () => {
         <motion.div
             initial={{ opacity: 0, y: 10 }}
             animate={{ opacity: 1, y: 0 }}
-            className="space-y-6 md:space-y-8 flex flex-col h-full relative pb-10"
+            className="space-y-6 md:space-y-8 flex flex-col h-full relative pb-10 overflow-y-auto thin-scrollbar"
         >
             {/* --- HEADER --- */}
             <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 relative z-[50]">
@@ -244,7 +244,7 @@ const AdminInquiries = () => {
 
             {/* 🟢 Desktop Table Wrapper (Hidden on mobile) */}
             <div className="hidden md:flex bg-card/40 backdrop-blur-2xl border border-border/60 rounded-2xl overflow-hidden shadow-xl flex-1 flex-col relative z-[10] min-h-[400px]">
-                <div className="overflow-x-auto thin-scrollbar flex-1 bg-background/20">
+                <div className="overflow-auto thin-scrollbar flex-1 bg-background/20">
                     <table className="w-full text-left whitespace-nowrap">
                         <thead className="bg-muted/40 backdrop-blur-md border-b border-border/50 sticky top-0 z-20 shadow-sm">
                             <tr className="text-muted-foreground text-[11px] uppercase tracking-widest">

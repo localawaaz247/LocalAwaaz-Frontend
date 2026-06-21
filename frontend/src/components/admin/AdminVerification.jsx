@@ -8,6 +8,7 @@ import {
     XCircle, ShieldCheck, Mail, ChevronRight, Filter
 } from 'lucide-react';
 import AuthorityDetailModal from '../modals/AuthorityDetailModal';
+import { socket } from '../../utils/socket';
 
 const AdminVerification = () => {
     // Portal hydration state
@@ -31,6 +32,41 @@ const AdminVerification = () => {
     useEffect(() => {
         fetchAuthorities();
     }, [activeTab]);
+
+    useEffect(() => {
+        socket.on('authority_status_updated', (data) => {
+            // 1. Clean up the main grid
+            setAuthorities((prevAuthorities) => {
+                // If the new status doesn't match the tab we're currently viewing (e.g., PENDING),
+                // scrub them from the screen immediately to prevent duplicate actions.
+                if (data.newStatus !== activeTab) {
+                    return prevAuthorities.filter(auth => auth._id !== data.authorityId);
+                }
+                return prevAuthorities;
+            });
+
+            // 2. Safeguard the currently open Modal
+            setSelectedAuthority((prevSelected) => {
+                // If you are looking at the exact profile that another admin just processed,
+                // close the modal and alert you so you don't overwrite their decision.
+                if (prevSelected && prevSelected._id === data.authorityId && data.newStatus !== activeTab) {
+                    setIsModalOpen(false);
+                    showToast({
+                        icon: 'info',
+                        title: 'Status Changed',
+                        message: `This application was just moved to ${data.newStatus} by another admin.`
+                    });
+                    return null;
+                }
+                return prevSelected;
+            });
+        });
+
+        // Cleanup listener to prevent memory leaks when navigating away
+        return () => {
+            socket.off('authority_status_updated');
+        };
+    }, [activeTab]); // Must depend on activeTab so the logic knows which list you are looking at
 
     const fetchAuthorities = async () => {
         try {

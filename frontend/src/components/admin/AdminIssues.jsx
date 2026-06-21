@@ -15,6 +15,7 @@ import {
 import MiniLoader from '../MiniLoader';
 import CustomSelect from '../../components/CustomSelect';
 import { cscApi } from '../../utils/cscAPI';
+import { socket } from '../../utils/socket';
 
 // --- HELPERS ---
 const getCorsSafeUrl = (url) => {
@@ -185,6 +186,41 @@ const AdminIssues = () => {
             cscApi.get(`/countries/IN/states/${stateObj.iso2}/cities`).then(res => setDistrictsList(res.data)).catch(console.error);
         }
     }, [filters.state, statesList]);
+
+    useEffect(() => {
+        // 1. Listen for full issue updates (e.g., Force Assign, Triage actions)
+        socket.on('issue_updated', (data) => {
+            setIssues((prevIssues) =>
+                prevIssues.map((issue) =>
+                    // Replace the old issue data with the freshly updated data from the backend
+                    issue._id === data.issueId ? data.updatedData : issue
+                )
+            );
+        });
+
+        // 2. Listen for simple status changes
+        socket.on('issue_status_updated', (data) => {
+            setIssues((prevIssues) =>
+                prevIssues.map((issue) =>
+                    issue._id === data.issueId ? { ...issue, status: data.newStatus } : issue
+                )
+            );
+        });
+
+        // 3. Listen for nuclear deletes
+        socket.on('issue_deleted', (data) => {
+            setIssues((prevIssues) =>
+                prevIssues.filter((issue) => issue._id !== data.issueId)
+            );
+        });
+
+        // Cleanup: Prevent memory leaks and duplicate listeners when component unmounts
+        return () => {
+            socket.off('issue_updated');
+            socket.off('issue_status_updated');
+            socket.off('issue_deleted');
+        };
+    }, []);
 
     useEffect(() => {
         const delayDebounceFn = setTimeout(() => { fetchIssues(); }, 500);

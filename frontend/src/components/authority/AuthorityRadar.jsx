@@ -23,42 +23,77 @@ const AuthorityRadar = () => {
     const [submitting, setSubmitting] = useState(false);
     const [revertingId, setRevertingId] = useState(null);
 
+    // 1. Fetch data when the tab changes
     useEffect(() => {
         fetchRadarIssues();
-        const timerId = setInterval(() => setTick(t => t + 1), 1000);
-        return () => clearInterval(timerId);
     }, [activeTab]);
 
+    // 2. Handle the live clocks
     useEffect(() => {
-        const timer = setInterval(() => setCurrentTime(new Date()), 1000);
-        return () => clearInterval(timer);
+        const tickId = setInterval(() => setTick(t => t + 1), 1000);
+        const clockId = setInterval(() => setCurrentTime(new Date()), 1000);
+        return () => {
+            clearInterval(tickId);
+            clearInterval(clockId);
+        };
     }, []);
 
+    // 3. Modal body scroll locks
     useEffect(() => {
         if (bidModal.isOpen || rejectModal.isOpen) document.body.style.overflow = 'hidden';
         else document.body.style.overflow = 'unset';
         return () => { document.body.style.overflow = 'unset'; };
     }, [bidModal.isOpen, rejectModal.isOpen]);
 
+    // 4. Real-Time Radar Sync (Surgical Updates & Auto-Eviction)
     useEffect(() => {
-        fetchRadarIssues();
-        const timerId = setInterval(() => setTick(t => t + 1), 1000);
+        if (!socket) return;
 
-        // 🟢 NEW: Listen for real-time socket updates to refresh the data automatically
-        if (socket) {
-            socket.on('receive_notification', (notification) => {
-                // If the notification is related to an auction or bid, refresh the radar!
-                if (['UPDATE', 'URGENT', 'CRITICAL', 'SYSTEM_BROADCAST'].includes(notification.type)) {
-                    fetchRadarIssues();
+        const handleIssueUpdate = (data) => {
+            const incomingStatus = data.newStatus || data.updatedData?.status;
+
+            setIssues((prevIssues) => {
+                const exists = prevIssues.some((i) => i._id === data.issueId);
+
+                // If it's not currently on our screen, ignore it
+                if (!exists) return prevIssues;
+
+                // AUTO-EVICTION: If we are on the OPEN tab, and the issue gets LOCKED or RESOLVED
+                if (activeTab === 'OPEN' && incomingStatus && incomingStatus !== 'OPEN') {
+                    // Close the bid modal if they are actively trying to bid on a closed auction
+                    if (bidModal.issue?._id === data.issueId) {
+                        setBidModal({ isOpen: false, issue: null, timeValue: '', timeUnit: 'DAYS' });
+                        showToast({ icon: 'info', title: 'Auction Closed', message: 'Another official was assigned to this job.' });
+                    }
+                    return prevIssues.filter((i) => i._id !== data.issueId);
                 }
+
+                // SURGICAL UPDATE: Update live bids instantly!
+                return prevIssues.map((i) =>
+                    i._id === data.issueId ? (data.updatedData || { ...i, status: incomingStatus }) : i
+                );
             });
-        }
+        };
+
+        const handleIssueDelete = (data) => {
+            setIssues((prev) => prev.filter((i) => i._id !== data.issueId));
+            if (bidModal.issue?._id === data.issueId) {
+                setBidModal({ isOpen: false, issue: null, timeValue: '', timeUnit: 'DAYS' });
+            }
+        };
+
+        // Attach listeners
+        socket.on('issue_updated', handleIssueUpdate);
+        socket.on('issue_status_updated', handleIssueUpdate);
+        socket.on('issue_deleted', handleIssueDelete);
 
         return () => {
-            clearInterval(timerId);
-            if (socket) socket.off('receive_notification'); // Clean up listener
+            // ALWAYS pass the function reference to off() so you don't delete other components' listeners!
+            socket.off('issue_updated', handleIssueUpdate);
+            socket.off('issue_status_updated', handleIssueUpdate);
+            socket.off('issue_deleted', handleIssueDelete);
         };
-    }, [activeTab, socket]);
+    }, [activeTab, bidModal.issue]);
 
     const fetchRadarIssues = async () => {
         setLoading(true);

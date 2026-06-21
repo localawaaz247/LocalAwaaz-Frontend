@@ -13,6 +13,7 @@ import {
 import CustomSelect from '../CustomSelect';
 import MiniLoader from '../MiniLoader';
 import { cscApi } from '../../utils/cscAPI';
+import { socket } from '../../utils/socket';
 
 // Helper for Timeline
 const generateTimeline = (issue) => {
@@ -149,6 +150,49 @@ const AdminTriage = () => {
         setIsMounted(true);
         cscApi.get("/countries/IN/states").then(res => setStatesList(res.data)).catch(console.error);
         fetchAuthorities();
+    }, []);
+
+    useEffect(() => {
+        // 1. Listen for full issue updates
+        socket.on('issue_updated', (data) => {
+            setIssues((prevIssues) =>
+                prevIssues.map((issue) =>
+                    issue._id === data.issueId ? data.updatedData : issue
+                )
+            );
+        });
+
+        // 2. Listen for status changes (with Triage auto-cleanup)
+        socket.on('issue_status_updated', (data) => {
+            setIssues((prevIssues) => {
+                // Optional: If an issue gets assigned (LOCKED) or resolved, 
+                // filter it out of the Triage view immediately.
+                const validTriageStatuses = ['OPEN', 'ORPHANED', 'DISPUTED'];
+
+                if (!validTriageStatuses.includes(data.newStatus)) {
+                    return prevIssues.filter((issue) => issue._id !== data.issueId);
+                }
+
+                // Otherwise, just update the status badge
+                return prevIssues.map((issue) =>
+                    issue._id === data.issueId ? { ...issue, status: data.newStatus } : issue
+                );
+            });
+        });
+
+        // 3. Listen for nuclear deletions
+        socket.on('issue_deleted', (data) => {
+            setIssues((prevIssues) =>
+                prevIssues.filter((issue) => issue._id !== data.issueId)
+            );
+        });
+
+        // Cleanup listeners on unmount
+        return () => {
+            socket.off('issue_updated');
+            socket.off('issue_status_updated');
+            socket.off('issue_deleted');
+        };
     }, []);
 
     useEffect(() => {

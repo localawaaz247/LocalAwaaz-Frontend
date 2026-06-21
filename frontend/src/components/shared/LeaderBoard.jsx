@@ -279,8 +279,12 @@ const LeaderBoard = () => {
 
             await new Promise(resolve => setTimeout(resolve, 100));
 
+            // 🟢 DYNAMIC THEME DETECTION
+            const isDarkMode = document.documentElement.classList.contains('dark');
+            const captureBackgroundColor = isDarkMode ? '#0f172a' : '#ffffff';
+
             const canvas = await html2canvas(element, {
-                backgroundColor: '#0f172a', // Ensures background is filled on capture
+                backgroundColor: captureBackgroundColor, // Now dynamically sets dark or light background
                 scale: 2,
                 useCORS: true,
                 allowTaint: false,

@@ -43,7 +43,7 @@ const AuthorityAnalytics = () => {
     const [page, setPage] = useState(1);
     const [totalPages, setTotalPages] = useState(1);
     const [filters, setFilters] = useState({ status: '', category: '', search: '', state: '', city: '', highImpact: false });
-    
+
     // Mobile Filter State
     const [isMobileFilterOpen, setIsMobileFilterOpen] = useState(false);
 
@@ -113,27 +113,60 @@ const AuthorityAnalytics = () => {
     }, [isModalVisible, metricModal.isOpen, csiModal.isOpen]);
 
     // 🟢 Real-Time Synchronization Listener
+    // 🟢 Real-Time Synchronization Listener
     useEffect(() => {
-        if (socket) {
-            const handleRealTimeUpdate = (notification) => {
-                const relevantTypes = ['UPDATE', 'URGENT', 'CRITICAL', 'SYSTEM_BROADCAST', 'REWARD'];
+        if (!socket) return;
 
-                if (relevantTypes.includes(notification.type)) {
-                    console.log("Real-time event received! Refreshing analytics data...");
-                    fetchData();
+        // 1. SURGICAL UPDATES: Update the issues array and modal instantly in memory
+        socket.on('issue_updated', (data) => {
+            setIssues((prev) => prev.map((issue) => issue._id === data.issueId ? data.updatedData : issue));
+            setSelectedIssue((prev) => prev && prev._id === data.issueId ? data.updatedData : prev);
 
-                    if (csiModal.isOpen) {
-                        fetchCsiHistory();
-                    }
+            // Silently update the aggregate stats in the background without a loading spinner
+            axiosInstance.get('/authority/analytics/summary').then(res => setStats(res.data.data)).catch(console.error);
+        });
+
+        socket.on('issue_status_updated', (data) => {
+            setIssues((prev) => prev.map((issue) => issue._id === data.issueId ? { ...issue, status: data.newStatus } : issue));
+            setSelectedIssue((prev) => prev && prev._id === data.issueId ? { ...prev, status: data.newStatus } : prev);
+
+            axiosInstance.get('/authority/analytics/summary').then(res => setStats(res.data.data)).catch(console.error);
+        });
+
+        socket.on('issue_deleted', (data) => {
+            setIssues((prev) => prev.filter((issue) => issue._id !== data.issueId));
+            setSelectedIssue((prev) => {
+                if (prev && prev._id === data.issueId) {
+                    setIsModalVisible(false);
+                    return null;
                 }
-            };
+                return prev;
+            });
+            axiosInstance.get('/authority/analytics/summary').then(res => setStats(res.data.data)).catch(console.error);
+        });
 
-            socket.on('receive_notification', handleRealTimeUpdate);
+        // 2. NOTIFICATION UPDATES: Refresh specific ledgers if a direct notification hits
+        const handleRealTimeUpdate = (notification) => {
+            const relevantTypes = ['UPDATE', 'URGENT', 'CRITICAL', 'SYSTEM_BROADCAST', 'REWARD', 'ACTION_REQUIRED'];
 
-            return () => {
-                socket.off('receive_notification', handleRealTimeUpdate);
-            };
-        }
+            if (relevantTypes.includes(notification.type)) {
+                // If they have the CSI modal open, refresh it so they see their points change instantly
+                if (csiModal.isOpen) {
+                    fetchCsiHistory();
+                }
+            }
+        };
+
+        // Note: Make sure this matches the event name your backend uses in triggerNotification()
+        // In your GlobalNotificationListener, you used 'new_notification', so I've updated it here to match.
+        socket.on('new_notification', handleRealTimeUpdate);
+
+        return () => {
+            socket.off('issue_updated');
+            socket.off('issue_status_updated');
+            socket.off('issue_deleted');
+            socket.off('new_notification', handleRealTimeUpdate);
+        };
     }, [socket, csiModal.isOpen]);
 
     const fetchData = async () => {
@@ -333,7 +366,7 @@ const AuthorityAnalytics = () => {
                                 <div className="relative z-10 flex flex-col h-full justify-between gap-3">
                                     <div className="flex items-center justify-between min-w-0">
                                         <p className="text-[10px] sm:text-[11px] font-bold text-muted-foreground uppercase tracking-widest flex items-center gap-1 sm:gap-1.5 truncate">
-                                            <Icon size={14} className={`shrink-0 ${metric.color}`} /> 
+                                            <Icon size={14} className={`shrink-0 ${metric.color}`} />
                                             <span className="truncate">{metric.title}</span>
                                         </p>
                                         <div className="md:hidden opacity-50 shrink-0"><Info size={12} className={metric.color} /></div>
@@ -359,7 +392,7 @@ const AuthorityAnalytics = () => {
                     <Search className="text-primary" size={20} />
                     <h3 className="text-lg font-bold text-foreground">Browse All Issues</h3>
                 </div>
-                <button 
+                <button
                     onClick={() => setIsMobileFilterOpen(!isMobileFilterOpen)}
                     className={`p-2.5 rounded-xl border transition-colors ${isMobileFilterOpen ? 'bg-primary/10 border-primary/30 text-primary' : 'bg-card border-border/50 text-muted-foreground'}`}
                 >
@@ -436,7 +469,7 @@ const AuthorityAnalytics = () => {
 
                                     <div className="flex justify-between items-end mt-1 pt-3 border-t border-border/30">
                                         <div>
-                                            <p className="text-xs font-semibold text-foreground flex items-center gap-1"><MapPin size={12} className="opacity-50"/>{issue.location?.city || issue.location?.district}</p>
+                                            <p className="text-xs font-semibold text-foreground flex items-center gap-1"><MapPin size={12} className="opacity-50" />{issue.location?.city || issue.location?.district}</p>
                                             <p className="text-[10px] text-muted-foreground mt-0.5 ml-4">{issue.location?.state}</p>
                                         </div>
                                         <div className="flex flex-col items-end gap-1.5">
@@ -458,7 +491,7 @@ const AuthorityAnalytics = () => {
             </div>
 
             {/* 🟢 Desktop Table Wrapper (Hidden on mobile) */}
-            <div className="hidden md:flex bg-card/40 backdrop-blur-2xl border border-border/60 rounded-2xl overflow-hidden shadow-xl flex-1 flex-col min-h-[400px] relative z-[10] mb-0">                
+            <div className="hidden md:flex bg-card/40 backdrop-blur-2xl border border-border/60 rounded-2xl overflow-hidden shadow-xl flex-1 flex-col min-h-[400px] relative z-[10] mb-0">
                 <div className="overflow-x-auto thin-scrollbar flex-1 bg-background/20">
                     <table className="w-full text-left whitespace-nowrap">
                         <thead className="bg-muted/40 backdrop-blur-md border-b border-border/50 sticky top-0 z-10 shadow-sm">
@@ -542,7 +575,7 @@ const AuthorityAnalytics = () => {
             )}
 
             {/* ... Modals remaining identically exactly as original ... */}
-            
+
             {/* 🟢 1. CSI SCORE HISTORY MODAL */}
             <AnimatePresence>
                 {csiModal.isOpen && (

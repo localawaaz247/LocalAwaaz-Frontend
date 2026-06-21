@@ -9,6 +9,7 @@ import {
 import MiniLoader from '../MiniLoader';
 import JobManagerModal from './JobManagerModal';
 import { motion, AnimatePresence } from 'framer-motion';
+import { socket } from '../../utils/socket';
 
 const AuthorityActiveJobs = () => {
     const [jobs, setJobs] = useState([]);
@@ -46,6 +47,68 @@ const AuthorityActiveJobs = () => {
         else document.body.style.overflow = 'unset';
         return () => { document.body.style.overflow = 'unset'; };
     }, [viewingJob, selectedJob]);
+
+    // 🟢 Real-Time Synchronization & Auto-Eviction Listener
+    useEffect(() => {
+        if (!socket) return;
+
+        // The only statuses that belong on this specific dashboard
+        const activeStatuses = ['LOCKED', 'PENDING_EXTENSION', 'AWAITING_HANDOVER'];
+
+        const handleIssueUpdate = (data) => {
+            const incomingStatus = data.newStatus || data.updatedData?.status;
+
+            // 1. Update the Main Grid
+            setJobs((prevJobs) => {
+                // If it's not currently in our list, ignore it
+                const exists = prevJobs.some((j) => j._id === data.issueId);
+                if (!exists) return prevJobs;
+
+                // AUTO-EVICTION: If the new status is no longer active (e.g., RESOLVED or OPEN)
+                if (incomingStatus && !activeStatuses.includes(incomingStatus)) {
+                    return prevJobs.filter((j) => j._id !== data.issueId);
+                }
+
+                // Otherwise, perform a surgical update
+                return prevJobs.map((j) =>
+                    j._id === data.issueId ? (data.updatedData || { ...j, status: incomingStatus }) : j
+                );
+            });
+
+            // 2. Protect the View/Manage Modals
+            const updateModalState = (prev) => {
+                if (prev && prev._id === data.issueId) {
+                    if (incomingStatus && !activeStatuses.includes(incomingStatus)) {
+                        // Close the modal if it was forcefully resolved/revoked while they were looking at it
+                        showToast({ icon: 'info', title: 'Job Status Changed', message: `This job is no longer active.` });
+                        return null;
+                    }
+                    return data.updatedData ? data.updatedData : { ...prev, status: incomingStatus };
+                }
+                return prev;
+            };
+
+            setViewingJob(updateModalState);
+            setSelectedJob(updateModalState);
+        };
+
+        const handleIssueDelete = (data) => {
+            setJobs((prev) => prev.filter((j) => j._id !== data.issueId));
+            setViewingJob((prev) => prev?._id === data.issueId ? null : prev);
+            setSelectedJob((prev) => prev?._id === data.issueId ? null : prev);
+        };
+
+        // Listeners
+        socket.on('issue_updated', handleIssueUpdate);
+        socket.on('issue_status_updated', handleIssueUpdate);
+        socket.on('issue_deleted', handleIssueDelete);
+
+        return () => {
+            socket.off('issue_updated', handleIssueUpdate);
+            socket.off('issue_status_updated', handleIssueUpdate);
+            socket.off('issue_deleted', handleIssueDelete);
+        };
+    }, []);
 
     const fetchActiveJobs = async () => {
         setLoading(true);

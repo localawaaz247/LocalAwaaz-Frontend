@@ -31,6 +31,7 @@ const Feed = () => {
   const [sortBy, setSortBy] = useState("newest");
   const [page, setPage] = useState(1);
   const [visitors, setVisitors] = useState(0);
+  const [isMobile, setIsMobile] = useState(window.innerWidth < 768);
 
   const location = useLocation();
   const navigate = useNavigate();
@@ -41,8 +42,14 @@ const Feed = () => {
 
   const { issues, loading, error, pagination } = useSelector((state) => state.issueFeed);
 
+  // Keep track of window size for InfiniteScroll target
+  useEffect(() => {
+    const handleResize = () => setIsMobile(window.innerWidth < 768);
+    window.addEventListener('resize', handleResize);
+    return () => window.removeEventListener('resize', handleResize);
+  }, []);
+
   // --- REAL-TIME FEED ENGINE ---
-  // We mirror the Redux issues into a local state so we can mutate them instantly via sockets
   const [liveIssues, setLiveIssues] = useState([]);
 
   useEffect(() => {
@@ -297,6 +304,17 @@ const Feed = () => {
         .animate-shimmer {
           animation: shimmerSweep 1.8s infinite;
         }
+
+        /* Mobile Snap Scroll CSS */
+        @media (max-width: 767px) {
+          .snap-container::-webkit-scrollbar {
+            display: none;
+          }
+          .snap-container {
+            -ms-overflow-style: none;
+            scrollbar-width: none;
+          }
+        }
       `}</style>
 
       <div className="px-3 md:px-6 py-3 md:py-4 sticky top-2 glass-card z-40 rounded-lg border-0 border-b border-border mx-2 md:mx-4 shadow-sm">
@@ -330,13 +348,13 @@ const Feed = () => {
               ● {activeIssuesCount} {t('active')} {activeIssuesCount === 1 ? t('issue_singular') : t('issues_label')}
             </span>
 
+            {/* 🟢 MODIFIED: Hidden on mobile, visible on desktop */}
             <button
-              className="btn-gradient flex items-center gap-1.5 md:gap-2 px-3 md:px-4 py-1.5 md:py-2 rounded-xl whitespace-nowrap shadow-sm hover:shadow-md transition-all hover:scale-[1.02]"
+              className="hidden md:flex btn-gradient items-center gap-1.5 md:gap-2 px-3 md:px-4 py-1.5 md:py-2 rounded-xl whitespace-nowrap shadow-sm hover:shadow-md transition-all hover:scale-[1.02]"
               onClick={() => navigate("/dashboard/report")}
             >
               <Plus size={16} />
-              <span className="hidden sm:inline text-sm">{t('new_issue')}</span>
-              <span className="sm:hidden text-xs">{t('report')}</span>
+              <span className="text-sm">{t('new_issue')}</span>
             </button>
           </div>
         </div>
@@ -352,7 +370,10 @@ const Feed = () => {
 
       <div className="px-2 md:px-6 mt-4 lg:mt-8">
         <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 sm:gap-0 mb-4 md:mb-6">
-          <h3 className="text-lg md:text-xl font-bold text-foreground">{t('priority_issues')}</h3>
+          {/* 🟢 MODIFIED: Text swapping for Mobile vs Desktop */}
+          <h3 className="md:hidden text-lg font-bold text-foreground">Top Reports in Your Area</h3>
+          <h3 className="hidden md:block text-xl font-bold text-foreground">{t('priority_issues')}</h3>
+
           <div className="flex flex-wrap gap-2">
             <button onClick={() => setSortBy("newest")} className={`px-3 md:px-4 py-1.5 md:py-2 rounded-xl text-xs md:text-sm transition-all duration-200 ${sortBy === "newest" ? "btn-gradient text-white shadow-md font-medium" : "border border-border bg-card text-muted-foreground hover:bg-muted"}`}>{t('newest')}</button>
             <button onClick={() => setSortBy("impactful")} className={`px-3 md:px-4 py-1.5 md:py-2 rounded-xl text-xs md:text-sm transition-all duration-200 ${sortBy === "impactful" ? "btn-gradient text-white shadow-md font-medium" : "border border-border bg-card text-muted-foreground hover:bg-muted"}`}>{t('most_impactful')}</button>
@@ -377,27 +398,39 @@ const Feed = () => {
             ) :
 
               (
-                <InfiniteScroll
-                  dataLength={sortedIssues.length}
-                  next={fetchMoreData}
-                  hasMore={pagination.currentPage < pagination.totalPages}
-                  loader={
-                    <div className="col-span-full grid grid-cols-1 lg:grid-cols-2 gap-4 md:gap-6 py-4 w-full">
-                      {[1, 2].map(n => <IssueSkeleton key={`loader-${n}`} />)}
-                    </div>
-                  }
-                  className="grid grid-cols-1 lg:grid-cols-2 gap-4 md:gap-6 pt-2 pb-2 overflow-visible w-full"
-                  style={{ overflow: 'visible' }}
+                <div
+                  id="mobile-snap-container"
+                  className="max-md:h-[calc(100dvh-200px)] max-md:overflow-y-auto max-md:snap-y max-md:snap-mandatory snap-container"
                 >
-                  {sortedIssues.map((issue) => (
-                    <IssueCard
-                      key={issue._id || issue.id}
-                      issue={issue}
-                      onClick={() => handleCardClick(issue)}
-                      onFlagClick={() => handleFlagClick(issue)}
-                    />
-                  ))}
-                </InfiniteScroll>
+                  <InfiniteScroll
+                    dataLength={sortedIssues.length}
+                    next={fetchMoreData}
+                    hasMore={pagination.currentPage < pagination.totalPages}
+                    scrollableTarget={isMobile ? "mobile-snap-container" : undefined}
+                    loader={
+                      <div className="col-span-full grid grid-cols-1 lg:grid-cols-2 gap-4 md:gap-6 py-4 w-full">
+                        {[1, 2].map(n => <IssueSkeleton key={`loader-${n}`} />)}
+                      </div>
+                    }
+                    className="grid grid-cols-1 lg:grid-cols-2 gap-4 md:gap-6 pt-2 pb-2 overflow-visible w-full"
+                    style={{ overflow: 'visible' }}
+                  >
+                    {sortedIssues.map((issue) => (
+                      <div
+                        key={issue._id || issue.id}
+                        className="max-md:snap-center max-md:snap-always max-md:flex max-md:items-center max-md:justify-center max-md:h-full max-md:pb-4"
+                      >
+                        <div className="w-full">
+                          <IssueCard
+                            issue={issue}
+                            onClick={() => handleCardClick(issue)}
+                            onFlagClick={() => handleFlagClick(issue)}
+                          />
+                        </div>
+                      </div>
+                    ))}
+                  </InfiniteScroll>
+                </div>
               )}
       </div>
 

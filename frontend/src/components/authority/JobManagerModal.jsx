@@ -36,7 +36,6 @@ const JobManagerModal = ({ job, onClose, onSuccess }) => {
     const [loading, setLoading] = useState(false);
     const [uploadProgress, setUploadProgress] = useState(0);
 
-    const [extensionDate, setExtensionDate] = useState('');
     const [remarks, setRemarks] = useState('');
     const [selectedFiles, setSelectedFiles] = useState([]);
     const [previewUrls, setPreviewUrls] = useState([]);

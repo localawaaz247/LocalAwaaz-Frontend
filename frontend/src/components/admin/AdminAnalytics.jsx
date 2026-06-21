@@ -208,20 +208,43 @@ const AdminAnalytics = () => {
     useEffect(() => { setCurrentMediaIndex(0); }, [mediaTab]);
 
     // Real-Time Synchronization Listener
+    // Real-Time Synchronization Listener
     useEffect(() => {
-        if (socket) {
-            const handleRealTimeUpdate = (notification) => {
-                const relevantTypes = ['UPDATE', 'URGENT', 'CRITICAL', 'SYSTEM_BROADCAST', 'REWARD'];
-                if (relevantTypes.includes(notification.type)) {
-                    fetchData();
-                    fetchSummary();
-                    if (csiModal.isOpen) fetchCsiHistory();
-                }
-            };
-            socket.on('receive_notification', handleRealTimeUpdate);
-            return () => { socket.off('receive_notification', handleRealTimeUpdate); };
-        }
-    }, [socket, csiModal.isOpen]);
+        if (!socket) return;
+
+        // Centralized refresh function
+        const refreshAdminDashboard = () => {
+            fetchData();
+            fetchSummary();
+            if (csiModal.isOpen) fetchCsiHistory();
+        };
+
+        // 1. Keep your existing targeted notification listener
+        const handleRealTimeUpdate = (notification) => {
+            const relevantTypes = ['UPDATE', 'URGENT', 'CRITICAL', 'SYSTEM_BROADCAST', 'REWARD'];
+            if (relevantTypes.includes(notification.type)) {
+                refreshAdminDashboard();
+            }
+        };
+
+        // 2. ADD GLOBAL LISTENERS: This forces the dashboard to update whenever ANY issue changes state globally
+        socket.on('receive_notification', handleRealTimeUpdate);
+        socket.on('new_issue', refreshAdminDashboard);
+        socket.on('issue_updated', refreshAdminDashboard);
+        socket.on('issue_status_updated', refreshAdminDashboard);
+        socket.on('issue_deleted', refreshAdminDashboard);
+        socket.on('global_feed_refresh', refreshAdminDashboard);
+
+        return () => {
+            socket.off('receive_notification', handleRealTimeUpdate);
+            socket.off('new_issue', refreshAdminDashboard);
+            socket.off('issue_updated', refreshAdminDashboard);
+            socket.off('issue_status_updated', refreshAdminDashboard);
+            socket.off('issue_deleted', refreshAdminDashboard);
+            socket.off('global_feed_refresh', refreshAdminDashboard);
+        };
+        // Include filters and page so fetchData fetches the currently viewed list correctly
+    }, [socket, csiModal.isOpen, filters, page]);
 
     const fetchData = async () => {
         setLoading(true);
