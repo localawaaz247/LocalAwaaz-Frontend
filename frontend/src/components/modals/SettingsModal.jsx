@@ -1,14 +1,17 @@
 /* eslint-disable react-hooks/set-state-in-effect */
 import React, { useState, useEffect } from "react";
-import { Settings, Bell, Mail, Shield, ArrowRight, Globe } from "lucide-react";
+import { Settings, Bell, Mail, Shield, ArrowRight, Globe, Info } from "lucide-react";
 import { useSelector, useDispatch } from "react-redux";
 import axiosInstance from "../../utils/axios";
 import { showToast } from "../../utils/toast";
 import { useTranslation } from "react-i18next";
 import { setUser } from "../../reducer/authReducer";
-
-// 1. IMPORT YOUR NEW COMPONENT (Adjust path if your folders are structured differently)
 import CustomSelect from "../CustomSelect";
+
+// 🟢 IMPORT OTA PLUGINS & GLOBAL TOAST
+import { Capacitor } from '@capacitor/core';
+import { CapacitorUpdater } from '@capgo/capacitor-updater';
+import { toast } from "react-hot-toast";
 
 const SettingsModal = ({ isOpen, onClose }) => {
   const { t, i18n } = useTranslation();
@@ -23,7 +26,10 @@ const SettingsModal = ({ isOpen, onClose }) => {
     language: preferences.language || "en",
   });
 
-  // 2. DEFINE THE LANGUAGE OPTIONS ARRAY
+  // 🟢 OTA Version States (Now storing the full update object to get the URL)
+  const [updateData, setUpdateData] = useState(null);
+  const localVersion = localStorage.getItem('OTA_APP_VERSION') || "1.0.0";
+
   const LANGUAGE_OPTIONS = [
     { value: 'en', label: 'English' },
     { value: 'hi', label: 'हिंदी (Hindi)' },
@@ -39,6 +45,7 @@ const SettingsModal = ({ isOpen, onClose }) => {
     { value: 'bn', label: 'বাংলা (Bengali)' }
   ];
 
+  // Fetch Settings Data
   useEffect(() => {
     if (user?.preferences) {
       setSettings({
@@ -48,6 +55,23 @@ const SettingsModal = ({ isOpen, onClose }) => {
       });
     }
   }, [user]);
+
+  // Fetch Full OTA Update Data when modal opens
+  useEffect(() => {
+    if (isOpen) {
+      const fetchOtaVersion = async () => {
+        try {
+          const response = await axiosInstance.get('/check-update');
+          if (response.data && response.data.available) {
+            setUpdateData(response.data); // Save the whole object so we have the URL
+          }
+        } catch (error) {
+          console.error("Failed to fetch OTA version from DB:", error);
+        }
+      };
+      fetchOtaVersion();
+    }
+  }, [isOpen]);
 
   const handleToggle = (setting) => {
     setSettings(prev => ({ ...prev, [setting]: !prev[setting] }));
@@ -64,7 +88,6 @@ const SettingsModal = ({ isOpen, onClose }) => {
       const response = await axiosInstance.patch('/me/profile', payload);
 
       dispatch(setUser(response.data.data));
-
       i18n.changeLanguage(settings.language);
 
       showToast({
@@ -85,13 +108,45 @@ const SettingsModal = ({ isOpen, onClose }) => {
     }
   };
 
+  // 🟢 NEW: Manual Trigger Execution
+  const handleManualUpdate = async () => {
+    if (!updateData || !updateData.url) return;
+
+    if (!Capacitor.isNativePlatform()) {
+      toast.error("Updates are only available on the mobile app.");
+      return;
+    }
+
+    const toastId = toast.loading("Downloading update...");
+    try {
+      const downloadedUpdate = await CapacitorUpdater.download({
+        version: updateData.version,
+        url: updateData.url
+      });
+
+      // Update local storage so we don't redownload
+      localStorage.setItem('OTA_APP_VERSION', updateData.version);
+
+      toast.success("Restarting the app...", { id: toastId });
+
+      // Reload native webview
+      setTimeout(async () => {
+        await CapacitorUpdater.set(downloadedUpdate);
+      }, 1500);
+
+    } catch (error) {
+      toast.error("Update failed. Please retry later.", { id: toastId });
+      console.error("Manual OTA update failed:", error);
+    }
+  };
+
   if (!isOpen) return null;
 
   return (
     <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50 p-4 sm:p-6 animate-fade-in">
       <div className="glass-card bg-card border border-border/50 rounded-2xl w-full max-w-xl shadow-2xl animate-fade-in-up flex flex-col max-h-[90vh] overflow-hidden">
 
-        <div className="p-5 sm:p-6 overflow-y-auto thin-scrollbar w-full">
+        <div className="p-5 sm:p-6 overflow-y-auto thin-scrollbar w-full flex flex-col h-full">
 
           <div className="flex justify-between items-center mb-8">
             <h2 className="text-2xl font-bold bg-gradient-to-r from-primary to-accent bg-clip-text text-transparent">
@@ -105,7 +160,7 @@ const SettingsModal = ({ isOpen, onClose }) => {
             </button>
           </div>
 
-          <div className="space-y-6">
+          <div className="space-y-6 flex-grow">
             <div className="text-center">
               <Settings className="mx-auto w-14 h-14 text-primary" />
               <h3 className="text-xl font-bold mt-4 text-foreground">{t('general_settings')}</h3>
@@ -124,8 +179,6 @@ const SettingsModal = ({ isOpen, onClose }) => {
                   <p className="text-xs sm:text-sm text-muted-foreground">{t('choose_language')}</p>
                 </div>
               </div>
-
-              {/* 3. REPLACED NATIVE SELECT WITH CUSTOM SELECT */}
               <CustomSelect
                 options={LANGUAGE_OPTIONS}
                 value={settings.language}
@@ -178,8 +231,45 @@ const SettingsModal = ({ isOpen, onClose }) => {
               </button>
             </div>
           </div>
-        </div>
 
+          {/* 🟢 BEAUTIFUL OTA VERSION FOOTER */}
+          <div className="mt-8 pt-4 flex flex-col items-center justify-center space-y-2 border-t border-border/30">
+            <div className="flex items-center gap-1.5 text-xs text-muted-foreground/70 font-medium tracking-wide">
+              <Info className="w-3.5 h-3.5" />
+              LocalAwaaz Build Architecture
+            </div>
+
+            <div className="flex items-center gap-3 text-xs">
+              {/* Local Version Tag */}
+              <div className="flex items-center gap-1.5 px-2.5 py-1 rounded-md bg-muted/40 border border-border/50 text-slate-300 shadow-sm">
+                <span className="w-1.5 h-1.5 rounded-full bg-teal-400/80"></span>
+                v{localVersion}
+              </div>
+
+              {/* Server Database Tag logic - Now conditionally renders a clickable button */}
+              {updateData && (
+                <>
+                  <span className="text-border">→</span>
+
+                  {updateData.version === localVersion ? (
+                    <div className="flex items-center gap-1.5 px-2.5 py-1 rounded-md shadow-sm border bg-teal-500/10 border-teal-500/20 text-teal-400">
+                      Up to Date
+                    </div>
+                  ) : (
+                    <button
+                      onClick={handleManualUpdate}
+                      className="flex items-center gap-1.5 px-3 py-1 rounded-md shadow-lg border bg-primary/20 border-primary/40 text-primary font-semibold hover:bg-primary/30 hover:scale-105 active:scale-95 transition-all duration-200 animate-pulse cursor-pointer"
+                      title="Click to install latest update"
+                    >
+                      Update to v{updateData.version}
+                    </button>
+                  )}
+                </>
+              )}
+            </div>
+          </div>
+
+        </div>
       </div>
     </div>
   );
