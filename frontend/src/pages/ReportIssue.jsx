@@ -108,6 +108,7 @@ export default function ReportIssue() {
   const [previewUrls, setPreviewUrls] = useState([]);
   const [primaryVideoUrl, setPrimaryVideoUrl] = useState(null);
   const uppyRef = useRef(null);
+  const [isMounted, setIsMounted] = useState(false);
 
   const [isAILoading, setIsAILoading] = useState(false);
   const [totalResolved, setTotalResolved] = useState(0);
@@ -119,6 +120,14 @@ export default function ReportIssue() {
 
   // Default CSC API Config 
   const CSC_HEADERS = { "X-CSCAPI-KEY": import.meta.env.VITE_CSC_API_KEY || "YOUR_CSC_API_KEY_HERE" };
+
+  useEffect(() => {
+    window.scrollTo({ top: 0, behavior: 'instant' });
+    const animationTimer = requestAnimationFrame(() => {
+      setIsMounted(true);
+    });
+    return () => cancelAnimationFrame(animationTimer);
+  }, []);
 
   useEffect(() => {
     if (user) {
@@ -619,7 +628,10 @@ export default function ReportIssue() {
   const cityOptions = citiesList.map(city => ({ label: city.name, value: city.name }));
 
   return (
-    <div className="min-h-[100dvh] bg-texture pb-20 md:pb-8">
+    <div
+      className={`min-h-[100dvh] bg-texture pb-4 md:pb-6 transition-all duration-500 ease-out ${isMounted ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-4'
+        }`}
+    >
 
       {/* HEADER */}
       <header className="glass-card sticky top-2 md:top-4 z-40 mx-2 md:mx-4 rounded-xl md:rounded-2xl shadow-sm border-b border-border/50">

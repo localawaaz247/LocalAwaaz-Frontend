@@ -37,7 +37,6 @@ const LeaderBoardSkeleton = () => (
     <div className="min-h-screen bg-texture flex justify-center py-10 relative overflow-hidden">
         <div className="flex-1 overflow-y-auto thin-scrollbar relative flex justify-center w-full">
             <div className="w-full max-w-3xl px-4 relative flex flex-col h-max pb-10 gap-8">
-                {/* Header Skeleton */}
                 <div className="flex items-center gap-4 mb-2">
                     <div className="w-14 h-14 rounded-2xl bg-muted animate-pulse flex-shrink-0" />
                     <div className="flex flex-col gap-2 flex-1">
@@ -45,8 +44,6 @@ const LeaderBoardSkeleton = () => (
                         <div className="w-32 h-4 rounded-md bg-muted animate-pulse" />
                     </div>
                 </div>
-
-                {/* Action Tabs & Buttons Skeleton */}
                 <div className="flex justify-between items-center gap-4 flex-wrap">
                     <div className="w-56 h-12 rounded-xl bg-muted/50 animate-pulse" />
                     <div className="flex gap-3">
@@ -54,8 +51,6 @@ const LeaderBoardSkeleton = () => (
                         <div className="w-32 h-10 rounded-xl bg-muted animate-pulse" />
                     </div>
                 </div>
-
-                {/* Hero Card Skeleton */}
                 <div className="w-full rounded-3xl bg-muted/30 border border-border/20 p-6 md:p-8 flex flex-col sm:flex-row items-center sm:items-start gap-6 animate-pulse">
                     <div className="w-24 h-24 md:w-28 md:h-28 rounded-full bg-muted flex-shrink-0" />
                     <div className="flex flex-col gap-3 w-full items-center sm:items-start pt-2">
@@ -64,8 +59,6 @@ const LeaderBoardSkeleton = () => (
                         <div className="w-24 h-8 rounded-lg bg-muted mt-4" />
                     </div>
                 </div>
-
-                {/* List Items Skeleton */}
                 <div className="glass-card rounded-2xl shadow-sm border border-border/50 bg-background/50 backdrop-blur-xl p-2 flex flex-col gap-2">
                     {[1, 2, 3, 4, 5].map((item) => (
                         <div key={item} className="flex items-start sm:items-center justify-between p-4 rounded-xl hover:bg-muted/30 animate-pulse">
@@ -106,6 +99,10 @@ const LeaderBoard = () => {
     const [isExporting, setIsExporting] = useState(false);
     const captureRef = useRef(null);
 
+    // NEW: Refs attached to the scrollable containers
+    const mainScrollRef = useRef(null);
+    const modalScrollRef = useRef(null);
+
     const [careerModal, setCareerModal] = useState({
         isOpen: false, profile: null, history: {}, view: 'OVERVIEW', selectedCategory: null, issueList: [], selectedIssue: null
     });
@@ -113,6 +110,23 @@ const LeaderBoard = () => {
     useEffect(() => {
         fetchLeaderboard();
     }, []);
+
+    // NEW: Force scroll to top when the main component finishes loading
+    useEffect(() => {
+        if (!loading) {
+            window.scrollTo({ top: 0, behavior: 'instant' });
+            if (mainScrollRef.current) {
+                mainScrollRef.current.scrollTo({ top: 0, behavior: 'instant' });
+            }
+        }
+    }, [loading]);
+
+    // NEW: Force scroll to top inside the Modal when switching views/categories
+    useEffect(() => {
+        if (modalScrollRef.current) {
+            modalScrollRef.current.scrollTo({ top: 0, behavior: 'instant' });
+        }
+    }, [careerModal.view, careerModal.selectedCategory]);
 
     const fetchLeaderboard = async () => {
         setLoading(true);
@@ -284,7 +298,7 @@ const LeaderBoard = () => {
             const captureBackgroundColor = isDarkMode ? '#0f172a' : '#ffffff';
 
             const canvas = await html2canvas(element, {
-                backgroundColor: captureBackgroundColor, // Now dynamically sets dark or light background
+                backgroundColor: captureBackgroundColor,
                 scale: 2,
                 useCORS: true,
                 allowTaint: false,
@@ -380,12 +394,11 @@ const LeaderBoard = () => {
                 )}
             </AnimatePresence>
 
-            {/* Scrollable Container */}
-            <div className="flex-1 overflow-y-auto thin-scrollbar relative flex justify-center w-full">
+            {/* NEW: mainScrollRef attached here */}
+            <div ref={mainScrollRef} className="flex-1 overflow-y-auto thin-scrollbar relative flex justify-center w-full">
                 {/* Capture Area */}
                 <div id="capture-wrap" ref={captureRef} className="w-full max-w-3xl px-4 relative flex flex-col h-max pb-10">
 
-                    {/* Decorative Background Blob */}
                     <div className="absolute top-0 right-0 w-96 h-96 bg-primary/10 rounded-full blur-[100px] pointer-events-none" />
 
                     {/* --- HEADER SECTION --- */}
@@ -494,13 +507,11 @@ const LeaderBoard = () => {
                                                     initial={{ opacity: 0, x: -20 }} animate={{ opacity: 1, x: 0 }} transition={{ delay: index * 0.05 }}
                                                     className={`group relative flex items-start sm:items-center justify-between p-5 cursor-pointer hover:bg-muted/30 transition-all duration-200 ${isMe ? 'bg-primary/5' : ''}`}
                                                 >
-                                                    {/* Unread/Highlight Indicator Pill for the user */}
                                                     {isMe && (
                                                         <div className="absolute left-0 top-1/2 -translate-y-1/2 w-1 h-12 bg-primary rounded-r-full shadow-[0_0_8px_rgba(var(--primary),0.5)]"></div>
                                                     )}
 
                                                     <div className="flex items-center gap-4 flex-1 min-w-0">
-                                                        {/* Dynamic Icon */}
                                                         <div className={`w-12 h-12 rounded-full flex items-center justify-center flex-shrink-0 transition-transform group-hover:scale-110 ${iconStyle}`}>
                                                             {index === 0 ? <Trophy size={20} />
                                                                 : index === 1 ? <Medal size={20} />
@@ -508,10 +519,8 @@ const LeaderBoard = () => {
                                                                         : <span className="font-bold text-sm">#{entry.rank}</span>}
                                                         </div>
 
-                                                        {/* Avatar */}
                                                         <img src={getCorsSafeUrl(entry.userId.profilePic) || getAvatar(entry.userId.name)} alt="avatar" crossOrigin="anonymous" className="w-12 h-12 rounded-full border border-border/50 flex-shrink-0 object-cover bg-muted hidden sm:block" />
 
-                                                        {/* Content */}
                                                         <div className="flex-1 min-w-0 pt-1">
                                                             <div className="flex items-center gap-2">
                                                                 <h4 className={`font-semibold text-foreground text-[15px] ${isCapturing ? 'pr-1' : 'truncate'}`}>
@@ -536,7 +545,6 @@ const LeaderBoard = () => {
                                                         </div>
                                                     </div>
 
-                                                    {/* Profile Button */}
                                                     {canViewProfile && (
                                                         <div className="flex flex-col items-end justify-center h-full flex-shrink-0 pl-4">
                                                             <button
@@ -557,7 +565,6 @@ const LeaderBoard = () => {
                         </div>
                     </div>
 
-                    {/* --- CAPTURE FOOTER --- */}
                     <div className="w-full mt-10 pt-6 flex flex-col items-center justify-center gap-2 relative z-10 opacity-70">
                         <div className="flex items-center gap-2 text-primary">
                             <Shield size={16} />
@@ -629,7 +636,8 @@ const LeaderBoard = () => {
                                 <button onClick={() => setCareerModal({ ...careerModal, isOpen: false })} className="p-2 bg-card border border-border/50 rounded-full hover:bg-muted"><X size={20} /></button>
                             </div>
 
-                            <div className="flex-1 overflow-y-auto thin-scrollbar relative bg-background/30">
+                            {/* NEW: modalScrollRef attached here */}
+                            <div ref={modalScrollRef} className="flex-1 overflow-y-auto thin-scrollbar relative bg-background/30">
                                 {careerModal.view === 'OVERVIEW' && (
                                     <motion.div initial={{ opacity: 0, x: -20 }} animate={{ opacity: 1, x: 0 }} className="p-4 md:p-6 space-y-6">
                                         <div className="bg-card border border-border/50 rounded-2xl p-5 shadow-sm">
@@ -704,15 +712,30 @@ const LeaderBoard = () => {
                                             <div className="text-center p-8 bg-card/50 border border-border/50 rounded-2xl text-muted-foreground font-medium">No records found for this category.</div>
                                         ) : (
                                             careerModal.issueList.map((issue) => (
-                                                <div key={issue._id} onClick={() => setCareerModal({ ...careerModal, view: 'ISSUE_DETAIL', selectedIssue: issue })} className="bg-card border border-border/50 p-4 rounded-xl flex justify-between items-center cursor-pointer hover:border-primary/50 hover:bg-primary/5 transition-all group shadow-sm">
-                                                    <div className="flex items-center gap-3">
-                                                        <div className="p-2 bg-muted rounded-lg group-hover:bg-background transition-colors"><Search size={16} className="text-muted-foreground" /></div>
-                                                        <div>
-                                                            <h5 className="font-bold text-foreground group-hover:text-primary transition-colors max-w-sm truncate">{issue.title}</h5>
-                                                            <p className="text-[11px] text-muted-foreground mt-1 font-medium"><MapPin size={10} className="inline mr-1" /> {issue.location?.city || 'Unknown District'}</p>
+                                                <div key={issue._id} onClick={() => setCareerModal({ ...careerModal, view: 'ISSUE_DETAIL', selectedIssue: issue })} className="bg-card border border-border/50 p-4 rounded-xl flex justify-between items-center cursor-pointer hover:border-primary/50 hover:bg-primary/5 transition-all group shadow-sm gap-3">
+
+                                                    {/* Added: flex-1 and min-w-0 */}
+                                                    <div className="flex items-center gap-3 flex-1 min-w-0">
+
+                                                        {/* Added: shrink-0 */}
+                                                        <div className="p-2 bg-muted rounded-lg group-hover:bg-background transition-colors shrink-0">
+                                                            <Search size={16} className="text-muted-foreground" />
+                                                        </div>
+
+                                                        {/* Added: flex-1 and min-w-0 */}
+                                                        <div className="flex-1 min-w-0">
+                                                            {/* Removed: max-w-sm */}
+                                                            <h5 className="font-bold text-foreground group-hover:text-primary transition-colors truncate">{issue.title}</h5>
+
+                                                            {/* Added: truncate on the <p> and shrink-0 on the MapPin */}
+                                                            <p className="text-[11px] text-muted-foreground mt-1 font-medium truncate">
+                                                                <MapPin size={10} className="inline mr-1 shrink-0" /> {issue.location?.city || 'Unknown District'}
+                                                            </p>
                                                         </div>
                                                     </div>
-                                                    <div className="flex items-center gap-3">
+
+                                                    {/* Added: shrink-0 */}
+                                                    <div className="flex items-center gap-3 shrink-0">
                                                         <span className="text-[9px] uppercase font-bold tracking-widest bg-muted px-2 py-1 rounded border border-border/50 hidden sm:inline">View Details</span>
                                                         <ChevronRight size={18} className="text-muted-foreground group-hover:text-primary transition-colors" />
                                                     </div>
