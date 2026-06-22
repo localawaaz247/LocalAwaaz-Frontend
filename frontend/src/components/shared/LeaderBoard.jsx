@@ -32,7 +32,6 @@ const getCorsSafeUrl = (url) => {
     return `${baseUrl}/proxy-image?url=${encodeURIComponent(url)}`;
 };
 
-// --- YOUTUBE STYLE SHIMMER SKELETON COMPONENT ---
 const LeaderBoardSkeleton = () => (
     <div className="min-h-screen bg-texture flex justify-center py-10 relative overflow-hidden">
         <div className="flex-1 overflow-y-auto thin-scrollbar relative flex justify-center w-full">
@@ -82,7 +81,6 @@ const LeaderBoardSkeleton = () => (
 const LeaderBoard = () => {
     const { user: currentUser } = useSelector((state) => state.auth);
 
-    // Role Checks
     const userRole = currentUser?.role?.toUpperCase() || 'CITIZEN';
     const isAdmin = userRole === 'ADMIN';
     const canExportExcel = ['ADMIN', 'OFFICIAL', 'NGO'].includes(userRole);
@@ -97,11 +95,10 @@ const LeaderBoard = () => {
     const [isCapturing, setIsCapturing] = useState(false);
     const [showFlash, setShowFlash] = useState(false);
     const [isExporting, setIsExporting] = useState(false);
-    const captureRef = useRef(null);
 
-    // NEW: Refs attached to the scrollable containers
     const mainScrollRef = useRef(null);
     const modalScrollRef = useRef(null);
+    const shareCardRef = useRef(null);
 
     const [careerModal, setCareerModal] = useState({
         isOpen: false, profile: null, history: {}, view: 'OVERVIEW', selectedCategory: null, issueList: [], selectedIssue: null
@@ -111,7 +108,6 @@ const LeaderBoard = () => {
         fetchLeaderboard();
     }, []);
 
-    // NEW: Force scroll to top when the main component finishes loading
     useEffect(() => {
         if (!loading) {
             window.scrollTo({ top: 0, behavior: 'instant' });
@@ -121,7 +117,6 @@ const LeaderBoard = () => {
         }
     }, [loading]);
 
-    // NEW: Force scroll to top inside the Modal when switching views/categories
     useEffect(() => {
         if (modalScrollRef.current) {
             modalScrollRef.current.scrollTo({ top: 0, behavior: 'instant' });
@@ -184,6 +179,13 @@ const LeaderBoard = () => {
         setIsExporting(true);
         try {
             const listToExport = activeTab === 'CITIZENS' ? leaderboardData.citizens : leaderboardData.authorities;
+
+            if (!listToExport || listToExport.length === 0) {
+                showToast({ icon: 'info', title: 'No data to export' });
+                setIsExporting(false);
+                return;
+            }
+
             const workbook = new ExcelJS.Workbook();
             const worksheet = workbook.addWorksheet(`${activeTab} Ranking`);
 
@@ -207,11 +209,13 @@ const LeaderBoard = () => {
                 ];
             }
 
-            listToExport.forEach(entry => {
+            listToExport.forEach((entry, index) => {
                 const profile = entry.userId || {};
+                const rankToUse = entry.rank || index + 1;
+
                 if (activeTab === 'CITIZENS') {
                     worksheet.addRow({
-                        rank: entry.rank,
+                        rank: rankToUse,
                         name: profile.name || 'Unknown',
                         csi: entry.csi || 0,
                         activity: entry.activeScore || 0,
@@ -222,7 +226,7 @@ const LeaderBoard = () => {
                 } else {
                     const authProfile = profile.authorityProfile || {};
                     worksheet.addRow({
-                        rank: entry.rank,
+                        rank: rankToUse,
                         name: profile.name || 'Unknown',
                         department: authProfile.departmentName || authProfile.org || 'N/A',
                         designation: authProfile.designation || 'N/A',
@@ -255,24 +259,43 @@ const LeaderBoard = () => {
                     reader.onerror = reject;
                     reader.readAsDataURL(blob);
                 });
+
                 const fileName = `LocalAwaaz_${activeTab}_Leaderboard_${new Date().getTime()}.xlsx`;
+
                 const fileWriteResult = await Filesystem.writeFile({
-                    path: fileName, data: base64Data, directory: Directory.Cache, encoding: 'base64'
+                    path: fileName,
+                    data: base64Data,
+                    directory: Directory.Cache
                 });
 
                 await NativeShare.share({
-                    title: 'Leaderboard Data', text: `Here is the exported ${activeTab} leaderboard from LocalAwaaz.`, files: [fileWriteResult.uri]
+                    title: 'Leaderboard Data',
+                    text: `Here is the exported ${activeTab} leaderboard from LocalAwaaz.`,
+                    files: [fileWriteResult.uri] // Removed URL to stop Share plugin crash on Android
                 });
             } else {
-                const url = window.URL.createObjectURL(new Blob([buffer]));
+                const blob = new Blob([buffer], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
+                const url = window.URL.createObjectURL(blob);
                 const a = document.createElement('a');
                 a.href = url;
                 a.download = `LocalAwaaz_${activeTab}_Leaderboard.xlsx`;
+                document.body.appendChild(a);
                 a.click();
-                window.URL.revokeObjectURL(url);
+
+                // Add a small delay so browser has time to register the download
+                setTimeout(() => {
+                    document.body.removeChild(a);
+                    window.URL.revokeObjectURL(url);
+                }, 150);
             }
         } catch (error) {
             console.error("Excel Export failed", error);
+
+            // Ignore if the user manually cancelled the share dialog
+            if (error?.message?.includes('canceled') || error?.message === 'Share canceled') {
+                return;
+            }
+
             showToast({ icon: 'error', title: 'Export Failed' });
         } finally {
             setIsExporting(false);
@@ -280,35 +303,20 @@ const LeaderBoard = () => {
     };
 
     const handleCaptureShare = async () => {
-        if (!captureRef.current) return;
+        if (!shareCardRef.current) return;
         setIsCapturing(true);
 
         try {
-            const element = captureRef.current;
-            const originalStyle = element.style.cssText;
-
-            // Lock dimensions to prevent layout shifts during capture
-            element.style.height = 'max-content';
-            element.style.overflow = 'visible';
-
+            const element = shareCardRef.current;
             await new Promise(resolve => setTimeout(resolve, 100));
 
-            // 🟢 DYNAMIC THEME DETECTION
-            const isDarkMode = document.documentElement.classList.contains('dark');
-            const captureBackgroundColor = isDarkMode ? '#0f172a' : '#ffffff';
-
             const canvas = await html2canvas(element, {
-                backgroundColor: captureBackgroundColor,
-                scale: 2,
+                backgroundColor: '#0f172a',
+                scale: 3,
                 useCORS: true,
                 allowTaint: false,
-                scrollY: 0,
-                scrollX: 0,
-                windowWidth: element.scrollWidth,
-                windowHeight: element.scrollHeight,
             });
 
-            element.style.cssText = originalStyle;
             const imgData = canvas.toDataURL('image/png');
             setCapturedImage(imgData);
             setShareModalOpen(true);
@@ -318,15 +326,32 @@ const LeaderBoard = () => {
 
         } catch (error) {
             console.error("Screenshot failed", error);
-            showToast({ icon: 'error', title: 'Failed to capture screenshot.' });
+            showToast({ icon: 'error', title: 'Failed to generate Rank Card.' });
         } finally {
             setIsCapturing(false);
         }
     };
 
+    const currentList = activeTab === 'CITIZENS' ? leaderboardData.citizens : leaderboardData.authorities;
+    const weeklyHero = currentList.find(u => u.isHero) || currentList[0];
+
+    const myRankData = currentList.find(entry => entry.userId?._id === currentUser?._id);
+    const isSharingOwnRank = !!myRankData;
+
+    const targetShareData = myRankData || weeklyHero;
+    const shareProfile = targetShareData?.userId || currentUser;
+    const shareRank = targetShareData?.rank || '--';
+    const shareScore = targetShareData?.csi || 0;
+    const isCitizenShare = activeTab === 'CITIZENS';
+
     const shareToPlatform = async (platform) => {
         if (!capturedImage) return;
         const isNative = Capacitor.isNativePlatform();
+
+        const shareTitleText = isSharingOwnRank ? 'My LocalAwaaz Rank' : 'Top LocalAwaaz Ranking';
+        const shareBodyText = isSharingOwnRank
+            ? `Check out my civic impact ranking on LocalAwaaz! #${platform}`
+            : `Check out the top civic impact ranking on LocalAwaaz! #${platform}`;
 
         try {
             if (isNative) {
@@ -336,7 +361,7 @@ const LeaderBoard = () => {
                     path: fileName, data: base64Data, directory: Directory.Cache
                 });
                 await NativeShare.share({
-                    title: 'My LocalAwaaz Rank', text: `Check out my civic impact ranking on LocalAwaaz!`, files: [fileWriteResult.uri]
+                    title: shareTitleText, text: shareBodyText, files: [fileWriteResult.uri]
                 });
                 return;
             }
@@ -346,10 +371,10 @@ const LeaderBoard = () => {
             const file = new File([blob], 'LocalAwaaz_Ranking.png', { type: 'image/png' });
 
             if (navigator.canShare && navigator.canShare({ files: [file] })) {
-                await navigator.share({ title: 'My LocalAwaaz Rank', text: `Check out my civic impact ranking on LocalAwaaz! #${platform}`, files: [file] });
+                await navigator.share({ title: shareTitleText, text: shareBodyText, files: [file] });
             } else {
                 handleDownload();
-                const shareText = encodeURIComponent(`Check out my civic impact ranking on LocalAwaaz!`);
+                const shareText = encodeURIComponent(isSharingOwnRank ? `Check out my civic impact ranking on LocalAwaaz!` : `Check out the top civic ranking on LocalAwaaz!`);
                 const currentUrl = encodeURIComponent(window.location.origin);
                 let shareIntentUrl = '';
                 if (platform === 'WhatsApp') shareIntentUrl = `https://api.whatsapp.com/send?text=${shareText}%20${currentUrl}`;
@@ -361,6 +386,10 @@ const LeaderBoard = () => {
                 if (shareIntentUrl) window.open(shareIntentUrl, '_blank');
             }
         } catch (error) {
+            // Ignore if the user manually cancelled the share dialog
+            if (error?.message?.includes('canceled') || error?.message === 'Share canceled') {
+                return;
+            }
             handleDownload();
             showToast({ icon: 'info', title: 'Rank Card Saved', subtitle: 'Image downloaded to local device!' });
         }
@@ -380,34 +409,113 @@ const LeaderBoard = () => {
         return "bg-slate-500/10 text-slate-500";
     };
 
-    const currentList = activeTab === 'CITIZENS' ? leaderboardData.citizens : leaderboardData.authorities;
-    const weeklyHero = currentList.find(u => u.isHero) || currentList[0];
-
-    // YOUTUBE STYLE LOADER SWAP
     if (loading) return <LeaderBoardSkeleton />;
 
     return (
         <div className="min-h-screen bg-texture flex justify-center py-10 relative overflow-hidden">
+
+            <div style={{ position: 'fixed', left: '-9999px', top: '-9999px', pointerEvents: 'none' }}>
+                <div
+                    ref={shareCardRef}
+                    className="w-[480px] p-10 flex flex-col items-center text-center relative overflow-hidden font-sans"
+                    style={{ background: 'linear-gradient(145deg, #0f172a 0%, #1e293b 100%)', color: '#fff' }}
+                >
+                    <div className="absolute top-[-50px] right-[-50px] w-64 h-64 bg-indigo-500/30 rounded-full blur-[80px]" />
+                    <div className="absolute bottom-[-50px] left-[-50px] w-64 h-64 bg-emerald-500/20 rounded-full blur-[80px]" />
+
+                    <div className="flex flex-col items-center gap-2 mb-8 relative z-10">
+                        <div className="w-14 h-14 rounded-2xl bg-indigo-600 flex items-center justify-center shadow-[0_0_20px_rgba(79,70,229,0.5)]">
+                            <ShieldCheck size={32} className="text-white" />
+                        </div>
+                        <h1 className="text-2xl font-black tracking-widest text-white uppercase mt-2">LocalAwaaz</h1>
+                        <p className="text-xs font-bold text-slate-400 tracking-widest uppercase">
+                            {isCitizenShare ? 'Civic Impact Ranking' : 'Authority Performance'}
+                        </p>
+                    </div>
+
+                    <div className="relative mb-6 z-10">
+                        <img
+                            src={getCorsSafeUrl(shareProfile?.profilePic) || getAvatar(shareProfile?.name)}
+                            alt="Profile" crossOrigin="anonymous"
+                            className="w-36 h-36 rounded-full border-4 border-amber-400 shadow-[0_0_40px_rgba(251,191,36,0.4)] object-cover bg-slate-800"
+                        />
+                        <div className="absolute -bottom-5 left-1/2 -translate-x-1/2 bg-gradient-to-r from-amber-400 to-yellow-600 text-black text-sm font-black uppercase tracking-widest px-5 py-2 rounded-full shadow-lg whitespace-nowrap border-2 border-slate-900">
+                            Rank #{shareRank}
+                        </div>
+                    </div>
+
+                    <h2 className="text-4xl font-black text-white mt-4 mb-1 relative z-10 leading-tight">
+                        {shareProfile?.name || 'Contributor'}
+                    </h2>
+
+                    {isCitizenShare ? (
+                        <p className="text-sm font-bold text-indigo-400 uppercase tracking-widest mb-8 relative z-10 bg-indigo-500/10 px-3 py-1 rounded-lg">Verified Citizen</p>
+                    ) : (
+                        <p className="text-sm font-bold text-emerald-400 uppercase tracking-widest mb-8 relative z-10 bg-emerald-500/10 px-3 py-1 rounded-lg">
+                            {shareProfile?.authorityProfile?.designation || 'Official Authority'}
+                        </p>
+                    )}
+
+                    <div className="grid grid-cols-3 w-full gap-4 relative z-10 mb-6">
+                        <div className="bg-slate-800/80 rounded-2xl p-5 border border-white/10 flex flex-col items-center shadow-lg backdrop-blur-sm">
+                            <Zap size={28} className="text-yellow-400 mb-3 drop-shadow-[0_0_10px_rgba(250,204,21,0.5)]" />
+                            <span className="text-3xl font-black text-white">{shareScore}</span>
+                            <span className="text-[10px] text-slate-400 uppercase font-bold tracking-widest mt-1">CSI Score</span>
+                        </div>
+                        {isCitizenShare ? (
+                            <>
+                                <div className="bg-slate-800/80 rounded-2xl p-5 border border-white/10 flex flex-col items-center shadow-lg backdrop-blur-sm">
+                                    <AlertTriangle size={28} className="text-amber-400 mb-3 drop-shadow-[0_0_10px_rgba(251,191,36,0.5)]" />
+                                    <span className="text-3xl font-black text-white">{shareProfile?.issuesReported?.length ?? shareProfile?.issuesReported ?? 0}</span>
+                                    <span className="text-[10px] text-slate-400 uppercase font-bold tracking-widest mt-1">Reported</span>
+                                </div>
+                                <div className="bg-slate-800/80 rounded-2xl p-5 border border-white/10 flex flex-col items-center shadow-lg backdrop-blur-sm">
+                                    <CheckSquare size={28} className="text-emerald-400 mb-3 drop-shadow-[0_0_10px_rgba(52,211,153,0.5)]" />
+                                    <span className="text-3xl font-black text-white">{shareProfile?.issuesResolved?.length ?? shareProfile?.issuesResolved ?? 0}</span>
+                                    <span className="text-[10px] text-slate-400 uppercase font-bold tracking-widest mt-1">Resolved</span>
+                                </div>
+                            </>
+                        ) : (
+                            <>
+                                <div className="bg-slate-800/80 rounded-2xl p-5 border border-white/10 flex flex-col items-center shadow-lg backdrop-blur-sm">
+                                    <Clock size={28} className="text-indigo-400 mb-3 drop-shadow-[0_0_10px_rgba(129,140,248,0.5)]" />
+                                    <span className="text-3xl font-black text-white">{shareProfile?.authorityProfile?.activeJobsCount || 0}</span>
+                                    <span className="text-[10px] text-slate-400 uppercase font-bold tracking-widest mt-1">Active</span>
+                                </div>
+                                <div className="bg-slate-800/80 rounded-2xl p-5 border border-white/10 flex flex-col items-center shadow-lg backdrop-blur-sm">
+                                    <CheckSquare size={28} className="text-emerald-400 mb-3 drop-shadow-[0_0_10px_rgba(52,211,153,0.5)]" />
+                                    <span className="text-3xl font-black text-white">{shareProfile?.authorityProfile?.jobsCompleted || 0}</span>
+                                    <span className="text-[10px] text-slate-400 uppercase font-bold tracking-widest mt-1">Completed</span>
+                                </div>
+                            </>
+                        )}
+                    </div>
+
+                    <div className="mt-4 text-[10px] text-slate-500 font-bold uppercase tracking-widest relative z-10 flex flex-col items-center gap-1.5">
+                        <span className="text-slate-400 border-b border-slate-700 pb-1">www.localawaaz.in</span>
+                        <span>Generated on {new Date().toLocaleDateString('en-IN')}</span>
+                    </div>
+                </div>
+            </div>
+
             <AnimatePresence>
                 {showFlash && (
                     <motion.div initial={{ opacity: 1 }} animate={{ opacity: 0 }} exit={{ opacity: 0 }} transition={{ duration: 0.6, ease: "easeOut" }} className="fixed inset-0 z-[9999] bg-white pointer-events-none" />
                 )}
             </AnimatePresence>
 
-            {/* NEW: mainScrollRef attached here */}
             <div ref={mainScrollRef} className="flex-1 overflow-y-auto thin-scrollbar relative flex justify-center w-full">
-                {/* Capture Area */}
-                <div id="capture-wrap" ref={captureRef} className="w-full max-w-3xl px-4 relative flex flex-col h-max pb-10">
+                <div id="capture-wrap" className="w-full max-w-3xl px-4 relative flex flex-col h-max pb-10">
 
                     <div className="absolute top-0 right-0 w-96 h-96 bg-primary/10 rounded-full blur-[100px] pointer-events-none" />
 
-                    {/* --- HEADER SECTION --- */}
                     <div className="flex items-center justify-between mb-8 flex-wrap gap-4 relative z-10">
                         <div className="flex items-center gap-4">
                             <div className="w-14 h-14 rounded-2xl bg-gradient-to-tr from-primary to-secondary flex items-center justify-center shadow-xl shadow-primary/20 flex-shrink-0">
                                 <ShieldCheck className="w-7 h-7 text-primary-foreground" />
                             </div>
                             <div>
+                                {/* RESTORED TEXT SIZE HERE: text-3xl */}
                                 <h1 className={`text-3xl font-extrabold tracking-tight text-foreground mb-1 ${isCapturing ? 'px-2 pb-1' : ''}`}>
                                     Leaderboard
                                 </h1>
@@ -420,7 +528,6 @@ const LeaderBoard = () => {
                         </div>
                     </div>
 
-                    {/* Action Tabs & Export/Share Buttons */}
                     <div data-html2canvas-ignore="true" className="flex justify-between items-center gap-4 flex-wrap mb-8 relative z-10">
                         <div className="flex bg-muted/50 p-1 rounded-xl w-max border border-border/50">
                             <button onClick={() => setActiveTab('CITIZENS')} className={`px-4 py-2 rounded-lg text-sm font-bold transition-all ${activeTab === 'CITIZENS' ? 'bg-primary text-white shadow-md' : 'text-muted-foreground hover:text-foreground'}`}>Citizens</button>
@@ -450,7 +557,6 @@ const LeaderBoard = () => {
                     </div>
 
                     <div className="w-full space-y-8 relative z-10">
-                        {/* Weekly Hero Card */}
                         {weeklyHero && weeklyHero.userId && (
                             <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} className="relative rounded-3xl bg-gradient-to-br from-amber-500/20 via-primary/10 to-card/50 border border-amber-500/30 p-6 md:p-8 shadow-xl backdrop-blur-sm overflow-hidden">
                                 <div className="absolute top-0 right-0 p-4 opacity-10 pointer-events-none"><Award size={140} /></div>
@@ -483,7 +589,6 @@ const LeaderBoard = () => {
                             </motion.div>
                         )}
 
-                        {/* Live Rankings List */}
                         <div className="glass-card rounded-2xl shadow-sm border border-border/50 overflow-hidden bg-background/50 backdrop-blur-xl">
                             {currentList.length === 0 ? (
                                 <div className="p-16 text-center text-muted-foreground font-medium flex flex-col items-center">
@@ -523,20 +628,20 @@ const LeaderBoard = () => {
 
                                                         <div className="flex-1 min-w-0 pt-1">
                                                             <div className="flex items-center gap-2">
-                                                                <h4 className={`font-semibold text-foreground text-[15px] ${isCapturing ? 'pr-1' : 'truncate'}`}>
+                                                                <h4 className={`font-semibold text-foreground text-[15px] truncate`}>
                                                                     {entry.userId.name}
                                                                 </h4>
                                                                 {isMe && <span className="inline-flex items-center px-2 py-0.5 rounded text-[10px] font-bold bg-primary/20 text-primary uppercase tracking-wider">You</span>}
                                                             </div>
 
                                                             {isCitizenTab ? (
-                                                                <p className={`text-[13px] leading-relaxed text-muted-foreground mt-0.5 ${isCapturing ? 'whitespace-nowrap pb-2' : 'truncate'}`}>
+                                                                <p className={`text-[13px] leading-relaxed text-muted-foreground mt-0.5 truncate`}>
                                                                     Score: <span className="font-semibold text-foreground">{entry.csi}</span> •
                                                                     Reported: <span className="text-foreground/80">{entry.userId.issuesReported?.length ?? entry.userId.issuesReported ?? 0}</span> •
                                                                     Resolved: <span className="text-foreground/80">{entry.userId.issuesResolved?.length ?? entry.userId.issuesResolved ?? 0}</span>
                                                                 </p>
                                                             ) : (
-                                                                <p className={`text-[13px] leading-relaxed text-muted-foreground mt-0.5 ${isCapturing ? 'whitespace-nowrap pb-2' : 'truncate'}`}>
+                                                                <p className={`text-[13px] leading-relaxed text-muted-foreground mt-0.5 truncate`}>
                                                                     Score: <span className="font-semibold text-foreground">{entry.csi}</span> •
                                                                     Active: <span className="text-indigo-400">{Math.max(0, entry.userId.authorityProfile?.activeJobsCount || 0)}</span> •
                                                                     Completed: <span className="text-emerald-500">{Math.max(0, entry.userId.authorityProfile?.jobsCompleted || 0)}</span>
@@ -575,7 +680,6 @@ const LeaderBoard = () => {
                 </div>
             </div>
 
-            {/* Share Modal */}
             <AnimatePresence>
                 {shareModalOpen && (
                     <div className="fixed inset-0 z-[200] flex items-center justify-center p-4 sm:p-6">
@@ -586,7 +690,7 @@ const LeaderBoard = () => {
                                 <button onClick={() => setShareModalOpen(false)} className="p-2 bg-muted rounded-full hover:bg-white/10 transition-colors"><X size={18} /></button>
                             </div>
                             <div className="p-4 md:p-8 bg-muted/30 flex-1 overflow-y-auto flex items-center justify-center min-h-0">
-                                <img src={capturedImage} alt="Rank" className="w-full h-auto rounded-xl shadow-[0_10px_30px_rgba(0,0,0,0.3)] border border-border/50 object-contain" />
+                                <img src={capturedImage} alt="Rank Card" className="w-full max-w-sm h-auto rounded-xl shadow-[0_10px_30px_rgba(0,0,0,0.5)] border border-white/20 object-contain" />
                             </div>
                             <div className="p-5 md:p-6 grid grid-cols-4 gap-3 md:gap-6 text-center border-t border-border/50 shrink-0">
                                 <button onClick={handleDownload} className="flex flex-col items-center gap-2 group">
@@ -611,7 +715,6 @@ const LeaderBoard = () => {
                 )}
             </AnimatePresence>
 
-            {/* Sliding Career Modal */}
             <AnimatePresence>
                 {careerModal.isOpen && careerModal.profile && (
                     <div className="fixed inset-0 z-[150] flex items-center justify-center p-2 sm:p-4">
@@ -636,7 +739,6 @@ const LeaderBoard = () => {
                                 <button onClick={() => setCareerModal({ ...careerModal, isOpen: false })} className="p-2 bg-card border border-border/50 rounded-full hover:bg-muted"><X size={20} /></button>
                             </div>
 
-                            {/* NEW: modalScrollRef attached here */}
                             <div ref={modalScrollRef} className="flex-1 overflow-y-auto thin-scrollbar relative bg-background/30">
                                 {careerModal.view === 'OVERVIEW' && (
                                     <motion.div initial={{ opacity: 0, x: -20 }} animate={{ opacity: 1, x: 0 }} className="p-4 md:p-6 space-y-6">
@@ -714,27 +816,19 @@ const LeaderBoard = () => {
                                             careerModal.issueList.map((issue) => (
                                                 <div key={issue._id} onClick={() => setCareerModal({ ...careerModal, view: 'ISSUE_DETAIL', selectedIssue: issue })} className="bg-card border border-border/50 p-4 rounded-xl flex justify-between items-center cursor-pointer hover:border-primary/50 hover:bg-primary/5 transition-all group shadow-sm gap-3">
 
-                                                    {/* Added: flex-1 and min-w-0 */}
                                                     <div className="flex items-center gap-3 flex-1 min-w-0">
-
-                                                        {/* Added: shrink-0 */}
                                                         <div className="p-2 bg-muted rounded-lg group-hover:bg-background transition-colors shrink-0">
                                                             <Search size={16} className="text-muted-foreground" />
                                                         </div>
 
-                                                        {/* Added: flex-1 and min-w-0 */}
                                                         <div className="flex-1 min-w-0">
-                                                            {/* Removed: max-w-sm */}
                                                             <h5 className="font-bold text-foreground group-hover:text-primary transition-colors truncate">{issue.title}</h5>
-
-                                                            {/* Added: truncate on the <p> and shrink-0 on the MapPin */}
                                                             <p className="text-[11px] text-muted-foreground mt-1 font-medium truncate">
                                                                 <MapPin size={10} className="inline mr-1 shrink-0" /> {issue.location?.city || 'Unknown District'}
                                                             </p>
                                                         </div>
                                                     </div>
 
-                                                    {/* Added: shrink-0 */}
                                                     <div className="flex items-center gap-3 shrink-0">
                                                         <span className="text-[9px] uppercase font-bold tracking-widest bg-muted px-2 py-1 rounded border border-border/50 hidden sm:inline">View Details</span>
                                                         <ChevronRight size={18} className="text-muted-foreground group-hover:text-primary transition-colors" />

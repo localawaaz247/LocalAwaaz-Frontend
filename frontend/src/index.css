@@ -456,6 +456,3 @@ html, body {
   width: auto !important;
   max-width: 400px !important;
 }
-* {
-  touch-action: manipulation;
-}
