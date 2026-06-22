@@ -31,7 +31,8 @@ const Feed = () => {
   const [sortBy, setSortBy] = useState("newest");
   const [page, setPage] = useState(1);
   const [visitors, setVisitors] = useState(0);
-  const [isMobile, setIsMobile] = useState(window.innerWidth < 768);
+
+  const [isMobile, setIsMobile] = useState(window.innerWidth < 1024);
 
   const location = useLocation();
   const navigate = useNavigate();
@@ -42,9 +43,8 @@ const Feed = () => {
 
   const { issues, loading, error, pagination } = useSelector((state) => state.issueFeed);
 
-  // Keep track of window size for InfiniteScroll target
   useEffect(() => {
-    const handleResize = () => setIsMobile(window.innerWidth < 768);
+    const handleResize = () => setIsMobile(window.innerWidth < 1024);
     window.addEventListener('resize', handleResize);
     return () => window.removeEventListener('resize', handleResize);
   }, []);
@@ -109,7 +109,6 @@ const Feed = () => {
   }, [selectedIssue, t]);
 
   const displayLocation = chosenLocation ? formatLocationDisplay(chosenLocation) : t('locating');
-  const activeIssuesCount = pagination?.totalIssues || liveIssues?.length || 0;
 
   useEffect(() => {
     socket.on('live_visitor_update', (data) => {
@@ -153,10 +152,10 @@ const Feed = () => {
     fetchAndOpenIssue();
   }, [selectedIssueId, liveIssues, setSelectedIssueId, t]);
 
-  const fetchData = (currentPage, specificLocation = null) => {
+  const fetchData = (currentPage, specificLocation = null, sortParam = sortBy) => {
     const locToUse = specificLocation || getChosenLocation();
     if (locToUse) {
-      dispatch(fetchIssues({ ...locToUse, page: currentPage }));
+      dispatch(fetchIssues({ ...locToUse, page: currentPage, sortBy: sortParam }));
     }
   };
 
@@ -260,6 +259,24 @@ const Feed = () => {
     }
   };
 
+  const handleSortChange = (newSortType) => {
+    if (sortBy === newSortType) return;
+
+    setSortBy(newSortType);
+    setPage(1);
+    dispatch(clearIssues());
+
+    // Respect scroll behaviors based on viewport
+    const mobileContainer = document.getElementById("mobile-snap-container");
+    if (isMobile && mobileContainer) {
+      mobileContainer.scrollTo({ top: 0, left: 0, behavior: "smooth" });
+    } else {
+      window.scrollTo({ top: 0, left: 0, behavior: "smooth" });
+    }
+
+    fetchData(1, chosenLocation, newSortType);
+  };
+
   const dynamicStats = useMemo(() => {
     let resolved = 0; let pending = 0; let totalImpact = 0;
     if (!liveIssues || liveIssues.length === 0) return { resolved: 0, pending: 0, impactLevel: t('evaluating') };
@@ -295,7 +312,8 @@ const Feed = () => {
   }, [liveIssues, sortBy]);
 
   return (
-    <div className="bg-texture min-h-[100dvh] pb-20 md:pb-8">
+    // ✨ ADDED: `max-lg:fixed max-lg:inset-0 max-lg:overscroll-none` pins it *only* on mobile, acts normal on desktop.
+    <div className="bg-texture flex flex-col h-[100dvh] overflow-hidden w-full relative max-lg:fixed max-lg:inset-0 max-lg:overscroll-none">
       <style>{`
         @keyframes shimmerSweep {
           0% { transform: translateX(-100%); }
@@ -305,8 +323,8 @@ const Feed = () => {
           animation: shimmerSweep 1.8s infinite;
         }
 
-        /* Mobile Snap Scroll CSS */
-        @media (max-width: 767px) {
+        /* Responsive Snap Scroll CSS */
+        @media (max-width: 1023px) {
           .snap-container::-webkit-scrollbar {
             display: none;
           }
@@ -317,15 +335,28 @@ const Feed = () => {
         }
       `}</style>
 
-      <div className="px-3 md:px-6 py-3 md:py-4 sticky top-2 glass-card z-40 rounded-lg border-0 border-b border-border mx-2 md:mx-4 shadow-sm">
-        <div className="flex justify-between items-center">
+      {/* 🟢 TOP HEADER SECTION */}
+      <div className="flex-shrink-0 w-full z-40 bg-texture">
+        <div className="w-full text-center pt-5 pb-2 lg:hidden">
+          <h1 className="text-3xl sm:text-3xl font-black tracking-tight bg-gradient-to-r from-primary to-accent dark:from-primary dark:to-cyan-400 bg-clip-text text-transparent drop-shadow-sm">
+            LocalAwaaz
+          </h1>
+        </div>
+
+        <div className="px-3 lg:px-6 py-3 lg:py-4 glass-card rounded-lg border-0 border-b border-border mx-2 lg:mx-4 shadow-sm flex justify-between items-center relative mb-4 lg:mb-8">
+          <div className="hidden lg:block absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 pointer-events-none">
+            <h1 className="text-2xl xl:text-4xl font-black tracking-tight bg-gradient-to-r from-primary to-accent dark:from-primary dark:to-cyan-400 bg-clip-text text-transparent drop-shadow-sm">
+              LocalAwaaz
+            </h1>
+          </div>
+
           <div className="min-w-0 pr-2">
-            <h2 className="text-base md:text-lg font-bold text-foreground truncate">{displayLocation}</h2>
-            <div className="flex items-center gap-1 text-[11px] md:text-sm text-muted-foreground truncate">
+            <h2 className="text-base lg:text-lg font-bold text-foreground truncate">{displayLocation}</h2>
+            <div className="flex items-center gap-1 text-[11px] lg:text-sm text-muted-foreground truncate">
               <MapPin size={14} className="flex-shrink-0" />
               <span className="truncate">{chosenLocation?.country || t('locating')}</span>
               <button
-                className="ml-1 md:ml-2 text-accent font-medium transition-colors hover:text-accent/80 flex-shrink-0"
+                className="ml-1 lg:ml-2 text-accent font-medium transition-colors hover:text-accent/80 flex-shrink-0"
                 onClick={() => setShowLocationModal(true)}
               >
                 {t('change')}
@@ -333,24 +364,19 @@ const Feed = () => {
             </div>
           </div>
 
-          <div className="flex items-center gap-2 md:gap-3 flex-shrink-0">
-            <div className="flex items-center gap-1.5 bg-background/50 backdrop-blur-sm border border-border/60 px-2.5 py-1.5 md:px-3 md:py-2 rounded-full shadow-sm text-muted-foreground transition-all">
+          <div className="flex items-center gap-2 lg:gap-3 flex-shrink-0">
+            <div className="flex items-center gap-1.5 bg-background/50 backdrop-blur-sm border border-border/60 px-2.5 py-1.5 lg:px-3 lg:py-2 rounded-full shadow-sm text-muted-foreground transition-all">
               <Users size={14} className="text-primary flex-shrink-0" />
-              <span className="hidden md:inline text-xs md:text-sm font-medium tracking-wide">
+              <span className="hidden lg:inline text-xs lg:text-sm font-medium tracking-wide">
                 {t('citizens_reached', 'Reached')}:
               </span>
-              <div className="text-xs md:text-sm font-bold text-foreground font-mono">
+              <div className="text-xs lg:text-sm font-bold text-foreground font-mono">
                 <Odometer value={visitors} format="(,ddd)" duration={800} />
               </div>
             </div>
 
-            <span className="hidden lg:block text-xs md:text-sm bg-cyan-800 text-accent-foreground px-3 py-1.5 md:py-2 rounded-full border border-accent/30">
-              ● {activeIssuesCount} {t('active')} {activeIssuesCount === 1 ? t('issue_singular') : t('issues_label')}
-            </span>
-
-            {/* 🟢 MODIFIED: Hidden on mobile, visible on desktop */}
             <button
-              className="hidden md:flex btn-gradient items-center gap-1.5 md:gap-2 px-3 md:px-4 py-1.5 md:py-2 rounded-xl whitespace-nowrap shadow-sm hover:shadow-md transition-all hover:scale-[1.02]"
+              className="hidden lg:flex btn-gradient items-center gap-1.5 lg:gap-2 px-3 lg:px-4 py-1.5 lg:py-2 rounded-xl whitespace-nowrap shadow-sm hover:shadow-md transition-all hover:scale-[1.02]"
               onClick={() => navigate("/dashboard/report")}
             >
               <Plus size={16} />
@@ -358,80 +384,85 @@ const Feed = () => {
             </button>
           </div>
         </div>
-      </div>
 
-      <div className="hidden lg:block mt-6 px-6 relative z-10">
-        <div className="grid grid-cols-3 gap-6">
-          <StatCard icon={<CheckCircle2 className="text-secondary w-6 h-6" />} label={t('recently_resolved')} value={dynamicStats.resolved} />
-          <StatCard icon={<Clock className="text-secondary w-6 h-6" />} label={t('pending_verification')} value={dynamicStats.pending} />
-          <StatCard icon={<Users className="text-accent w-6 h-6" />} label={t('area_impact')} value={dynamicStats.impactLevel} />
+        <div className="px-3 lg:hidden mt-2 mb-2">
+          <h3 className="text-lg font-bold text-foreground">Top Reports in Your Area</h3>
         </div>
-      </div>
 
-      <div className="px-2 md:px-6 mt-4 lg:mt-8">
-        <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 sm:gap-0 mb-4 md:mb-6">
-          {/* 🟢 MODIFIED: Text swapping for Mobile vs Desktop */}
-          <h3 className="md:hidden text-lg font-bold text-foreground">Top Reports in Your Area</h3>
-          <h3 className="hidden md:block text-xl font-bold text-foreground">{t('priority_issues')}</h3>
-
-          <div className="flex flex-wrap gap-2">
-            <button onClick={() => setSortBy("newest")} className={`px-3 md:px-4 py-1.5 md:py-2 rounded-xl text-xs md:text-sm transition-all duration-200 ${sortBy === "newest" ? "btn-gradient text-white shadow-md font-medium" : "border border-border bg-card text-muted-foreground hover:bg-muted"}`}>{t('newest')}</button>
-            <button onClick={() => setSortBy("impactful")} className={`px-3 md:px-4 py-1.5 md:py-2 rounded-xl text-xs md:text-sm transition-all duration-200 ${sortBy === "impactful" ? "btn-gradient text-white shadow-md font-medium" : "border border-border bg-card text-muted-foreground hover:bg-muted"}`}>{t('most_impactful')}</button>
+        <div className="hidden lg:block px-6 relative z-10 mb-8">
+          <div className="grid grid-cols-3 gap-6">
+            <StatCard icon={<CheckCircle2 className="text-secondary w-6 h-6" />} label={t('recently_resolved')} value={dynamicStats.resolved} />
+            <StatCard icon={<Clock className="text-secondary w-6 h-6" />} label={t('pending_verification')} value={dynamicStats.pending} />
+            <StatCard icon={<Users className="text-accent w-6 h-6" />} label={t('area_impact')} value={dynamicStats.impactLevel} />
           </div>
         </div>
 
-        {loading && sortedIssues.length === 0 ? (
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 md:gap-6 pt-2 pb-2 overflow-hidden w-full">
-            {[1, 2, 3, 4].map(n => <IssueSkeleton key={n} />)}
+        <div className="px-2 lg:px-6 w-full">
+          <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 sm:gap-0 mb-4 lg:mb-6">
+            <div className="flex flex-wrap gap-2">
+              <button onClick={() => handleSortChange("newest")} className={`px-3 lg:px-4 py-1.5 lg:py-2 rounded-xl text-xs lg:text-sm transition-all duration-200 ${sortBy === "newest" ? "btn-gradient text-white shadow-md font-medium" : "border border-border bg-card text-muted-foreground hover:bg-muted"}`}>{t('newest')}</button>
+              <button onClick={() => handleSortChange("impactful")} className={`px-3 lg:px-4 py-1.5 lg:py-2 rounded-xl text-xs lg:text-sm transition-all duration-200 ${sortBy === "impactful" ? "btn-gradient text-white shadow-md font-medium" : "border border-border bg-card text-muted-foreground hover:bg-muted"}`}>{t('most_impactful')}</button>
+            </div>
           </div>
-        ) :
+        </div>
+      </div>
 
-          sortedIssues.length === 0 && !error ? (
-            <EmptyFeedState onReport={() => navigate("/dashboard/report")} t={t} />
-          ) :
-
-            error && sortedIssues.length === 0 ? (
-              <div className="text-center py-16 bg-card border border-border/50 rounded-2xl">
-                <p className="text-red-500 font-medium mb-2">{t('failed_load_issues')}</p>
-                <button onClick={() => fetchData(1)} className="px-4 py-2 bg-muted rounded-xl hover:bg-muted/80 transition-colors text-sm">{t('try_again')}</button>
-              </div>
-            ) :
-
-              (
-                <div
-                  id="mobile-snap-container"
-                  className="max-md:h-[calc(100dvh-200px)] max-md:overflow-y-auto max-md:snap-y max-md:snap-mandatory snap-container"
-                >
-                  <InfiniteScroll
-                    dataLength={sortedIssues.length}
-                    next={fetchMoreData}
-                    hasMore={pagination.currentPage < pagination.totalPages}
-                    scrollableTarget={isMobile ? "mobile-snap-container" : undefined}
-                    loader={
-                      <div className="col-span-full grid grid-cols-1 lg:grid-cols-2 gap-4 md:gap-6 py-4 w-full">
-                        {[1, 2].map(n => <IssueSkeleton key={`loader-${n}`} />)}
-                      </div>
-                    }
-                    className="grid grid-cols-1 lg:grid-cols-2 gap-4 md:gap-6 pt-2 pb-2 overflow-visible w-full"
-                    style={{ overflow: 'visible' }}
-                  >
-                    {sortedIssues.map((issue) => (
-                      <div
-                        key={issue._id || issue.id}
-                        className="max-md:snap-center max-md:snap-always max-md:flex max-md:items-center max-md:justify-center max-md:h-full max-md:pb-4"
-                      >
-                        <div className="w-full">
-                          <IssueCard
-                            issue={issue}
-                            onClick={() => handleCardClick(issue)}
-                            onFlagClick={() => handleFlagClick(issue)}
-                          />
-                        </div>
-                      </div>
-                    ))}
-                  </InfiniteScroll>
+      {/* 🟢 SCROLLABLE FEED SECTION (HYBRID RESPONSIVE) */}
+      <div className="flex-1 min-h-0 w-full relative max-lg:px-0 lg:px-6">
+        {/* ✨ ADDED: `max-lg:absolute max-lg:inset-0` forces boundaries solely for mobile devices. Desktop inherits standard height structure. */}
+        <div
+          id="mobile-snap-container"
+          className="h-full w-full overflow-y-auto overflow-x-hidden snap-container overscroll-contain max-lg:absolute max-lg:inset-0 max-lg:px-2 max-lg:snap-y max-lg:snap-mandatory"
+          style={{ containerType: 'size' }}
+        >
+          {loading && sortedIssues.length === 0 ? (
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 lg:gap-6 pt-2 pb-2 overflow-hidden w-full h-full">
+              {[1, 2, 3, 4].map(n => <IssueSkeleton key={n} />)}
+            </div>
+          ) : sortedIssues.length === 0 && !error ? (
+            <div className="h-full w-full">
+              <EmptyFeedState onReport={() => navigate("/dashboard/report")} t={t} />
+            </div>
+          ) : error && sortedIssues.length === 0 ? (
+            <div className="text-center py-16 bg-card border border-border/50 rounded-2xl mx-auto w-full mt-4">
+              <p className="text-red-500 font-medium mb-2">{t('failed_load_issues')}</p>
+              <button onClick={() => fetchData(1)} className="px-4 py-2 bg-muted rounded-xl hover:bg-muted/80 transition-colors text-sm">{t('try_again')}</button>
+            </div>
+          ) : (
+            <InfiniteScroll
+              dataLength={sortedIssues.length}
+              next={fetchMoreData}
+              hasMore={pagination.currentPage < pagination.totalPages}
+              scrollableTarget={isMobile ? "mobile-snap-container" : undefined}
+              loader={
+                <div className="col-span-full grid grid-cols-1 lg:grid-cols-2 gap-0 lg:gap-6 py-4 w-full">
+                  {[1, 2].map(n => <IssueSkeleton key={`loader-${n}`} />)}
                 </div>
-              )}
+              }
+              className="grid grid-cols-1 lg:grid-cols-2 gap-0 lg:gap-6 pt-0 lg:pt-2 pb-24 lg:pb-8 w-full"
+              style={{ overflow: 'visible' }}
+            >
+              {sortedIssues.map((issue) => (
+                <div
+                  key={issue._id || issue.id}
+                  className="max-lg:snap-start max-lg:snap-always max-lg:flex max-lg:items-stretch max-lg:justify-center max-lg:w-full max-lg:pt-2 lg:py-0"
+
+                  // FIXED: Increased the subtraction value from 220px to 340px 
+                  // This accurately accounts for your tall top header + the bottom nav bar
+                  style={{ height: isMobile ? 'calc(100dvh - 300px)' : 'auto' }}
+                >
+                  <div className="w-full h-full max-h-full">
+                    <IssueCard
+                      issue={issue}
+                      onClick={() => handleCardClick(issue)}
+                      onFlagClick={() => handleFlagClick(issue)}
+                    />
+                  </div>
+                </div>
+              ))}
+            </InfiniteScroll>
+          )}
+        </div>
       </div>
 
       <LocationModal
@@ -451,11 +482,11 @@ const Feed = () => {
 export default Feed;
 
 const StatCard = ({ icon, label, value }) => (
-  <div className="glass-card p-4 md:p-5 rounded-xl flex gap-3 md:gap-4 items-center hover:shadow-md md:hover:shadow-lg transition-all bg-card/80 backdrop-blur-md">
-    <div className="p-2.5 md:p-3 bg-muted rounded-full">{icon}</div>
+  <div className="glass-card p-4 lg:p-5 rounded-xl flex gap-3 lg:gap-4 items-center hover:shadow-md lg:hover:shadow-lg transition-all bg-card/80 backdrop-blur-md">
+    <div className="p-2.5 lg:p-3 bg-muted rounded-full">{icon}</div>
     <div>
-      <p className="text-[11px] md:text-sm text-muted-foreground">{label}</p>
-      <p className="text-xl md:text-2xl font-bold text-foreground transition-all duration-300">{value}</p>
+      <p className="text-[11px] lg:text-sm text-muted-foreground">{label}</p>
+      <p className="text-xl lg:text-2xl font-bold text-foreground transition-all duration-300">{value}</p>
     </div>
   </div>
 );
@@ -503,9 +534,9 @@ const EmptyFeedState = ({ onReport, t }) => (
       </div>
     </div>
 
-    <h3 className="text-2xl md:text-3xl font-bold text-foreground mb-3 font-display">{t('all_clear')}</h3>
+    <h3 className="text-2xl lg:text-3xl font-bold text-foreground mb-3 font-display">{t('all_clear')}</h3>
 
-    <p className="text-sm md:text-base text-muted-foreground max-w-md mb-8 leading-relaxed">
+    <p className="text-sm lg:text-base text-muted-foreground max-w-md mb-8 leading-relaxed">
       {t('no_issues_neighborhood')}
     </p>
 

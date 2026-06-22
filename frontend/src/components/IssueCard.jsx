@@ -23,7 +23,6 @@ const WhatsappIcon = ({ size = 20, className = "" }) => (
 );
 // ----------------------
 
-// Safe ID extractor to fix the Mongoose Object vs String bug
 const safeId = (obj) => {
   if (!obj) return null;
   if (typeof obj === 'string') return obj;
@@ -35,15 +34,13 @@ const IssueCard = ({ issue, onClick }) => {
   const { t } = useTranslation();
   const currentUser = useSelector((state) => state.auth?.user);
 
-  // --- REAL TIME WRAPPER ---
   const [localIssue, setLocalIssue] = useState(issue);
-  const [mediaTab, setMediaTab] = useState('REPORTED'); // For flipping images on the card
+  const [mediaTab, setMediaTab] = useState('REPORTED');
 
   useEffect(() => {
     setLocalIssue(issue);
   }, [issue]);
 
-  // Handle direct socket updates for this individual card
   useEffect(() => {
     if (!socket || !localIssue) return;
 
@@ -61,7 +58,6 @@ const IssueCard = ({ issue, onClick }) => {
       if (data.issueId === localIssue._id) {
         setLocalIssue(prev => {
           const newData = { ...prev, ...data.updatedData };
-          // SMART MERGE: Keep populated objects
           if (prev.reportedBy?.name && !newData.reportedBy?.name) {
             newData.reportedBy = prev.reportedBy;
           }
@@ -87,7 +83,6 @@ const IssueCard = ({ issue, onClick }) => {
     };
   }, [localIssue?._id]);
 
-  // --- Extracted Data from localIssue ---
   const {
     _id, status, category, title, description, location,
     confirmationCount, impactScore, reportedBy, isAnonymous,
@@ -99,12 +94,10 @@ const IssueCard = ({ issue, onClick }) => {
   const [liveDistance, setLiveDistance] = useState(null);
   const [isSaved, setIsSaved] = useState(false);
 
-  // Resolution & Sharing States
   const [isOpposing, setIsOpposing] = useState(false);
   const [isVerifying, setIsVerifying] = useState(false);
-  const [isSharing, setIsSharing] = useState(false); // NEW: Share Menu State
+  const [isSharing, setIsSharing] = useState(false);
 
-  // Initial State Setup based on User Profile
   useEffect(() => {
     if (currentUser && currentUser._id) {
       const currentUserId = String(currentUser._id);
@@ -123,7 +116,6 @@ const IssueCard = ({ issue, onClick }) => {
     }
   }, [currentUser, confirmations, hasConfirmed, localIssue, _id]);
 
-  // --- CONSENSUS & VOTING LOGIC ---
   const currentUserIdStr = safeId(currentUser);
   const reporterIdStr = safeId(reportedBy);
 
@@ -141,10 +133,8 @@ const IssueCard = ({ issue, onClick }) => {
     hasVoted = Boolean(userConf?.verdict && userConf.verdict !== 'PENDING');
   }
 
-  // Hide generic Flag/Confirm buttons globally if issue is handled
   const isIssueClosed = ['RESOLVED', 'DISPUTED', 'FAILED', 'REJECTED', 'ORPHANED'].includes(status?.toUpperCase());
 
-  // --- MEDIA TRIAGE FOR CARD ---
   let claimedUrls = [];
   let opposedUrls = [];
   let reportedUrls = [];
@@ -175,7 +165,6 @@ const IssueCard = ({ issue, onClick }) => {
   const displayMediaUrl = validMedia.length > 0 ? validMedia[0] : null;
   const isVideo = displayMediaUrl?.match(/\.(mp4|webm|ogg)$/i);
 
-  // REAL-TIME DISTANCE TRACKER
   useEffect(() => {
     if (!location?.geoData?.coordinates) return;
     const [issueLng, issueLat] = location.geoData.coordinates;
@@ -225,7 +214,6 @@ const IssueCard = ({ issue, onClick }) => {
     window.open(`https://www.google.com/maps/dir/?api=1&destination=${lat},${lng}`, '_blank');
   };
 
-  // --- CUSTOM SHARE LOGIC ---
   const handleShareMenuOpen = async (e) => {
     e.stopPropagation();
     setIsSharing(true);
@@ -236,38 +224,20 @@ const IssueCard = ({ issue, onClick }) => {
     e.stopPropagation();
     const shareUrl = `${APP_URL}/issue/${_id}`;
     const shareText = title || "Check out this issue on LocalAwaaz!";
-
     const text = encodeURIComponent(shareText);
     const url = encodeURIComponent(shareUrl);
     let shareLink = "";
 
     switch (platform) {
-      case 'whatsapp':
-        shareLink = `https://api.whatsapp.com/send?text=${text}%20${url}`;
-        window.open(shareLink, '_blank');
-        break;
-      case 'twitter':
-        shareLink = `https://twitter.com/intent/tweet?text=${text}&url=${url}`;
-        window.open(shareLink, '_blank');
-        break;
-      case 'telegram':
-        shareLink = `https://t.me/share/url?url=${url}&text=${text}`;
-        window.open(shareLink, '_blank');
-        break;
-      case 'facebook':
-        shareLink = `https://www.facebook.com/sharer/sharer.php?u=${url}`;
-        window.open(shareLink, '_blank');
-        break;
-      case 'copy':
-        navigator.clipboard.writeText(shareUrl);
-        toast.success(t('link_copied', 'Link copied to clipboard!'));
-        break;
-      default:
-        break;
+      case 'whatsapp': shareLink = `https://api.whatsapp.com/send?text=${text}%20${url}`; window.open(shareLink, '_blank'); break;
+      case 'twitter': shareLink = `https://twitter.com/intent/tweet?text=${text}&url=${url}`; window.open(shareLink, '_blank'); break;
+      case 'telegram': shareLink = `https://t.me/share/url?url=${url}&text=${text}`; window.open(shareLink, '_blank'); break;
+      case 'facebook': shareLink = `https://www.facebook.com/sharer/sharer.php?u=${url}`; window.open(shareLink, '_blank'); break;
+      case 'copy': navigator.clipboard.writeText(shareUrl); toast.success(t('link_copied', 'Link copied to clipboard!')); break;
+      default: break;
     }
     setIsSharing(false);
   };
-  // ------------------------------
 
   const handleSaveToggle = async (e) => {
     e.stopPropagation();
@@ -335,18 +305,14 @@ const IssueCard = ({ issue, onClick }) => {
   const handleConsensusVote = async (verdict, rawFile = null) => {
     setIsVerifying(true);
     const toastId = toast.loading(t('verifying_location', 'Verifying location...'));
-
     try {
       const coords = await getCurrentLocation().catch(() => {
         const cached = JSON.parse(localStorage.getItem('cached_geo_location'));
-        if (cached?.latitude && cached?.longitude) {
-          return { lat: cached.latitude, lng: cached.longitude };
-        }
+        if (cached?.latitude && cached?.longitude) return { lat: cached.latitude, lng: cached.longitude };
         throw new Error("Location permission is required to verify fixes.");
       });
 
       let publicProofUrl = null;
-
       if (verdict === 'OPPOSED' && rawFile) {
         toast.loading(t('uploading_evidence', 'Uploading counter-proof...'), { id: toastId });
         const presignRes = await axiosInstance.get(`/issue/${_id}/verify/presign`);
@@ -357,7 +323,6 @@ const IssueCard = ({ issue, onClick }) => {
 
       toast.loading(t('logging_verdict', 'Logging consensus...'), { id: toastId });
       const payload = { verdict, userLat: coords.lat, userLng: coords.lng, proofUrl: publicProofUrl };
-
       const res = await axiosInstance.post(`/issue/${_id}/verify?lng=${coords.lng}&lat=${coords.lat}`, payload);
 
       toast.success(res.data.message || t('verdict_logged'), { id: toastId });
@@ -366,17 +331,13 @@ const IssueCard = ({ issue, onClick }) => {
       if (isReporterUser) setLocalIssue(prev => ({ ...prev, reportedByVerdict: verdict }));
       if (isConfirmerUser) {
         setLocalIssue(prev => {
-          const newConfirmations = prev.confirmations.map(c =>
-            safeId(c.user) === currentUserIdStr ? { ...c, verdict } : c
-          );
+          const newConfirmations = prev.confirmations.map(c => safeId(c.user) === currentUserIdStr ? { ...c, verdict } : c);
           return { ...prev, confirmations: newConfirmations };
         });
       }
-
     } catch (error) {
       console.error("Verification Error:", error);
-      const errorMsg = error.response?.data?.message || error.message || t('verification_failed');
-      toast.error(errorMsg, { id: toastId });
+      toast.error(error.response?.data?.message || error.message || t('verification_failed'), { id: toastId });
     } finally {
       setIsVerifying(false);
     }
@@ -402,250 +363,190 @@ const IssueCard = ({ issue, onClick }) => {
     if (files && files.length > 0) handleConsensusVote('OPPOSED', files[0]);
   };
 
-  // Helper component for Share and Bookmark icons
   const ActionIcons = () => (
     <>
       <button
         onClick={handleSaveToggle}
-        className={`p-2 rounded-xl border transition-colors shadow-sm ${isSaved
+        className={`p-2 lg:p-2.5 rounded-xl border transition-colors shadow-sm shrink-0 ${isSaved
           ? 'bg-primary/10 border-primary/30 text-primary hover:bg-primary/20'
           : 'border-border bg-background text-muted-foreground hover:bg-muted hover:text-foreground'
           }`}
-        title={isSaved ? t('remove_saved', 'Remove from saved') : t('save_issue', 'Save issue')}
       >
-        <Bookmark size={16} className={isSaved ? "fill-primary text-primary" : ""} />
+        <Bookmark className={`w-4 h-4 lg:w-5 lg:h-5 ${isSaved ? "fill-primary text-primary" : ""}`} />
       </button>
 
       <button
         onClick={handleShareMenuOpen}
-        className="p-2 rounded-xl border border-border bg-background text-muted-foreground hover:bg-muted hover:text-foreground transition-colors shadow-sm"
-        title="Share"
+        className="p-2 lg:p-2.5 rounded-xl border border-border bg-background text-muted-foreground hover:bg-muted hover:text-foreground transition-colors shadow-sm shrink-0"
       >
-        <Share2 size={16} />
+        <Share2 className="w-4 h-4 lg:w-5 lg:h-5" />
       </button>
     </>
   );
 
   return (
     <div
-      className="group relative bg-card border border-border/50 rounded-2xl overflow-hidden shadow-md hover:shadow-xl hover:border-primary/40 transition-all duration-300 cursor-pointer flex flex-col"
+      className="group relative bg-card border border-border/50 rounded-2xl overflow-hidden shadow-lg flex flex-col h-full w-full max-h-full"
       onClick={onClick}
     >
-      {/* 1. MEDIA HEADER */}
-      <div className="relative h-48 sm:h-56 w-full bg-muted overflow-hidden shrink-0">
+      {/* 1. MEDIA HEADER - Mobile: Fluid flex-1 | Desktop: Fixed h-[40%] */}
+      <div className="relative w-full bg-black overflow-hidden border-b border-border/50 flex-1 min-h-[120px] lg:flex-none lg:h-[40%] lg:min-h-[160px]">
         {displayMediaUrl ? (
           isVideo ? (
             <video src={`${displayMediaUrl}#t=0.1`} className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-700" muted playsInline />
           ) : (
-            <img src={displayMediaUrl} alt={title} className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-700" />
+            <img src={displayMediaUrl} alt={title} className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-700 opacity-90" />
           )
         ) : (
           <div className="w-full h-full flex items-center justify-center bg-card">
-            <AlertTriangle className="w-10 h-10 text-muted-foreground/30" />
+            <AlertTriangle className="w-10 h-10 lg:w-12 lg:h-12 text-muted-foreground/30" />
           </div>
         )}
-
-        <div className="absolute inset-0 bg-gradient-to-b from-black/60 via-transparent to-transparent pointer-events-none" />
-
-        {/* Floating Badges */}
-        <div className="absolute top-3 left-3 right-3 flex justify-between items-start gap-2">
-          <div className="flex gap-2">
-            <span className={`px-2.5 py-1 rounded-lg text-[10px] font-black uppercase tracking-widest border backdrop-blur-md shadow-sm ${activeColor}`}>
-              {t(status?.toLowerCase())}
-            </span>
-          </div>
-
-          {/* Render Media Toggles right on the card if claimed images exist */}
-          {claimedUrls.length > 0 && (
-            <div className="flex bg-black/40 backdrop-blur-md p-1 rounded-lg border border-white/10" onClick={(e) => e.stopPropagation()}>
-              <button
-                onClick={() => setMediaTab('REPORTED')}
-                className={`px-2.5 py-1 rounded-md text-[9px] font-black uppercase tracking-widest transition-all ${mediaTab === 'REPORTED' ? 'bg-primary text-white shadow-sm' : 'text-white/70 hover:bg-white/10'}`}
-              >
-                Reported
-              </button>
-              <button
-                onClick={() => setMediaTab('CLAIMED')}
-                className={`px-2.5 py-1 rounded-md text-[9px] font-black uppercase tracking-widest transition-all ${mediaTab === 'CLAIMED' ? 'bg-green-500 text-white shadow-sm' : 'text-white/70 hover:bg-white/10'}`}
-              >
-                Claimed
-              </button>
-            </div>
-          )}
+        <div className="absolute inset-0 bg-gradient-to-b from-black/70 via-transparent to-black/30 pointer-events-none" />
+        <div className="absolute top-2 left-2 lg:top-4 lg:left-4 right-2 lg:right-4 flex justify-between items-start gap-2">
+          <span className={`px-2 py-1 lg:px-3 lg:py-1.5 rounded-lg text-[10px] lg:text-xs font-black uppercase tracking-widest border backdrop-blur-md shadow-sm ${activeColor}`}>
+            {t(status?.toLowerCase())}
+          </span>
         </div>
       </div>
 
-      {/* 2. CORE INFORMATION */}
-      <div className="p-4 flex flex-col flex-1">
-        <button
-          onClick={openGoogleMaps}
-          className="mb-3 w-fit flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-blue-500/10 text-blue-500 border border-blue-500/20 hover:bg-blue-500 hover:text-white transition-colors text-[11px] font-bold tracking-wide"
-          title="Get Directions"
-        >
-          <Navigation size={12} className="shrink-0" />
-          {formatDistance(liveDistance)} • {location?.city || location?.district}
-        </button>
+      {/* 2. CORE INFORMATION - Mobile: Hugs content (shrink-0) | Desktop: expands to fill space (flex-1) */}
+      <div className="flex flex-col justify-start p-2.5 lg:p-5 bg-card overflow-hidden shrink-0 lg:shrink lg:flex-1 lg:min-h-0">
 
-        <h3 className="text-lg font-bold text-foreground leading-snug line-clamp-1 mb-1.5 group-hover:text-primary transition-colors">
-          {title}
-        </h3>
+        <div className="shrink-0">
+          <button
+            onClick={openGoogleMaps}
+            className="mb-1 lg:mb-2 w-fit flex items-center gap-1 lg:gap-1.5 px-2.5 py-0.5 lg:px-3.5 lg:py-1.5 rounded-full bg-blue-500/10 text-blue-500 border border-blue-500/20 hover:bg-blue-500 hover:text-white transition-colors text-[10px] lg:text-xs font-bold tracking-wide"
+          >
+            <Navigation className="w-3 h-3 lg:w-3.5 lg:h-3.5 shrink-0" />
+            {formatDistance(liveDistance)} • {location?.city || location?.district}
+          </button>
 
-        <p className="text-xs text-muted-foreground line-clamp-2 leading-relaxed mb-4">
-          {description || t('no_description')}
-        </p>
+          <h3 className="text-sm sm:text-base lg:text-2xl font-black text-foreground leading-tight lg:leading-tight mb-0.5 lg:mb-2 line-clamp-2">
+            {title}
+          </h3>
 
-        <div className="flex items-center gap-2 mt-auto">
-          <div className="w-6 h-6 rounded-full bg-muted border border-border/50 flex items-center justify-center shrink-0">
-            <User size={12} className="text-muted-foreground" />
+          <p className="text-[11px] lg:text-sm text-muted-foreground leading-tight lg:leading-snug mb-1 lg:mb-3 line-clamp-3 sm:line-clamp-4 lg:line-clamp-6">
+            {description || t('no_description')}
+          </p>
+        </div>
+
+        {/* Note: mt-auto applies ONLY on desktop (lg:mt-auto) to push this to the bottom */}
+        <div className="flex items-center gap-2 lg:gap-2.5 mt-1.5 lg:mt-auto pt-2 lg:pt-3 border-t border-border/40 shrink-0">
+          <div className="w-5 h-5 lg:w-8 lg:h-8 rounded-full bg-muted border border-border/50 flex items-center justify-center shrink-0">
+            <User className="w-3 h-3 lg:w-4 lg:h-4 text-muted-foreground" />
           </div>
-          <div className="flex items-center gap-1.5">
-            <p className={`text-xs font-semibold ${isAnonymous ? 'text-muted-foreground' : 'text-foreground/90'}`}>
+          <div className="flex items-center gap-1.5 lg:gap-2 min-w-0">
+            <p className={`text-[11px] lg:text-sm font-bold truncate ${isAnonymous ? 'text-muted-foreground' : 'text-foreground/90'}`}>
               {isAnonymous ? 'Anonymous Citizen' : reportedBy?.name || 'Unknown'}
             </p>
-            {!isAnonymous && isVerified && <ShieldCheck size={12} className="text-emerald-500" />}
+            {!isAnonymous && isVerified && <ShieldCheck className="w-3 h-3 lg:w-5 lg:h-5 text-emerald-500 shrink-0" />}
+          </div>
+        </div>
+      </div>
+
+      {/* 3. PINNED FOOTER ACTIONS - Squishy buttons added to prevent Zoom leaks */}
+      <div className="shrink-0 flex flex-col sm:flex-row sm:items-center justify-between pt-2 lg:pt-4 p-2.5 lg:p-5 mt-auto border-t border-border/50 gap-2 lg:gap-4 bg-card min-w-0">
+
+        {/* Left Side (Desktop) / Top Row (Mobile) */}
+        <div className="flex items-center justify-between w-full sm:w-auto gap-4 min-w-0 shrink">
+
+          <div className="flex items-center gap-4 lg:gap-5 shrink-0">
+            <div className="flex flex-col items-center sm:items-start">
+              <span className="text-lg lg:text-3xl font-black text-emerald-500 leading-none">{confirmationCount || 0}</span>
+              <span className="text-[9px] lg:text-[10px] uppercase tracking-widest text-muted-foreground font-bold mt-1">Confirmed</span>
+            </div>
+            <div className="w-px h-6 lg:h-8 bg-border/80"></div>
+            <div className="flex flex-col items-center sm:items-start">
+              <span className="text-lg lg:text-3xl font-black text-yellow-500 leading-none flex items-center gap-1">
+                <Zap className="w-3.5 h-3.5 lg:w-6 lg:h-6 fill-yellow-500" /> {impactScore || 0}
+              </span>
+              <span className="text-[9px] lg:text-[10px] uppercase tracking-widest text-muted-foreground font-bold mt-1">Impact</span>
+            </div>
+          </div>
+
+          <div className="flex sm:hidden items-center gap-1.5 shrink-0">
+            <ActionIcons />
           </div>
         </div>
 
-        {/* 3. RESPONSIVE FOOTER ACTIONS & METRICS */}
-        <div className="flex flex-col sm:flex-row sm:items-center justify-between pt-4 mt-4 border-t border-border/50 gap-4">
+        {/* Right Side (Desktop) / Bottom Row (Mobile) */}
+        {/* Changed justify-end to ensure it handles min-width correctly */}
+        <div className="flex items-center gap-2 w-full sm:w-auto sm:justify-end min-w-0 shrink">
 
-          {/* Top Row on Mobile: Metrics & Icons */}
-          <div className="flex items-center justify-between w-full sm:w-auto gap-4">
-            <div className="flex items-center gap-4">
-              <div className="flex flex-col items-center">
-                <span className="text-lg font-black text-emerald-500 leading-none">{confirmationCount || 0}</span>
-                <span className="text-[9px] uppercase tracking-widest text-muted-foreground font-bold mt-1">Confirmed</span>
-              </div>
-              <div className="w-px h-6 bg-border/50"></div>
-              <div className="flex flex-col items-center">
-                <span className="text-lg font-black text-yellow-500 leading-none flex items-center gap-0.5"><Zap size={14} className="fill-yellow-500" /> {impactScore || 0}</span>
-                <span className="text-[9px] uppercase tracking-widest text-muted-foreground font-bold mt-1">Impact</span>
-              </div>
-            </div>
-
-            {/* Share/Bookmark Icons - Visible here on Mobile only */}
-            <div className="flex sm:hidden items-center gap-2">
-              <ActionIcons />
-            </div>
+          <div className="hidden sm:flex items-center gap-2 shrink-0">
+            <ActionIcons />
           </div>
 
-          {/* Bottom Row on Mobile: Action Buttons */}
-          <div className="flex items-center gap-2 w-full sm:w-auto justify-end">
-
-            {/* Share/Bookmark Icons - Visible here on Desktop only */}
-            <div className="hidden sm:flex items-center gap-2">
-              <ActionIcons />
-            </div>
-
-            {/* Verification & Confirm Injection */}
-            <div className="flex items-center w-full sm:w-auto gap-2">
-              {hasVoted ? (
-                <span className="flex-1 sm:flex-none flex justify-center items-center gap-1.5 px-3 py-2 rounded-xl text-xs font-bold whitespace-nowrap bg-green-500/10 text-green-600 border border-green-500/20 shadow-sm cursor-default" onClick={(e) => e.stopPropagation()}>
-                  <CheckCircle2 size={14} /> Verified
-                </span>
-              ) : canVoteOnResolution ? (
-                <div className="flex w-full sm:w-auto gap-2">
-                  <button
-                    onClick={(e) => { e.preventDefault(); e.stopPropagation(); handleConsensusVote('APPROVED'); }}
-                    disabled={isVerifying}
-                    className="flex-1 sm:flex-none flex items-center justify-center gap-1 px-3 py-2 rounded-xl text-xs font-bold transition-all bg-green-500 text-white hover:bg-green-600 shadow-sm whitespace-nowrap"
-                  >
-                    {isVerifying ? <MiniLoader className="w-4 h-4" /> : <><ThumbsUp size={14} /> Approve</>}
-                  </button>
-                  <button
-                    onClick={(e) => { e.preventDefault(); e.stopPropagation(); setIsOpposing(true); }}
-                    disabled={isVerifying}
-                    className="flex-1 sm:flex-none flex items-center justify-center gap-1 px-3 py-2 rounded-xl text-xs font-bold transition-all bg-red-500/10 text-red-600 border border-red-500/30 hover:bg-red-500 hover:text-white shadow-sm whitespace-nowrap"
-                  >
-                    <ThumbsDown size={14} /> Oppose
-                  </button>
-                </div>
-              ) : isIssueClosed ? (
-                <span className="flex-1 sm:flex-none flex justify-center items-center gap-1.5 px-3 py-2 rounded-xl text-xs font-bold whitespace-nowrap bg-muted text-muted-foreground border border-border/50 shadow-sm cursor-default" onClick={(e) => e.stopPropagation()}>
-                  Issue {status.charAt(0).toUpperCase() + status.slice(1).toLowerCase()}
-                </span>
-              ) : (
+          {/* Squishy Button Container */}
+          <div className="flex items-center w-full sm:w-auto gap-1.5 lg:gap-2 min-w-0 shrink">
+            {hasVoted ? (
+              <span className="flex-1 flex justify-center items-center gap-1.5 px-3 py-1.5 lg:px-4 lg:py-2.5 rounded-xl text-sm lg:text-base font-bold text-green-600 bg-green-500/10 border border-green-500/20 cursor-default min-w-0 shrink" onClick={(e) => e.stopPropagation()}>
+                <CheckCircle2 className="w-4 h-4 lg:w-5 lg:h-5 shrink-0" /> <span className="truncate">Verified</span>
+              </span>
+            ) : canVoteOnResolution ? (
+              <>
                 <button
-                  onClick={handleConfirm}
-                  disabled={confirmLoading}
-                  className={`flex-1 sm:flex-none flex items-center justify-center gap-1.5 px-4 py-2 rounded-xl text-xs font-bold transition-all whitespace-nowrap shadow-sm
-                    ${isConfirmedByUser
-                      ? "bg-emerald-500/10 text-emerald-600 border border-emerald-500/20"
-                      : status?.toUpperCase() === 'OPEN'
-                        ? "bg-primary text-primary-foreground hover:bg-primary/90"
-                        : "bg-muted text-muted-foreground border-border hover:bg-muted/80"
-                    }`}
+                  onClick={(e) => { e.preventDefault(); e.stopPropagation(); handleConsensusVote('APPROVED'); }}
+                  disabled={isVerifying}
+                  className="flex-1 flex items-center justify-center gap-1 lg:gap-1.5 px-2 py-1.5 lg:px-3 lg:py-2 rounded-xl text-[13px] lg:text-sm font-bold transition-all bg-green-500 text-white hover:bg-green-600 min-w-0 shrink"
                 >
-                  {confirmLoading ? "..." : isConfirmedByUser ? (
-                    <><CheckCircle2 size={14} /> Confirmed</>
-                  ) : (
-                    <><CheckCircle2 size={14} /> Confirm</>
-                  )}
+                  {isVerifying ? <MiniLoader className="w-4 h-4 lg:w-4 lg:h-4 shrink-0" /> : <><ThumbsUp className="w-3.5 h-3.5 lg:w-4 lg:h-4 shrink-0" /> <span className="truncate">Approve</span></>}
                 </button>
-              )}
-            </div>
+                <button
+                  onClick={(e) => { e.preventDefault(); e.stopPropagation(); setIsOpposing(true); }}
+                  disabled={isVerifying}
+                  className="flex-1 flex items-center justify-center gap-1 lg:gap-1.5 px-2 py-1.5 lg:px-3 lg:py-2 rounded-xl text-[13px] lg:text-sm font-bold transition-all bg-red-500/10 text-red-600 border border-red-500/30 hover:bg-red-500 hover:text-white min-w-0 shrink"
+                >
+                  <ThumbsDown className="w-3.5 h-3.5 lg:w-4 lg:h-4 shrink-0" /> <span className="truncate">Oppose</span>
+                </button>
+              </>
+            ) : isIssueClosed ? (
+              <span className="flex-1 flex justify-center items-center gap-1.5 px-3 py-1.5 lg:px-4 lg:py-2 rounded-xl text-sm font-bold bg-muted text-muted-foreground border border-border/50 cursor-default min-w-0 shrink" onClick={(e) => e.stopPropagation()}>
+                <span className="truncate">Issue {status.charAt(0).toUpperCase() + status.slice(1).toLowerCase()}</span>
+              </span>
+            ) : (
+              <button
+                onClick={handleConfirm}
+                disabled={confirmLoading}
+                className={`flex-1 flex items-center justify-center gap-1.5 px-4 py-1.5 lg:px-5 lg:py-2 rounded-xl text-sm lg:text-base font-bold transition-all min-w-0 shrink ${isConfirmedByUser ? "bg-emerald-500/10 text-emerald-600 border border-emerald-500/20" : status?.toUpperCase() === 'OPEN' ? "bg-primary text-primary-foreground hover:bg-primary/90" : "bg-muted text-muted-foreground border-border hover:bg-muted/80"}`}
+              >
+                {confirmLoading ? "..." : isConfirmedByUser ? <><CheckCircle2 className="w-4 h-4 lg:w-5 lg:h-5 shrink-0" /> <span className="truncate">Confirmed</span></> : <><CheckCircle2 className="w-4 h-4 lg:w-5 lg:h-5 shrink-0" /> <span className="truncate">Confirm</span></>}
+              </button>
+            )}
           </div>
         </div>
       </div>
 
       {/* --- INLINE SHARE MENU --- */}
       {isSharing && (
-        <div
-          className="absolute inset-0 z-50 flex items-center justify-center p-4 bg-black/70 backdrop-blur-sm animate-in fade-in"
-          onClick={(e) => { e.stopPropagation(); setIsSharing(false); }}
-        >
-          <div className="bg-card border border-border rounded-2xl w-full p-5 shadow-2xl flex flex-col" onClick={(e) => e.stopPropagation()}>
-
-            <div className="flex justify-between items-center mb-5">
-              <h3 className="text-lg font-bold text-foreground">Share Issue</h3>
-              <button onClick={() => setIsSharing(false)} className="p-1.5 rounded-full bg-muted text-muted-foreground hover:text-foreground transition-colors">
-                <X size={16} />
-              </button>
+        <div className="absolute inset-0 z-50 flex items-center justify-center p-4 bg-black/70 backdrop-blur-sm animate-in fade-in" onClick={(e) => { e.stopPropagation(); setIsSharing(false); }}>
+          <div className="bg-card border border-border rounded-2xl w-full max-w-sm p-6 shadow-2xl flex flex-col" onClick={(e) => e.stopPropagation()}>
+            <div className="flex justify-between items-center mb-6">
+              <h3 className="text-xl font-bold text-foreground">Share Issue</h3>
+              <button onClick={() => setIsSharing(false)} className="p-2 rounded-full bg-muted text-muted-foreground hover:text-foreground transition-colors"><X size={20} /></button>
             </div>
-
             <div className="grid grid-cols-4 gap-4">
-              {/* WhatsApp */}
               <button onClick={(e) => executeShare('whatsapp', e)} className="flex flex-col items-center gap-2 group">
-                <div className="w-12 h-12 rounded-full bg-[#25D366] text-white flex items-center justify-center shadow-sm group-hover:scale-110 transition-transform">
-                  <WhatsappIcon size={24} />
-                </div>
-                <span className="text-[10px] font-semibold text-foreground/80">WhatsApp</span>
+                <div className="w-14 h-14 rounded-full bg-[#25D366] text-white flex items-center justify-center shadow-sm group-hover:scale-110 transition-transform"><WhatsappIcon size={28} /></div>
+                <span className="text-[11px] font-semibold text-foreground/80">WhatsApp</span>
               </button>
-
-              {/* Twitter/X */}
               <button onClick={(e) => executeShare('twitter', e)} className="flex flex-col items-center gap-2 group">
-                <div className="w-12 h-12 rounded-full bg-black dark:bg-white text-white dark:text-black flex items-center justify-center shadow-sm group-hover:scale-110 transition-transform">
-                  <Twitter size={20} />
-                </div>
-                <span className="text-[10px] font-semibold text-foreground/80">X (Twitter)</span>
+                <div className="w-14 h-14 rounded-full bg-black dark:bg-white text-white dark:text-black flex items-center justify-center shadow-sm group-hover:scale-110 transition-transform"><Twitter size={24} /></div>
+                <span className="text-[11px] font-semibold text-foreground/80">X (Twitter)</span>
               </button>
-
-              {/* Telegram */}
               <button onClick={(e) => executeShare('telegram', e)} className="flex flex-col items-center gap-2 group">
-                <div className="w-12 h-12 rounded-full bg-[#0088cc] text-white flex items-center justify-center shadow-sm group-hover:scale-110 transition-transform">
-                  <Send size={20} className="ml-0.5" /> {/* Slight offset for the paper plane icon */}
-                </div>
-                <span className="text-[10px] font-semibold text-foreground/80">Telegram</span>
+                <div className="w-14 h-14 rounded-full bg-[#0088cc] text-white flex items-center justify-center shadow-sm group-hover:scale-110 transition-transform"><Send size={24} className="ml-0.5" /></div>
+                <span className="text-[11px] font-semibold text-foreground/80">Telegram</span>
               </button>
-
-              {/* Facebook */}
               <button onClick={(e) => executeShare('facebook', e)} className="flex flex-col items-center gap-2 group">
-                <div className="w-12 h-12 rounded-full bg-[#1877F2] text-white flex items-center justify-center shadow-sm group-hover:scale-110 transition-transform">
-                  <Facebook size={20} />
-                </div>
-                <span className="text-[10px] font-semibold text-foreground/80">Facebook</span>
+                <div className="w-14 h-14 rounded-full bg-[#1877F2] text-white flex items-center justify-center shadow-sm group-hover:scale-110 transition-transform"><Facebook size={24} /></div>
+                <span className="text-[11px] font-semibold text-foreground/80">Facebook</span>
               </button>
             </div>
-
-            <div className="mt-5 pt-5 border-t border-border/50">
-              <button
-                onClick={(e) => executeShare('copy', e)}
-                className="w-full flex items-center justify-center gap-2 py-3 rounded-xl border border-border bg-muted hover:bg-muted/80 text-foreground text-sm font-bold transition-colors active:scale-95"
-              >
-                <Copy size={16} /> Copy Link
-              </button>
+            <div className="mt-6 pt-6 border-t border-border/50">
+              <button onClick={(e) => executeShare('copy', e)} className="w-full flex items-center justify-center gap-2 py-4 rounded-xl border border-border bg-muted hover:bg-muted/80 text-foreground text-base font-bold transition-colors active:scale-95"><Copy size={20} /> Copy Link</button>
             </div>
-
           </div>
         </div>
       )}
@@ -653,26 +554,16 @@ const IssueCard = ({ issue, onClick }) => {
       {/* INLINE OPPOSE MODAL FOR CARD */}
       {isOpposing && (
         <div className="absolute inset-0 z-50 flex items-center justify-center p-4 bg-black/70 backdrop-blur-sm animate-in fade-in" onClick={(e) => e.stopPropagation()}>
-          <div className="bg-card border border-border rounded-2xl w-full p-6 shadow-2xl flex flex-col items-center">
-            <ShieldAlert className="w-10 h-10 text-red-500 mb-3" />
-            <h3 className="text-lg font-bold text-foreground mb-2 text-center">Counter Evidence</h3>
-            <p className="text-xs text-muted-foreground text-center mb-5">
-              Take a live photo of the current situation.
-            </p>
-            <div className="w-full flex flex-col gap-2">
-              <button
-                onClick={triggerCameraForDispute}
-                disabled={isVerifying}
-                className="w-full flex items-center justify-center gap-2 py-2.5 rounded-xl bg-red-600 hover:bg-red-700 text-white font-bold text-xs transition-colors disabled:opacity-60"
-              >
-                {isVerifying ? <><MiniLoader className="w-4 h-4 text-white" /> Uploading...</> : <><CameraIcon size={16} /> Take Photo</>}
+          <div className="bg-card border border-border rounded-2xl w-full max-w-sm p-6 shadow-2xl flex flex-col items-center">
+            <ShieldAlert className="w-12 h-12 text-red-500 mb-4" />
+            <h3 className="text-xl font-bold text-foreground mb-2 text-center">Counter Evidence</h3>
+            <p className="text-sm text-muted-foreground text-center mb-6">Take a live photo of the current situation.</p>
+            <div className="w-full flex flex-col gap-3">
+              <button onClick={triggerCameraForDispute} disabled={isVerifying} className="w-full flex items-center justify-center gap-2 py-3.5 rounded-xl bg-red-600 hover:bg-red-700 text-white font-bold text-base transition-colors disabled:opacity-60">
+                {isVerifying ? <><MiniLoader className="w-5 h-5 text-white" /> Uploading...</> : <><CameraIcon size={20} /> Take Photo</>}
               </button>
               <input type="file" id={`dispute-camera-input-${_id}`} accept="image/*" capture="environment" className="hidden" onChange={(e) => { e.stopPropagation(); handleWebCameraChange(e); }} />
-              <button
-                onClick={(e) => { e.stopPropagation(); setIsOpposing(false); }}
-                disabled={isVerifying}
-                className="w-full py-2.5 rounded-xl border border-border bg-background text-foreground hover:bg-muted font-bold text-xs transition-colors"
-              >
+              <button onClick={(e) => { e.stopPropagation(); setIsOpposing(false); }} disabled={isVerifying} className="w-full py-3.5 rounded-xl border border-border bg-background text-foreground hover:bg-muted font-bold text-base transition-colors">
                 Cancel
               </button>
             </div>

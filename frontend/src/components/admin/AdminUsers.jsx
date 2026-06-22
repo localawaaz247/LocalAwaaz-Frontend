@@ -237,9 +237,8 @@ const AdminUsers = () => {
     }, [isIssueModalOpen, currentMediaIndex, selectedIssue, mediaTab]);
 
     useEffect(() => {
-        // 1. Listen for full issue updates (Crucial if you have the issue modal open)
+        // 1. Listen for full issue updates
         socket.on('issue_updated', (data) => {
-            // If the issue the admin is currently viewing gets updated, swap it out instantly
             setSelectedIssue((prev) =>
                 prev && prev._id === data.issueId ? data.updatedData : prev
             );
@@ -254,7 +253,7 @@ const AdminUsers = () => {
 
         // 3. Listen for nuclear deletions
         socket.on('issue_deleted', (data) => {
-            // If someone deletes the exact issue you are looking at, close the modal to prevent crashes
+            // Close the issue modal if the admin is currently looking at the deleted issue
             setSelectedIssue((prev) => {
                 if (prev && prev._id === data.issueId) {
                     setIsIssueModalOpen(false);
@@ -263,17 +262,25 @@ const AdminUsers = () => {
                 return prev;
             });
 
-            // Also remove it from the user's active history list without a page refresh
-            if (careerModal.isOpen) {
-                setCareerModal(prev => ({
+            // FIXED: Update selectedUserDetails instead of the undefined careerModal
+            setSelectedUserDetails((prev) => {
+                if (!prev || !prev.history) return prev;
+
+                // Copy the history object
+                const updatedHistory = { ...prev.history };
+
+                // If there's an active tab array, filter the deleted issue out of it
+                if (updatedHistory[activeHistoryTab]) {
+                    updatedHistory[activeHistoryTab] = updatedHistory[activeHistoryTab].filter(
+                        (issue) => issue._id !== data.issueId
+                    );
+                }
+
+                return {
                     ...prev,
-                    issueList: prev.issueList.filter(issue => issue._id !== data.issueId),
-                    history: {
-                        ...prev.history,
-                        [activeHistoryTab]: prev.history?.[activeHistoryTab]?.filter(issue => issue._id !== data.issueId)
-                    }
-                }));
-            }
+                    history: updatedHistory
+                };
+            });
         });
 
         // Cleanup listeners
@@ -282,8 +289,7 @@ const AdminUsers = () => {
             socket.off('issue_status_updated');
             socket.off('issue_deleted');
         };
-    }, [careerModal.isOpen, activeHistoryTab]);
-
+    }, [activeHistoryTab]); // removed undefined careerModal.isOpen from dependencies
     // --- FETCHERS ---
     const fetchUsers = async () => {
         try {

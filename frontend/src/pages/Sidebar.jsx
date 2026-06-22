@@ -142,29 +142,28 @@ const Sidebar = () => {
   return (
     <>
       <style>{`
-        @media (max-width: 767px) {
+        /* 🟢 CHANGED: Tablets (up to 1023px) now get bottom padding for the bottom nav */
+        @media (max-width: 1023px) {
           body { padding-bottom: 4rem; }
-        }
-        @media (min-width: 768px) and (max-width: 1023px) {
-          body { padding-top: 4rem; }
         }
       `}</style>
 
+      {/* 🟢 CHANGED: Removed all md: overrides. Stays at bottom until lg: (desktop) */}
       <aside className="
         fixed bottom-0 left-0 w-full h-16 z-40 bg-card border-t border-border transition-all duration-300
-        md:top-0 md:bottom-auto md:border-t-0 md:border-b md:px-6
-        lg:sticky lg:h-screen lg:w-72 lg:border-b-0 lg:border-r lg:py-6 lg:px-4
+        lg:sticky lg:top-0 lg:bottom-auto lg:h-screen lg:w-72 lg:border-t-0 lg:border-b-0 lg:border-r lg:py-6 lg:px-4
       ">
         <div className="flex w-full h-full flex-row items-center justify-between lg:flex-col lg:items-stretch lg:justify-start">
 
-          <div className="hidden md:flex items-center gap-3 lg:mb-10 lg:px-2 flex-shrink-0">
+          {/* 🟢 CHANGED: Hidden on Mobile AND Tablet, visible only on lg */}
+          <div className="hidden lg:flex items-center gap-3 lg:mb-10 lg:px-2 flex-shrink-0">
             <div className="w-10 h-10 lg:w-12 lg:h-12 rounded-xl flex items-center justify-center shadow-lg">
               <img src="/logo.png" alt="/logo" className="h-6 w-8 lg:h-8 lg:w-10" />
             </div>
             <span className="text-lg lg:text-xl text-gradient font-semibold">LocalAwaaz</span>
           </div>
 
-          <nav className="flex flex-row w-full justify-between items-center px-4 md:px-0 md:justify-center md:gap-6 lg:flex-col lg:gap-2 lg:items-start lg:w-full lg:mt-0">
+          <nav className="flex flex-row w-full justify-between items-center px-4 lg:px-0 lg:flex-col lg:gap-2 lg:items-start lg:w-full lg:mt-0">
             <NavLink to="/dashboard" end className="w-auto lg:w-full">
               <SidebarItem icon={Home} label={t('nav_home_feed')} active={path === "/dashboard"} />
             </NavLink>
@@ -178,14 +177,14 @@ const Sidebar = () => {
               <SidebarItem icon={Sparkle} label={t('nav_lokai')} active={path === "/dashboard/assistant"} />
             </NavLink>
 
-            {/* 🟢 NEW: Leaderboard Button */}
+            {/* Leaderboard Button */}
             <NavLink to="leaderboard" className="w-auto lg:w-full">
               <SidebarItem icon={Trophy} label={t('nav_leaderboard', 'Leaderboard')} active={path.startsWith("/dashboard/leaderboard")} />
             </NavLink>
 
-            {/* 🟢 NEW: Authority Panel Button */}
+            {/* Authority Panel Button */}
             {isApprovedAuthority && (
-              <NavLink to="/authority" className="w-auto lg:w-full">
+              <NavLink to="/authority" className="w-auto lg:w-full hidden lg:block">
                 <SidebarItem
                   icon={Briefcase}
                   label="Authority Space"
@@ -196,7 +195,7 @@ const Sidebar = () => {
             )}
 
             {user?.role === 'admin' && (
-              <NavLink to="/admin" className="w-auto lg:w-full">
+              <NavLink to="/admin" className="w-auto lg:w-full hidden lg:block">
                 <SidebarItem
                   icon={ShieldCheck}
                   label={t('nav_admin_panel')}
@@ -206,6 +205,7 @@ const Sidebar = () => {
               </NavLink>
             )}
 
+            {/* 🟢 CHANGED: Profile Avatar stays visible on bottom nav for both mobile and tablet */}
             <div className="flex lg:hidden flex-shrink-0 relative items-center justify-center">
               <button
                 className="flex items-center justify-center p-2 transition-transform active:scale-95"
@@ -294,6 +294,28 @@ const Sidebar = () => {
               </div>
               {/* -------------------------------------- */}
 
+              {/* Mobile/Tablet admin/authority links fallback */}
+              {isApprovedAuthority && (
+                <NavLink
+                  to="/authority"
+                  onClick={() => setOpenModal(false)}
+                  className="w-full flex lg:hidden items-center gap-3 px-4 py-3 rounded-xl text-foreground/80 hover:text-foreground hover:bg-black/10 dark:hover:bg-black/40 transition-all duration-200 text-left active:scale-95"
+                >
+                  <Briefcase className="w-5 h-5" />
+                  <span className="text-sm md:text-base font-medium">Authority Space</span>
+                </NavLink>
+              )}
+              {user?.role === 'admin' && (
+                <NavLink
+                  to="/admin"
+                  onClick={() => setOpenModal(false)}
+                  className="w-full flex lg:hidden items-center gap-3 px-4 py-3 rounded-xl text-foreground/80 hover:text-foreground hover:bg-black/10 dark:hover:bg-black/40 transition-all duration-200 text-left active:scale-95"
+                >
+                  <ShieldCheck className="w-5 h-5" />
+                  <span className="text-sm md:text-base font-medium">{t('nav_admin_panel')}</span>
+                </NavLink>
+              )}
+
               <NavLink
                 to="profile"
                 onClick={() => setOpenModal(false)}
@@ -379,7 +401,6 @@ const Sidebar = () => {
   );
 };
 
-// 🟢 Updated SidebarItem: kept hover:scale-105 and active:scale-95 for enlarging effects
 const SidebarItem = ({ icon: Icon, label, active, unreadCount, isAdminLink, isAuthorityLink }) => {
   return (
     <div
