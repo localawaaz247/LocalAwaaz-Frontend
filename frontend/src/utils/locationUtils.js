@@ -1,5 +1,5 @@
-// Utility functions for location management
-
+import { Geolocation } from '@capacitor/geolocation';
+import { Capacitor } from '@capacitor/core';
 import axiosInstance from "./axios";
 
 export const getUserLocation = () => {
@@ -40,58 +40,85 @@ export const clearUserLocation = () => {
 
 export const formatLocationDisplay = (location) => {
   if (!location) return "Location not set"
-  
+
   if (location.city && location.state) {
     return `${location.city}, ${location.state}`
   }
-  
+
   if (location.address && location.address !== 'Location not provided') {
     return location.address
   }
-  
+
   return "Location not set"
 }
 
-export const getCurrentPosition = () => {
-  return new Promise((resolve, reject) => {
-    if (!navigator.geolocation) {
-      reject(new Error('Geolocation is not supported by your browser'))
-      return
-    }
+// 🟢 NEW CAPACITOR-POWERED GPS FUNCTION
+export const getCurrentPosition = async () => {
+  try {
+    // 1. Native Capacitor Implementation
+    if (Capacitor.isNativePlatform()) {
+      let permStatus = await Geolocation.checkPermissions();
 
-    navigator.geolocation.getCurrentPosition(
-      (position) => {
-        resolve({
-          latitude: position.coords.latitude,
-          longitude: position.coords.longitude,
-          accuracy: position.coords.accuracy
-        })
-      },
-      (error) => {
-        let errorMessage
-        switch(error.code) {
-          case error.PERMISSION_DENIED:
-            errorMessage = "Location access denied. Please enable location permissions."
-            break
-          case error.POSITION_UNAVAILABLE:
-            errorMessage = "Location information unavailable."
-            break
-          case error.TIMEOUT:
-            errorMessage = "Location request timed out."
-            break
-          default:
-            errorMessage = "An unknown error occurred while getting location."
-        }
-        reject(new Error(errorMessage))
-      },
-      {
+      if (permStatus.location === 'prompt') {
+        permStatus = await Geolocation.requestPermissions();
+      }
+
+      if (permStatus.location !== 'granted') {
+        throw new Error('Location permission denied');
+      }
+
+      const position = await Geolocation.getCurrentPosition({
         enableHighAccuracy: true,
         timeout: 10000,
-        maximumAge: 0 
+        maximumAge: 300000
+      });
+
+      return {
+        latitude: position.coords.latitude,
+        longitude: position.coords.longitude,
+        accuracy: position.coords.accuracy
+      };
+    }
+
+    // 2. Web Browser Fallback
+    return await new Promise((resolve, reject) => {
+      if (!navigator.geolocation) {
+        reject(new Error('Geolocation is not supported by your browser'));
+        return;
       }
-    )
-  })
-}
+
+      navigator.geolocation.getCurrentPosition(
+        (position) => {
+          resolve({
+            latitude: position.coords.latitude,
+            longitude: position.coords.longitude,
+            accuracy: position.coords.accuracy
+          });
+        },
+        (error) => {
+          let errorMessage;
+          switch (error.code) {
+            case error.PERMISSION_DENIED:
+              errorMessage = "Location access denied.";
+              break;
+            case error.POSITION_UNAVAILABLE:
+              errorMessage = "Location information unavailable.";
+              break;
+            case error.TIMEOUT:
+              errorMessage = "Location request timed out.";
+              break;
+            default:
+              errorMessage = "An unknown error occurred.";
+          }
+          reject(new Error(errorMessage));
+        },
+        { enableHighAccuracy: true, timeout: 10000, maximumAge: 300000 }
+      );
+    });
+  } catch (error) {
+    throw error;
+  }
+};
 
 export const reverseGeocode = async (latitude, longitude) => {
   try {
@@ -99,9 +126,9 @@ export const reverseGeocode = async (latitude, longitude) => {
       lat: latitude,
       lng: longitude
     })
-    
+
     const data = response.data?.data;
-    
+
     return {
       city: data.city || 'Unknown',
       state: data.state || 'Unknown',
@@ -109,7 +136,6 @@ export const reverseGeocode = async (latitude, longitude) => {
     }
   } catch (error) {
     console.error('Error in reverse geocoding:', error)
-    // Return basic coordinates if geocoding fails
     return {
       city: 'Unknown',
       state: 'Unknown',
@@ -130,7 +156,6 @@ export const getChosenLocation = () => {
 
 export const saveChosenLocation = (locationData) => {
   try {
-    // Store only search data without coordinates
     const chosenData = {
       address: locationData.address,
       city: locationData.city,
@@ -158,7 +183,6 @@ export const getCurrentLocationStored = () => {
 
 export const saveCurrentLocation = (locationData) => {
   try {
-    // Store only coordinates for current location
     const currentData = {
       latitude: locationData.latitude,
       longitude: locationData.longitude

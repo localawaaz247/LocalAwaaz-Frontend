@@ -20,6 +20,12 @@
     },
     "CapacitorCookies": {
       "enabled": true
+    },
+    "SplashScreen": {
+      "launchShowDuration": 0,
+      "showSpinner": false,
+      "splashFullScreen": false,
+      "splashImmersive": false
     }
   }
 }

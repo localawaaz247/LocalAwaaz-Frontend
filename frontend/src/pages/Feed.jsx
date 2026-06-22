@@ -3,7 +3,7 @@ import { useState, useEffect, useMemo } from "react";
 import { useDispatch, useSelector } from "react-redux";
 import { useNavigate, useLocation, useOutletContext } from 'react-router-dom';
 import InfiniteScroll from "react-infinite-scroll-component";
-import { getChosenLocation, formatLocationDisplay } from "../utils/locationUtils";
+import { getChosenLocation, formatLocationDisplay, getCurrentPosition } from "../utils/locationUtils";
 import LocationModal from "../components/LocationModal";
 import IssueCard from "../components/IssueCard";
 import IssueDetail from "../components/IssueDetail";
@@ -31,6 +31,7 @@ const Feed = () => {
   const [sortBy, setSortBy] = useState("newest");
   const [page, setPage] = useState(1);
   const [visitors, setVisitors] = useState(0);
+  const [isLocating, setIsLocating] = useState(true);
 
   const [isMobile, setIsMobile] = useState(window.innerWidth < 1024);
 
@@ -169,50 +170,63 @@ const Feed = () => {
 
   useEffect(() => {
     const CACHE_TIME_LIMIT = 2 * 60 * 60 * 1000;
+
     const checkAndFetchLocation = async () => {
+      setIsLocating(true); // Force skeleton to show
+
       const cachedData = localStorage.getItem('cached_geo_location');
       let parsedCache = cachedData ? JSON.parse(cachedData) : null;
       const now = Date.now();
 
       if (parsedCache && (now - parsedCache.timestamp < CACHE_TIME_LIMIT)) {
         setChosenLocation(parsedCache);
+        setIsLocating(false);
         fetchData(1, parsedCache);
         return;
       }
 
       const locationDenied = localStorage.getItem('location_denied') === 'true';
 
-      if (navigator.geolocation && !locationDenied) {
+      if (!locationDenied) {
         showToast({ icon: "info", title: t('locating_neighborhood') });
-        navigator.geolocation.getCurrentPosition(
-          async (pos) => {
-            const { latitude, longitude } = pos.coords;
-            try {
-              const res = await axiosInstance.post('/get-location-from-coords', { lat: latitude, lng: longitude });
-              if (res.data?.success) {
-                const newLocation = {
-                  latitude, longitude,
-                  city: res.data.data.city, state: res.data.data.state, country: res.data.data.country,
-                  timestamp: Date.now()
-                };
-                localStorage.setItem('cached_geo_location', JSON.stringify(newLocation));
-                setChosenLocation(newLocation);
-                fetchData(1, newLocation);
-              }
-            } catch (err) {
-              fetchData(1);
-            }
-          },
-          (err) => {
-            localStorage.setItem('location_denied', 'true');
-            fetchData(1);
-          },
-          { enableHighAccuracy: true, timeout: 10000 }
-        );
-      } else {
-        fetchData(1);
+
+        try {
+          // Use our newly updated Capacitor-powered utility!
+          const position = await getCurrentPosition();
+
+          // Reverse geocode via your Node backend
+          const res = await axiosInstance.post('/get-location-from-coords', {
+            lat: position.latitude,
+            lng: position.longitude
+          });
+
+          if (res.data?.success) {
+            const newLocation = {
+              latitude: position.latitude,
+              longitude: position.longitude,
+              city: res.data.data.city,
+              state: res.data.data.state,
+              country: res.data.data.country,
+              timestamp: Date.now()
+            };
+
+            localStorage.setItem('cached_geo_location', JSON.stringify(newLocation));
+            setChosenLocation(newLocation);
+            setIsLocating(false);
+            fetchData(1, newLocation);
+            return; // Exit successfully
+          }
+        } catch (err) {
+          console.warn("Location fetch failed or was denied:", err);
+          localStorage.setItem('location_denied', 'true');
+        }
       }
+
+      // Fallback if denied or failed
+      setIsLocating(false);
+      fetchData(1);
     };
+
     checkAndFetchLocation();
   }, [dispatch, t]);
 
@@ -415,7 +429,11 @@ const Feed = () => {
           className="h-full w-full overflow-y-auto overflow-x-hidden snap-container overscroll-contain max-lg:absolute max-lg:inset-0 max-lg:px-2 max-lg:snap-y max-lg:snap-mandatory"
           style={{ containerType: 'size' }}
         >
-          {loading && sortedIssues.length === 0 ? (
+          {(loading || isLocating) && sortedIssues.length === 0 ? (
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 lg:gap-6 pt-2 pb-2 overflow-hidden w-full h-full">
+              {[1, 2, 3, 4].map(n => <IssueSkeleton key={n} />)}
+            </div>
+          ) : sortedIssues.length === 0 && !error ? (
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 lg:gap-6 pt-2 pb-2 overflow-hidden w-full h-full">
               {[1, 2, 3, 4].map(n => <IssueSkeleton key={n} />)}
             </div>

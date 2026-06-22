@@ -1,42 +1,30 @@
 import { useSelector } from "react-redux";
 import { Navigate, useLocation } from "react-router-dom";
-import Loader from "../components/Loader"; // Adjust path as needed
 
 export const ProtectedRoute = ({ children, requireAdmin = false }) => {
     const { user, isAuthenticated, tokenValidationLoading } = useSelector((state) => state.auth);
     const location = useLocation();
 
-    // 1. Show loader while validating token
-    if (tokenValidationLoading) {
-        return (
-            <div className="h-screen w-full flex items-center justify-center bg-background relative z-[100]">
-                <Loader />
-            </div>
-        );
+    // 1. Check if a token physically exists on the device
+    const hasLocalToken = !!localStorage.getItem("access_token");
+
+    // 2. OPTIMISTIC RENDERING (The Magic Fix)
+    // If we have a local token and are currently validating it (or waiting for the user object),
+    // DO NOT show a full-screen loader. Let the children render so the Feed skeletons show up instantly!
+    if (hasLocalToken && (tokenValidationLoading || !user)) {
+        return children;
     }
 
-    // 2. Not logged in at all? Send to login.
-    if (!isAuthenticated) {
+    // 3. If there is no token and they aren't authenticated, kick to login
+    if (!isAuthenticated && !hasLocalToken) {
         return <Navigate to="/login" replace />;
     }
 
-    // 3. Authenticated, but user object hasn't loaded into Redux yet -> Wait for it
-    if (isAuthenticated && !user) {
-        return (
-            <div className="h-screen w-full flex items-center justify-center bg-background relative z-[100]">
-                <Loader />
-            </div>
-        );
-    }
-
-    // 4. Admin authorization
-    if (requireAdmin && user.role !== "admin") {
+    // 4. Admin authorization (Make sure to check if user exists first since we optimistic rendered)
+    if (requireAdmin && user && user.role !== "admin") {
         return <Navigate to="/dashboard" replace />;
     }
 
-    // 5. PROFILE COMPLETION GUARDS
-    const hasCompleteProfile = Boolean(user.isProfileComplete);
-
-    // 6. Passed all checks. Return content. 
+    // 5. Passed all checks. Return content. 
     return children;
 };
