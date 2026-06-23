@@ -104,16 +104,12 @@ const ContactSection = () => {
                   scale={1.01}
                   transitionSpeed={2000}
                   gyroscope={true}
-                  glareEnable={true}
-                  glareMaxOpacity={0.15}
-                  glareColor="#ffffff"
-                  glarePosition="all"
-                  glareBorderRadius="1rem"
                   className="w-full rounded-2xl"
                 >
+                  {/* Updated anchor tag with dark mode hover fixes */}
                   <a
                     href={info.link}
-                    className="glass-card p-5 rounded-2xl flex items-center gap-4 hover:shadow-xl transition-shadow duration-300 group w-full"
+                    className="glass-card p-5 rounded-2xl flex items-center gap-4 hover:shadow-xl dark:hover:shadow-none dark:hover:bg-transparent transition-all duration-300 group w-full"
                   >
                     <div className="w-12 h-12 rounded-xl bg-gradient-to-br from-primary/10 via-secondary/10 to-accent/10 flex items-center justify-center shrink-0 group-hover:scale-110 transition-transform">
                       <info.icon className="w-5 h-5 text-primary" />
@@ -142,6 +138,7 @@ const ContactSection = () => {
                     name="name"
                     value={formData.name}
                     onChange={handleChange}
+                    maxLength={50}
                     required
                     className="w-full px-4 py-3 rounded-xl border border-border bg-background/50 focus:border-primary focus:ring-2 focus:ring-primary/20 outline-none transition-all text-foreground placeholder:text-muted-foreground"
                     placeholder="LocalAwaaz"
@@ -160,24 +157,40 @@ const ContactSection = () => {
                     onChange={handleChange}
                     required
                     className="w-full px-4 py-3 rounded-xl border border-border bg-background/50 focus:border-primary focus:ring-2 focus:ring-primary/20 outline-none transition-all text-foreground placeholder:text-muted-foreground"
-                    placeholder="localawaaz_team@domain.com"
+                    placeholder="contact@localawaaz.in"
                   />
                 </div>
 
                 <div>
-                  <label htmlFor="message" className="block text-sm font-medium text-foreground mb-2">
-                    Your Message
-                  </label>
-                  <textarea
-                    id="message"
-                    name="message"
-                    value={formData.message}
-                    onChange={handleChange}
-                    required
-                    rows={5}
-                    className="w-full px-4 py-3 rounded-xl border border-border bg-background/50 focus:border-primary focus:ring-2 focus:ring-primary/20 outline-none transition-all resize-none text-foreground placeholder:text-muted-foreground"
-                    placeholder="Tell us how we can help..."
-                  />
+                  <div className="flex justify-between items-end mb-2">
+                    <label htmlFor="message" className="block text-sm font-medium text-foreground">
+                      Your Message
+                    </label>
+                    {/* Optional: Show it here too, or just keep the one inside the box */}
+                  </div>
+
+                  {/* We wrap the textarea in a relative div to position the counter inside it */}
+                  <div className="relative">
+                    <textarea
+                      id="message"
+                      name="message"
+                      value={formData.message}
+                      onChange={handleChange}
+                      required
+                      maxLength={50} // Enforce the strict 50 limit
+                      rows={3} // Reduced rows since 50 chars is very short
+                      className="w-full px-4 py-3 pb-8 rounded-xl border border-border bg-background/50 focus:border-primary focus:ring-2 focus:ring-primary/20 outline-none transition-all resize-none text-foreground placeholder:text-muted-foreground"
+                      placeholder="Tell us how we can help (max 50 chars)..."
+                    />
+
+                    {/* The Character Counter */}
+                    <div
+                      className={`absolute bottom-3 right-4 text-xs font-medium transition-colors ${formData.message.length === 50 ? 'text-red-500' : 'text-muted-foreground'
+                        }`}
+                    >
+                      {formData.message.length}/50
+                    </div>
+                  </div>
                 </div>
 
                 <button

@@ -1,7 +1,7 @@
-import { Heart } from 'lucide-react';
-import logo from "/logo.png"
+import { Heart, Twitter, Linkedin, Instagram } from 'lucide-react';
 import { useLocation, useNavigate } from 'react-router-dom';
 import VisitCounter from './VisitCounter';
+import Logo from './Logo';
 
 const Footer = () => {
   const currentYear = new Date().getFullYear();
@@ -86,154 +86,101 @@ const Footer = () => {
   };
 
   return (
-    <footer className="bg-foreground text-background py-16">
-      <div className="container mx-auto px-4 md:px-6">
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-12">
-          {/* Brand */}
-          <div className="lg:col-span-2">
-            <div className="flex items-center gap-2 mb-4">
-              <div className="w-14 h-14 rounded-xl  flex items-center justify-center">
-                <span className="text-xl font-bold text-white">
-                  <img src={logo} alt='/' />
-                </span>
-              </div>
-              <span className="text-2xl font-bold font-display">LocalAwaaz</span>
+    <footer className="relative bg-background pt-20 pb-8 border-t border-border/50 overflow-hidden">
+      {/* Decorative Blobs */}
+      <div className="absolute top-0 left-0 w-96 h-96 bg-primary/5 rounded-full blur-3xl pointer-events-none -translate-x-1/2 -translate-y-1/2" />
+      <div className="absolute bottom-0 right-0 w-96 h-96 bg-accent/5 rounded-full blur-3xl pointer-events-none translate-x-1/2 translate-y-1/2" />
+
+      <div className="container mx-auto px-4 md:px-6 relative z-10">
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-12 lg:gap-8 mb-16">
+
+          {/* Brand Section - Centered on Mobile, Left on Desktop */}
+          <div className="lg:col-span-2 flex flex-col items-center lg:items-start text-center lg:text-left">
+
+            <div className="mb-6 flex justify-center lg:justify-start w-full">
+              <Logo />
             </div>
-            <p className="text-background/70 mb-6 max-w-sm leading-relaxed">
-              Empowering citizens to make their voices heard and create
-              positive change in their communities.
+
+            <p className="text-muted-foreground mb-8 max-w-sm leading-relaxed">
+              Empowering citizens to make their voices heard and create positive, lasting change in their local communities.
             </p>
-            <div className="flex items-center gap-1 text-sm text-background/60">
+
+            <div className="glass-card px-4 py-2 rounded-full inline-flex items-center justify-center gap-2 text-sm text-foreground/80 mb-8 border border-border/50 shadow-sm">
               <span>Made with</span>
-              <Heart className="w-4 h-4 text-red-400 fill-red-400" />
+              <Heart className="w-4 h-4 text-red-500 fill-red-500 animate-pulse" />
               <span>in India</span>
             </div>
+
             {/* ODOMETER ADDED HERE */}
-            <VisitCounter />
-          </div>
-
-          {/* Mobile Links */}
-          <div className='md:hidden max-sm:grid max-sm:grid-cols-3 gap-4'>
-            <div>
-              <h4 className="font-semibold mb-4 text-background">Product</h4>
-              <ul className="space-y-3">
-                {footerLinks.product.map((link) => (
-                  <li key={link.name}>
-                    <button
-                      onClick={link.onClick || (() => scrollToSection(link.href))}
-                      className="text-background/70 hover:text-background transition-colors text-sm text-left"
-                    >
-                      {link.name}
-                    </button>
-                  </li>
-                ))}
-              </ul>
-            </div>
-
-            <div>
-              <h4 className="font-semibold mb-4 text-background">Company</h4>
-              <ul className="space-y-3">
-                {footerLinks.company.map((link) => (
-                  <li key={link.name}>
-                    <button
-                      onClick={link.onClick || (() => scrollToSection(link.href))}
-                      className="text-background/70 hover:text-background transition-colors text-sm text-left"
-                    >
-                      {link.name}
-                    </button>
-                  </li>
-                ))}
-              </ul>
-            </div>
-
-            <div>
-              <h4 className="font-semibold mb-4 text-background">Legal</h4>
-              <ul className="space-y-3">
-                {footerLinks.legal.map((link) => (
-                  <li key={link.name}>
-                    <button
-                      onClick={link.onClick || (() => scrollToSection(link.href))}
-                      className="text-background/70 hover:text-background transition-colors text-sm text-left"
-                    >
-                      {link.name}
-                    </button>
-                  </li>
-                ))}
-              </ul>
+            <div className="w-full max-w-xs flex justify-center lg:justify-start">
+              <VisitCounter />
             </div>
           </div>
 
-          {/* Desktop Links */}
-          <div className='max-sm:hidden'>
-            <h4 className="font-semibold mb-4 text-background">Product</h4>
-            <ul className="space-y-3">
-              {footerLinks.product.map((link) => (
-                <li key={link.name}>
-                  <button
-                    onClick={link.onClick || (() => scrollToSection(link.href))}
-                    className="text-background/70 hover:text-background transition-colors text-sm text-left"
-                  >
-                    {link.name}
-                  </button>
-                </li>
-              ))}
-            </ul>
+          {/* Links Section - Centered Wrapper */}
+          <div className="lg:col-span-3 grid grid-cols-1 sm:grid-cols-3 gap-12 lg:gap-8 pt-2">
+            {['product', 'company', 'legal'].map((category) => (
+              <div key={category} className="flex flex-col items-center text-center">
+                <h4 className="font-bold text-foreground mb-6 uppercase tracking-wider text-sm">
+                  {category}
+                </h4>
+                <ul className="space-y-4 flex flex-col items-center">
+                  {footerLinks[category].map((link) => (
+                    <li key={link.name}>
+                      <button
+                        onClick={link.onClick || (() => scrollToSection(link.href))}
+                        className="text-muted-foreground hover:text-primary transition-all duration-300 text-base font-medium hover:-translate-y-0.5"
+                      >
+                        {link.name}
+                      </button>
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            ))}
           </div>
 
-          <div className='max-sm:hidden'>
-            <h4 className="font-semibold mb-4 text-background">Company</h4>
-            <ul className="space-y-3">
-              {footerLinks.company.map((link) => (
-                <li key={link.name}>
-                  <button
-                    onClick={link.onClick || (() => scrollToSection(link.href))}
-                    className="text-background/70 hover:text-background transition-colors text-sm text-left"
-                  >
-                    {link.name}
-                  </button>
-                </li>
-              ))}
-            </ul>
-          </div>
-
-          <div className='max-sm:hidden'>
-            <h4 className="font-semibold mb-4 text-background">Legal</h4>
-            <ul className="space-y-3">
-              {footerLinks.legal.map((link) => (
-                <li key={link.name}>
-                  <button
-                    onClick={link.onClick || (() => scrollToSection(link.href))}
-                    className="text-background/70 hover:text-background transition-colors text-sm text-left"
-                  >
-                    {link.name}
-                  </button>
-                </li>
-              ))}
-            </ul>
-          </div>
         </div>
 
         {/* Bottom Bar */}
-        <div className="mt-12 pt-8 border-t border-background/10">
-          <div className="flex flex-col md:flex-row items-center justify-between gap-4">
-            <p className="text-sm text-background/60">
-              © {currentYear} LocalAwaaz. All rights reserved.
-            </p>
-            <div className="flex items-center gap-6">
-              <a href="https://www.x.com/localawaaz247" className="text-background/60 hover:text-background transition-colors text-sm" target='_blank'>
-                X (Ex-Twitter)
-              </a>
-              <a href="https://www.linkedin.com/in/localawaaz-8b681a3a6?utm_source=share&utm_campaign=share_via&utm_content=profile&utm_medium=android_app" target="_blank" className="text-background/60 hover:text-background transition-colors text-sm">
-                LinkedIn
-              </a>
-              <a href="https://www.instagram.com/localawaaz247?igsh=cTF3NzlqdmhsaWJh" target="_blank" className="text-background/60 hover:text-background transition-colors text-sm">
-                Instagram
-              </a>
-            </div>
+        <div className="pt-8 border-t border-border/50 flex flex-col md:flex-row items-center justify-between gap-6">
+          <p className="text-sm text-muted-foreground text-center md:text-left">
+            © {currentYear} LocalAwaaz. All rights reserved.
+          </p>
+
+          {/* Social Links */}
+          <div className="flex items-center justify-center gap-4">
+            <a
+              href="https://www.x.com/localawaaz247"
+              target='_blank'
+              rel="noreferrer"
+              className="w-10 h-10 rounded-full glass-card border border-border/50 flex items-center justify-center text-muted-foreground hover:text-primary hover:border-primary/50 hover:shadow-lg dark:hover:shadow-none dark:hover:bg-transparent transition-all duration-300 group"
+              aria-label="X (Twitter)"
+            >
+              <Twitter className="w-4 h-4 group-hover:scale-110 transition-transform" />
+            </a>
+            <a
+              href="https://www.linkedin.com/in/localawaaz-8b681a3a6"
+              target="_blank"
+              rel="noreferrer"
+              className="w-10 h-10 rounded-full glass-card border border-border/50 flex items-center justify-center text-muted-foreground hover:text-primary hover:border-primary/50 hover:shadow-lg dark:hover:shadow-none dark:hover:bg-transparent transition-all duration-300 group"
+              aria-label="LinkedIn"
+            >
+              <Linkedin className="w-4 h-4 group-hover:scale-110 transition-transform" />
+            </a>
+            <a
+              href="https://www.instagram.com/localawaaz247"
+              target="_blank"
+              rel="noreferrer"
+              className="w-10 h-10 rounded-full glass-card border border-border/50 flex items-center justify-center text-muted-foreground hover:text-primary hover:border-primary/50 hover:shadow-lg dark:hover:shadow-none dark:hover:bg-transparent transition-all duration-300 group"
+              aria-label="Instagram"
+            >
+              <Instagram className="w-4 h-4 group-hover:scale-110 transition-transform" />
+            </a>
           </div>
         </div>
       </div>
-    </footer >
+    </footer>
   );
 };
 

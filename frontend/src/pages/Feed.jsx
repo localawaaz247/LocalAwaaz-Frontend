@@ -8,6 +8,7 @@ import LocationModal from "../components/LocationModal";
 import IssueCard from "../components/IssueCard";
 import IssueDetail from "../components/IssueDetail";
 import FlagModal from "../components/modals/FlagModal";
+import Logo from "../components/Logo";
 import axiosInstance from "../utils/axios";
 import { fetchIssues, clearIssues } from "../reducer/issueFeedReducer";
 import { showToast } from "../utils/toast";
@@ -326,7 +327,6 @@ const Feed = () => {
   }, [liveIssues, sortBy]);
 
   return (
-    // ✨ ADDED: `max-lg:fixed max-lg:inset-0 max-lg:overscroll-none` pins it *only* on mobile, acts normal on desktop.
     <div className="bg-texture flex flex-col h-[100dvh] overflow-hidden w-full relative max-lg:fixed max-lg:inset-0 max-lg:overscroll-none">
       <style>{`
         @keyframes shimmerSweep {
@@ -351,17 +351,16 @@ const Feed = () => {
 
       {/* 🟢 TOP HEADER SECTION */}
       <div className="flex-shrink-0 w-full z-40 bg-texture">
-        <div className="w-full text-center pt-5 pb-2 lg:hidden">
-          <h1 className="text-3xl sm:text-3xl font-black tracking-tight bg-gradient-to-r from-primary to-accent dark:from-primary dark:to-cyan-400 bg-clip-text text-transparent drop-shadow-sm">
-            LocalAwaaz
-          </h1>
+        {/* 🟢 Replaced width with height constraints (h-10) so it doesn't blow up on mobile */}
+        <div className="w-full flex justify-center pt-5 pb-2 lg:hidden">
+          <Logo className="h-10" />
         </div>
 
         <div className="px-3 lg:px-6 py-3 lg:py-4 glass-card rounded-lg border-0 border-b border-border mx-2 lg:mx-4 shadow-sm flex justify-between items-center relative mb-4 lg:mb-8">
-          <div className="hidden lg:block absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 pointer-events-none">
-            <h1 className="text-2xl xl:text-4xl font-black tracking-tight bg-gradient-to-r from-primary to-accent dark:from-primary dark:to-cyan-400 bg-clip-text text-transparent drop-shadow-sm">
-              LocalAwaaz
-            </h1>
+
+          {/* 🟢 Constrained desktop height as well */}
+          <div className="hidden lg:flex absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 pointer-events-none justify-center">
+            <Logo className="h-10 xl:h-12" />
           </div>
 
           <div className="min-w-0 pr-2">
@@ -423,7 +422,6 @@ const Feed = () => {
 
       {/* 🟢 SCROLLABLE FEED SECTION (HYBRID RESPONSIVE) */}
       <div className="flex-1 min-h-0 w-full relative max-lg:px-0 lg:px-6">
-        {/* ✨ ADDED: `max-lg:absolute max-lg:inset-0` forces boundaries solely for mobile devices. Desktop inherits standard height structure. */}
         <div
           id="mobile-snap-container"
           className="h-full w-full overflow-y-auto overflow-x-hidden snap-container overscroll-contain max-lg:absolute max-lg:inset-0 max-lg:px-2 max-lg:snap-y max-lg:snap-mandatory"
@@ -464,9 +462,6 @@ const Feed = () => {
                 <div
                   key={issue._id || issue.id}
                   className="max-lg:snap-start max-lg:snap-always max-lg:flex max-lg:items-stretch max-lg:justify-center max-lg:w-full max-lg:pt-2 lg:py-0"
-
-                  // FIXED: Increased the subtraction value from 220px to 340px 
-                  // This accurately accounts for your tall top header + the bottom nav bar
                   style={{ height: isMobile ? 'calc(100dvh - 300px)' : 'auto' }}
                 >
                   <div className="w-full h-full max-h-full">

@@ -15,7 +15,7 @@ const HeroSection = () => {
 
       <div className="container flex justify-center px-4 md:px-6 relative z-10">
         <div className="max-w-5xl text-center">
-          
+
           {/* Badge */}
           <div className="inline-flex items-center gap-2 glass-card px-4 py-2 rounded-full mb-8 animate-fade-in-up">
             <span className="w-2 h-2 rounded-full bg-accent animate-pulse" />
@@ -50,24 +50,20 @@ const HeroSection = () => {
 
           {/* 3D Tilt Cards Grid */}
           <div className="grid grid-cols-1 sm:grid-cols-3 gap-6 max-w-3xl mx-auto relative z-20 stagger-children">
-            
+
             {/* Card 1 */}
             <div className="h-full w-full">
-              <Tilt 
-                tiltMaxAngleX={3} // Barely there tilt for a grounded feel
-                tiltMaxAngleY={3} // Barely there tilt for a grounded feel
+              <Tilt
+                tiltMaxAngleX={3}
+                tiltMaxAngleY={3}
                 perspective={1000}
-                scale={1.01}      // Tiny pop
-                transitionSpeed={2000} 
+                scale={1.01}
+                transitionSpeed={2000}
                 gyroscope={true}
-                glareEnable={true}
-                glareMaxOpacity={0.15}
-                glareColor="#ffffff"
-                glarePosition="all"
-                glareBorderRadius="1rem"
                 className="h-full w-full rounded-2xl"
               >
-                <div className="glass-card p-6 h-full cursor-pointer border border-border/50 rounded-2xl flex flex-col items-center hover:shadow-xl transition-shadow duration-300">
+                {/* Updated card div with dark mode hover fixes */}
+                <div className="glass-card p-6 h-full cursor-pointer border border-border/50 rounded-2xl flex flex-col items-center hover:shadow-xl dark:hover:shadow-none dark:hover:bg-transparent transition-all duration-300">
                   <div className="w-14 h-14 rounded-xl bg-secondary/10 dark:bg-secondary/15 flex items-center justify-center mb-4 mx-auto">
                     <MessageSquare className="w-7 h-7 text-secondary" />
                   </div>
@@ -79,21 +75,17 @@ const HeroSection = () => {
 
             {/* Card 2 */}
             <div className="h-full w-full">
-              <Tilt 
-                tiltMaxAngleX={3} 
-                tiltMaxAngleY={3} 
+              <Tilt
+                tiltMaxAngleX={3}
+                tiltMaxAngleY={3}
                 perspective={1000}
-                scale={1.01} 
+                scale={1.01}
                 transitionSpeed={2000}
                 gyroscope={true}
-                glareEnable={true}
-                glareMaxOpacity={0.15}
-                glareColor="#ffffff"
-                glarePosition="all"
-                glareBorderRadius="1rem"
                 className="h-full w-full rounded-2xl"
               >
-                <div className="glass-card p-6 h-full cursor-pointer border border-border/50 rounded-2xl flex flex-col items-center hover:shadow-xl transition-shadow duration-300">
+                {/* Updated card div with dark mode hover fixes */}
+                <div className="glass-card p-6 h-full cursor-pointer border border-border/50 rounded-2xl flex flex-col items-center hover:shadow-xl dark:hover:shadow-none dark:hover:bg-transparent transition-all duration-300">
                   <div className="w-14 h-14 rounded-xl bg-secondary/10 dark:bg-secondary/15 flex items-center justify-center mb-4 mx-auto">
                     <Award className="w-7 h-7 text-secondary" />
                   </div>
@@ -105,21 +97,17 @@ const HeroSection = () => {
 
             {/* Card 3 */}
             <div className="h-full w-full">
-              <Tilt 
-                tiltMaxAngleX={3} 
-                tiltMaxAngleY={3} 
+              <Tilt
+                tiltMaxAngleX={3}
+                tiltMaxAngleY={3}
                 perspective={1000}
-                scale={1.01} 
+                scale={1.01}
                 transitionSpeed={2000}
                 gyroscope={true}
-                glareEnable={true}
-                glareMaxOpacity={0.15}
-                glareColor="#ffffff"
-                glarePosition="all"
-                glareBorderRadius="1rem"
                 className="h-full w-full rounded-2xl"
               >
-                <div className="glass-card p-6 h-full cursor-pointer border border-border/50 rounded-2xl flex flex-col items-center hover:shadow-xl transition-shadow duration-300">
+                {/* Updated card div with dark mode hover fixes */}
+                <div className="glass-card p-6 h-full cursor-pointer border border-border/50 rounded-2xl flex flex-col items-center hover:shadow-xl dark:hover:shadow-none dark:hover:bg-transparent transition-all duration-300">
                   <div className="w-14 h-14 rounded-xl bg-secondary/10 dark:bg-secondary/15 flex items-center justify-center mb-4 mx-auto">
                     <Users className="w-7 h-7 text-secondary" />
                   </div>

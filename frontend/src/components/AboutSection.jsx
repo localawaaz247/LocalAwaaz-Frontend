@@ -59,14 +59,10 @@ const AboutSection = () => {
               scale={1.01}
               transitionSpeed={2000}
               gyroscope={true}
-              glareEnable={true}
-              glareMaxOpacity={0.15}
-              glareColor="#ffffff"
-              glarePosition="all"
-              glareBorderRadius="1rem"
               className="w-full rounded-2xl"
             >
-              <div className="glass-card p-6 rounded-2xl border-l-4 border-primary hover:shadow-lg transition-shadow duration-300">
+              {/* Updated card div with dark mode hover fixes */}
+              <div className="glass-card p-6 rounded-2xl border-l-4 border-primary hover:shadow-lg dark:hover:shadow-none dark:hover:bg-transparent transition-all duration-300">
                 <p className="text-foreground font-medium italic font-serif">
                   "We envision a world where every local issue is addressed,
                   every citizen is empowered, and every community thrives."
@@ -87,14 +83,10 @@ const AboutSection = () => {
                   scale={1.01}
                   transitionSpeed={2000}
                   gyroscope={true}
-                  glareEnable={true}
-                  glareMaxOpacity={0.15}
-                  glareColor="#ffffff"
-                  glarePosition="all"
-                  glareBorderRadius="1rem"
                   className="w-full rounded-2xl"
                 >
-                  <div className="glass-card p-6 rounded-2xl flex gap-5 hover:shadow-xl transition-shadow duration-300 group">
+                  {/* Updated card div with dark mode hover fixes */}
+                  <div className="glass-card p-6 rounded-2xl flex gap-5 hover:shadow-xl dark:hover:shadow-none dark:hover:bg-transparent transition-all duration-300 group">
                     <div className="w-14 h-14 rounded-xl bg-gradient-to-br from-primary/10 via-secondary/10 to-accent/10 flex items-center justify-center flex-shrink-0 group-hover:scale-110 transition-transform">
                       <value.icon className="w-7 h-7 text-primary" />
                     </div>

@@ -1,3 +1,4 @@
+import React from 'react';
 import { Camera, Send, Eye, Award } from 'lucide-react';
 import Tilt from 'react-parallax-tilt';
 import { useNavigate } from 'react-router-dom';
@@ -28,6 +29,7 @@ const steps = [
     description: 'When resolved, earn recognition badges for your contribution to the community.',
   },
 ];
+
 const HowItWorksSection = () => {
   const navigate = useNavigate();
   return (
@@ -68,15 +70,10 @@ const HowItWorksSection = () => {
                   scale={1.01}      // Tiny pop
                   transitionSpeed={2000}
                   gyroscope={true}
-                  glareEnable={true}
-                  glareMaxOpacity={0.15}
-                  glareColor="#ffffff"
-                  glarePosition="all"
-                  glareBorderRadius="1rem"
                   className="h-full w-full rounded-2xl"
                 >
-                  {/* Removed hover:-translate-y-2 in favor of Tilt's scaling effect */}
-                  <div className="glass-card p-6 h-full rounded-2xl text-center hover:shadow-xl transition-shadow duration-300 group">
+                  {/* Updated card div with dark mode hover fixes */}
+                  <div className="glass-card p-6 h-full rounded-2xl text-center hover:shadow-xl dark:hover:shadow-none dark:hover:bg-transparent transition-all duration-300 group">
                     {/* Step Number */}
                     <div className="inline-flex items-center justify-center w-8 h-8 rounded-full badge-shimmer text-white text-sm font-bold mb-4">
                       {step.number}

@@ -888,4 +888,4 @@ const MetricBox = ({ icon, title, count, color, onClick }) => (
     </button>
 );
 
-export default LeaderBoard;
+export default LeaderBoard; 

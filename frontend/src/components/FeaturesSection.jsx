@@ -81,21 +81,17 @@ const FeaturesSection = () => {
                 scale={1.01}      // Tiny, professional pop
                 transitionSpeed={2000}
                 gyroscope={true}
-                glareEnable={true}
-                glareMaxOpacity={0.15}
-                glareColor="#ffffff"
-                glarePosition="all"
-                glareBorderRadius="1rem"
                 className="h-full w-full rounded-2xl"
               >
-                <div className="glass-card p-8 h-full hover:shadow-xl transition-shadow duration-300 group">
+                {/* Updated card div with dark mode hover fixes */}
+                <div className="glass-card p-8 h-full border border-border/50 rounded-2xl flex flex-col items-center hover:shadow-xl dark:hover:shadow-none dark:hover:bg-transparent transition-all duration-300 group">
                   <div className="w-14 h-14 rounded-xl flex items-center justify-center mb-6 transition-transform group-hover:scale-110 bg-secondary/10 dark:bg-secondary/15">
                     <feature.icon className="w-7 h-7 text-secondary" />
                   </div>
                   <h3 className="text-xl font-bold font-display mb-3 text-foreground">
                     {feature.title}
                   </h3>
-                  <p className="text-muted-foreground leading-relaxed">
+                  <p className="text-muted-foreground leading-relaxed text-center">
                     {feature.description}
                   </p>
                 </div>
