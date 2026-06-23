@@ -167,7 +167,8 @@ const AdminUsers = () => {
         { value: 'FAILED', label: 'FAILED' },
         { value: 'DISPUTED', label: 'DISPUTED (Conflict)' },
         { value: 'RELEASED', label: 'RELEASED' },
-        { value: 'ORPHANED', label: 'ORPHANED (Stagnant)' }
+        { value: 'ORPHANED', label: 'ORPHANED (Stagnant)' },
+        { value: 'REJECTED', label: 'REJECTED (Nuclear Reject)' } // 🟢 ADDED THIS
     ];
 
     useEffect(() => {
@@ -458,23 +459,34 @@ const AdminUsers = () => {
         e.preventDefault();
         setIsUpdating(true);
         try {
-            let payload = updateData;
-            let headers = {};
+            // 🟢 Intercept logic for God-Mode Reject
+            if (updateData.status === 'REJECTED') {
+                await axiosInstance.patch(`/admin/issue/${selectedIssue._id}/force-reject`, {
+                    reason: updateData.adminRemark
+                });
+            } else {
+                // 🟢 Standard Status Update Logic
+                let payload = updateData;
+                let headers = {};
 
-            if (['DISPUTED', 'RESOLVED'].includes(updateData.status) && disputeMedia) {
-                payload = new FormData();
-                payload.append('status', updateData.status);
-                payload.append('adminRemark', updateData.adminRemark);
-                if (updateData.resolvedByAuthority) {
-                    payload.append('resolvedByAuthority', updateData.resolvedByAuthority);
+                if (['DISPUTED', 'RESOLVED'].includes(updateData.status) && disputeMedia) {
+                    payload = new FormData();
+                    payload.append('status', updateData.status);
+                    payload.append('adminRemark', updateData.adminRemark);
+                    if (updateData.resolvedByAuthority) {
+                        payload.append('resolvedByAuthority', updateData.resolvedByAuthority);
+                    }
+                    payload.append('media', disputeMedia);
+                    headers = { 'Content-Type': 'multipart/form-data' };
                 }
-                payload.append('media', disputeMedia);
-                headers = { 'Content-Type': 'multipart/form-data' };
+
+                await axiosInstance.patch(`/admin/issue/${selectedIssue._id}`, payload, { headers });
             }
 
-            await axiosInstance.patch(`/admin/issue/${selectedIssue._id}`, payload, { headers });
-
-            showToast({ icon: 'success', title: 'Status updated and users notified' });
+            showToast({
+                icon: 'success',
+                title: updateData.status === 'REJECTED' ? 'Issue Forcefully Rejected' : 'Status updated and users notified'
+            });
             setDisputeMedia(null);
             closeIssueModal();
             fetchUserFullDetails(selectedUserDetails.user._id);
@@ -1245,15 +1257,16 @@ const AdminUsers = () => {
 
                                                             {/* Remark (Now 100% Optional for all statuses) */}
                                                             <div className="w-1/2 relative z-40">
-                                                                <label className="text-[10px] text-muted-foreground mb-1 block font-semibold uppercase truncate">
-                                                                    Audit Remark (Optional)
+                                                                <label className={`text-[10px] mb-1 block font-semibold uppercase truncate ${updateData.status === 'REJECTED' ? 'text-red-500' : 'text-muted-foreground'}`}>
+                                                                    {updateData.status === 'REJECTED' ? 'Rejection Reason (Required)' : 'Audit Remark (Optional)'}
                                                                 </label>
                                                                 <input
                                                                     type="text"
+                                                                    required={updateData.status === 'REJECTED'}
                                                                     value={updateData.adminRemark}
                                                                     onChange={(e) => setUpdateData({ ...updateData, adminRemark: e.target.value })}
-                                                                    placeholder="Add context..."
-                                                                    className="w-full px-3 py-2 bg-muted border border-border/50 rounded-xl text-xs font-medium focus:border-primary outline-none transition-colors"
+                                                                    placeholder={updateData.status === 'REJECTED' ? "Why is this being rejected?" : "Add context..."}
+                                                                    className={`w-full px-3 py-2 bg-muted border rounded-xl text-xs font-medium outline-none transition-colors ${updateData.status === 'REJECTED' ? 'border-red-500/50 focus:border-red-500' : 'border-border/50 focus:border-primary'}`}
                                                                 />
                                                             </div>
                                                         </div>

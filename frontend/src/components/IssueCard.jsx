@@ -6,7 +6,6 @@ import {
 import { useState, useEffect } from "react";
 import { useSelector } from "react-redux";
 import axiosInstance from "../utils/axios";
-import { showToast } from "../utils/toast";
 import toast from "react-hot-toast";
 import { useTranslation } from "react-i18next";
 import { APP_URL } from "../utils/config";
@@ -30,7 +29,7 @@ const safeId = (obj) => {
   return String(obj);
 };
 
-const IssueCard = ({ issue, onClick }) => {
+const IssueCard = ({ issue, onClick, hideActions = false }) => {
   const { t } = useTranslation();
   const currentUser = useSelector((state) => state.auth?.user);
 
@@ -389,7 +388,7 @@ const IssueCard = ({ issue, onClick }) => {
       className="group relative bg-card border border-border/50 rounded-2xl overflow-hidden shadow-lg flex flex-col h-full w-full max-h-full"
       onClick={onClick}
     >
-      {/* 1. MEDIA HEADER - Mobile: Fluid flex-1 | Desktop: Fixed h-[40%] */}
+      {/* 1. MEDIA HEADER */}
       <div className="relative w-full bg-black overflow-hidden border-b border-border/50 flex-1 min-h-[120px] lg:flex-none lg:h-[40%] lg:min-h-[160px]">
         {displayMediaUrl ? (
           isVideo ? (
@@ -410,9 +409,8 @@ const IssueCard = ({ issue, onClick }) => {
         </div>
       </div>
 
-      {/* 2. CORE INFORMATION - Mobile: Hugs content (shrink-0) | Desktop: expands to fill space (flex-1) */}
+      {/* 2. CORE INFORMATION */}
       <div className="flex flex-col justify-start p-2.5 lg:p-5 bg-card overflow-hidden shrink-0 lg:shrink lg:flex-1 lg:min-h-0">
-
         <div className="shrink-0">
           <button
             onClick={openGoogleMaps}
@@ -431,7 +429,6 @@ const IssueCard = ({ issue, onClick }) => {
           </p>
         </div>
 
-        {/* Note: mt-auto applies ONLY on desktop (lg:mt-auto) to push this to the bottom */}
         <div className="flex items-center gap-2 lg:gap-2.5 mt-1.5 lg:mt-auto pt-2 lg:pt-3 border-t border-border/40 shrink-0">
           <div className="w-5 h-5 lg:w-8 lg:h-8 rounded-full bg-muted border border-border/50 flex items-center justify-center shrink-0">
             <User className="w-3 h-3 lg:w-4 lg:h-4 text-muted-foreground" />
@@ -440,17 +437,20 @@ const IssueCard = ({ issue, onClick }) => {
             <p className={`text-[11px] lg:text-sm font-bold truncate ${isAnonymous ? 'text-muted-foreground' : 'text-foreground/90'}`}>
               {isAnonymous ? 'Anonymous Citizen' : reportedBy?.name || 'Unknown'}
             </p>
-            {!isAnonymous && isVerified && <ShieldCheck className="w-3 h-3 lg:w-5 lg:h-5 text-emerald-500 shrink-0" />}
+            {!isAnonymous && reportedBy?.rank && (
+              <span className="text-[10px] bg-primary/10 text-primary border border-primary/20 px-2 py-0.5 rounded uppercase font-bold tracking-widest ml-2">
+                {reportedBy.rank}
+              </span>
+            )}
           </div>
         </div>
       </div>
 
-      {/* 3. PINNED FOOTER ACTIONS - Squishy buttons added to prevent Zoom leaks */}
+      {/* 3. PINNED FOOTER ACTIONS */}
       <div className="shrink-0 flex flex-col sm:flex-row sm:items-center justify-between pt-2 lg:pt-4 p-2.5 lg:p-5 mt-auto border-t border-border/50 gap-2 lg:gap-4 bg-card min-w-0">
 
-        {/* Left Side (Desktop) / Top Row (Mobile) */}
+        {/* Left Side (Desktop) / Top Row (Mobile) - ALWAYS SHOW STATS */}
         <div className="flex items-center justify-between w-full sm:w-auto gap-4 min-w-0 shrink">
-
           <div className="flex items-center gap-4 lg:gap-5 shrink-0">
             <div className="flex flex-col items-center sm:items-start">
               <span className="text-lg lg:text-3xl font-black text-emerald-500 leading-none">{confirmationCount || 0}</span>
@@ -465,57 +465,60 @@ const IssueCard = ({ issue, onClick }) => {
             </div>
           </div>
 
-          <div className="flex sm:hidden items-center gap-1.5 shrink-0">
-            <ActionIcons />
-          </div>
+          {/* 🟢 Mobile Action Icons (HIDE IF hideActions is true) */}
+          {!hideActions && (
+            <div className="flex sm:hidden items-center gap-1.5 shrink-0">
+              <ActionIcons />
+            </div>
+          )}
         </div>
 
-        {/* Right Side (Desktop) / Bottom Row (Mobile) */}
-        {/* Changed justify-end to ensure it handles min-width correctly */}
-        <div className="flex items-center gap-2 w-full sm:w-auto sm:justify-end min-w-0 shrink">
+        {/* Right Side (Desktop) / Bottom Row (Mobile) - (HIDE ENTIRELY IF hideActions is true) */}
+        {!hideActions && (
+          <div className="flex items-center gap-2 w-full sm:w-auto sm:justify-end min-w-0 shrink">
 
-          <div className="hidden sm:flex items-center gap-2 shrink-0">
-            <ActionIcons />
-          </div>
+            <div className="hidden sm:flex items-center gap-2 shrink-0">
+              <ActionIcons />
+            </div>
 
-          {/* Squishy Button Container */}
-          <div className="flex items-center w-full sm:w-auto gap-1.5 lg:gap-2 min-w-0 shrink">
-            {hasVoted ? (
-              <span className="flex-1 flex justify-center items-center gap-1.5 px-3 py-1.5 lg:px-4 lg:py-2.5 rounded-xl text-sm lg:text-base font-bold text-green-600 bg-green-500/10 border border-green-500/20 cursor-default min-w-0 shrink" onClick={(e) => e.stopPropagation()}>
-                <CheckCircle2 className="w-4 h-4 lg:w-5 lg:h-5 shrink-0" /> <span className="truncate">Verified</span>
-              </span>
-            ) : canVoteOnResolution ? (
-              <>
+            <div className="flex items-center w-full sm:w-auto gap-1.5 lg:gap-2 min-w-0 shrink">
+              {hasVoted ? (
+                <span className="flex-1 flex justify-center items-center gap-1.5 px-3 py-1.5 lg:px-4 lg:py-2.5 rounded-xl text-sm lg:text-base font-bold text-green-600 bg-green-500/10 border border-green-500/20 cursor-default min-w-0 shrink" onClick={(e) => e.stopPropagation()}>
+                  <CheckCircle2 className="w-4 h-4 lg:w-5 lg:h-5 shrink-0" /> <span className="truncate">Verified</span>
+                </span>
+              ) : canVoteOnResolution ? (
+                <>
+                  <button
+                    onClick={(e) => { e.preventDefault(); e.stopPropagation(); handleConsensusVote('APPROVED'); }}
+                    disabled={isVerifying}
+                    className="flex-1 flex items-center justify-center gap-1 lg:gap-1.5 px-2 py-1.5 lg:px-3 lg:py-2 rounded-xl text-[13px] lg:text-sm font-bold transition-all bg-green-500 text-white hover:bg-green-600 min-w-0 shrink"
+                  >
+                    {isVerifying ? <MiniLoader className="w-4 h-4 lg:w-4 lg:h-4 shrink-0" /> : <><ThumbsUp className="w-3.5 h-3.5 lg:w-4 lg:h-4 shrink-0" /> <span className="truncate">Approve</span></>}
+                  </button>
+                  <button
+                    onClick={(e) => { e.preventDefault(); e.stopPropagation(); setIsOpposing(true); }}
+                    disabled={isVerifying}
+                    className="flex-1 flex items-center justify-center gap-1 lg:gap-1.5 px-2 py-1.5 lg:px-3 lg:py-2 rounded-xl text-[13px] lg:text-sm font-bold transition-all bg-red-500/10 text-red-600 border border-red-500/30 hover:bg-red-500 hover:text-white min-w-0 shrink"
+                  >
+                    <ThumbsDown className="w-3.5 h-3.5 lg:w-4 lg:h-4 shrink-0" /> <span className="truncate">Oppose</span>
+                  </button>
+                </>
+              ) : isIssueClosed ? (
+                <span className="flex-1 flex justify-center items-center gap-1.5 px-3 py-1.5 lg:px-4 lg:py-2 rounded-xl text-sm font-bold bg-muted text-muted-foreground border border-border/50 cursor-default min-w-0 shrink" onClick={(e) => e.stopPropagation()}>
+                  <span className="truncate">Issue {status.charAt(0).toUpperCase() + status.slice(1).toLowerCase()}</span>
+                </span>
+              ) : (
                 <button
-                  onClick={(e) => { e.preventDefault(); e.stopPropagation(); handleConsensusVote('APPROVED'); }}
-                  disabled={isVerifying}
-                  className="flex-1 flex items-center justify-center gap-1 lg:gap-1.5 px-2 py-1.5 lg:px-3 lg:py-2 rounded-xl text-[13px] lg:text-sm font-bold transition-all bg-green-500 text-white hover:bg-green-600 min-w-0 shrink"
+                  onClick={handleConfirm}
+                  disabled={confirmLoading}
+                  className={`flex-1 flex items-center justify-center gap-1.5 px-4 py-1.5 lg:px-5 lg:py-2 rounded-xl text-sm lg:text-base font-bold transition-all min-w-0 shrink ${isConfirmedByUser ? "bg-emerald-500/10 text-emerald-600 border border-emerald-500/20" : status?.toUpperCase() === 'OPEN' ? "bg-primary text-primary-foreground hover:bg-primary/90" : "bg-muted text-muted-foreground border-border hover:bg-muted/80"}`}
                 >
-                  {isVerifying ? <MiniLoader className="w-4 h-4 lg:w-4 lg:h-4 shrink-0" /> : <><ThumbsUp className="w-3.5 h-3.5 lg:w-4 lg:h-4 shrink-0" /> <span className="truncate">Approve</span></>}
+                  {confirmLoading ? "..." : isConfirmedByUser ? <><CheckCircle2 className="w-4 h-4 lg:w-5 lg:h-5 shrink-0" /> <span className="truncate">Confirmed</span></> : <><CheckCircle2 className="w-4 h-4 lg:w-5 lg:h-5 shrink-0" /> <span className="truncate">Confirm</span></>}
                 </button>
-                <button
-                  onClick={(e) => { e.preventDefault(); e.stopPropagation(); setIsOpposing(true); }}
-                  disabled={isVerifying}
-                  className="flex-1 flex items-center justify-center gap-1 lg:gap-1.5 px-2 py-1.5 lg:px-3 lg:py-2 rounded-xl text-[13px] lg:text-sm font-bold transition-all bg-red-500/10 text-red-600 border border-red-500/30 hover:bg-red-500 hover:text-white min-w-0 shrink"
-                >
-                  <ThumbsDown className="w-3.5 h-3.5 lg:w-4 lg:h-4 shrink-0" /> <span className="truncate">Oppose</span>
-                </button>
-              </>
-            ) : isIssueClosed ? (
-              <span className="flex-1 flex justify-center items-center gap-1.5 px-3 py-1.5 lg:px-4 lg:py-2 rounded-xl text-sm font-bold bg-muted text-muted-foreground border border-border/50 cursor-default min-w-0 shrink" onClick={(e) => e.stopPropagation()}>
-                <span className="truncate">Issue {status.charAt(0).toUpperCase() + status.slice(1).toLowerCase()}</span>
-              </span>
-            ) : (
-              <button
-                onClick={handleConfirm}
-                disabled={confirmLoading}
-                className={`flex-1 flex items-center justify-center gap-1.5 px-4 py-1.5 lg:px-5 lg:py-2 rounded-xl text-sm lg:text-base font-bold transition-all min-w-0 shrink ${isConfirmedByUser ? "bg-emerald-500/10 text-emerald-600 border border-emerald-500/20" : status?.toUpperCase() === 'OPEN' ? "bg-primary text-primary-foreground hover:bg-primary/90" : "bg-muted text-muted-foreground border-border hover:bg-muted/80"}`}
-              >
-                {confirmLoading ? "..." : isConfirmedByUser ? <><CheckCircle2 className="w-4 h-4 lg:w-5 lg:h-5 shrink-0" /> <span className="truncate">Confirmed</span></> : <><CheckCircle2 className="w-4 h-4 lg:w-5 lg:h-5 shrink-0" /> <span className="truncate">Confirm</span></>}
-              </button>
-            )}
+              )}
+            </div>
           </div>
-        </div>
+        )}
       </div>
 
       {/* --- INLINE SHARE MENU --- */}

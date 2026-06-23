@@ -1,13 +1,15 @@
 import React, { useState, useRef, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useSelector } from 'react-redux'
-import { Bot, User, Plus, AlertTriangle, FileEdit, SendHorizontal } from 'lucide-react'
+import { Bot, User, Plus, AlertTriangle, FileEdit, SendHorizontal, Trophy, Medal } from 'lucide-react'
 import { Card } from '../components/ui/card'
 import { Avatar, AvatarFallback, AvatarImage } from '../components/ui/avatar'
 import ChatInput from '../components/ChatInput'
 import IssueCard from '../components/IssueCard'
 import axiosInstance from '../utils/axios'
-import { useTranslation } from "react-i18next";
+import { useTranslation } from "react-i18next"
+import Uppy from '@uppy/core'
+import AwsS3 from '@uppy/aws-s3'
 
 const Assistant = () => {
   const { t } = useTranslation();
@@ -161,6 +163,15 @@ const Assistant = () => {
             });
           }
 
+          // Context Injection
+          const analysisContext = `System: User uploaded media. AI Analysis found -> Title: ${data.analysis.title}, Description: ${data.analysis.description}, Category: ${data.analysis.category}.`;
+
+          setChatHistory(prevHistory => [
+            ...prevHistory,
+            { role: "user", parts: [{ text: analysisContext }] },
+            { role: "model", parts: [{ text: data.chat_message }] }
+          ]);
+
           setMessages(prev => [...prev, {
             id: Date.now(),
             type: 'assistant',
@@ -203,6 +214,7 @@ const Assistant = () => {
           location: {
             address: data.data.address || '',
             city: data.data.city || userLocation.city || '',
+            district: data.data.district || userLocation.city || '',
             state: data.data.state || '',
             pinCode: data.data.pinCode || '',
             coordinates: [userLocation.lng, userLocation.lat]
@@ -217,8 +229,15 @@ const Assistant = () => {
       }
 
       let displayReply = data.reply;
+
+      // 1. If it's returning Issue Cards, hide the long text and show a clean intro
       if (data.toolUsed && Array.isArray(data.data) && data.data.length > 0) {
-        displayReply = t('lokai_relevant_issues');
+        displayReply = t('lokai_relevant_issues', 'Here are the relevant issues I found:');
+      }
+
+      // 2. If it's returning the Leaderboard Card, hide the long text and show a clean intro
+      if (data.toolUsed === 'getCurrentLeaderboard') {
+        displayReply = t('lokai_leaderboard_text', "Here's the current weekly leaderboard:");
       }
 
       setMessages(prev => [...prev, {
@@ -251,6 +270,7 @@ const Assistant = () => {
     navigate('/dashboard/report', { state: { prefilledData: draftData } });
   };
 
+  // 🚀 UPPY MULTIPART INTEGRATION
   const handleDirectSubmit = async (draftData) => {
     setIsTyping(true);
     if (!draftData.originalFiles || draftData.originalFiles.length === 0 || !(draftData.originalFiles[0] instanceof Blob)) {
@@ -263,25 +283,83 @@ const Assistant = () => {
       setIsTyping(false);
       return;
     }
+
     try {
       setMessages(prev => [...prev, { id: Date.now(), type: 'assistant', content: t('lokai_submitting_media'), timestamp: new Date() }]);
 
       let finalMediaUrl = [];
 
       if (draftData.originalFiles && draftData.originalFiles.length > 0) {
-        const uploadFormData = new FormData();
-        draftData.originalFiles.forEach(file => {
-          uploadFormData.append('issue_media', file);
-        });
+        // Wrapping Uppy into a Promise
+        finalMediaUrl = await new Promise((resolve, reject) => {
+          const uppy = new Uppy({
+            autoProceed: true,
+            allowMultipleUploadBatches: false,
+            retryDelays: [1000, 3000, 5000]
+          });
 
-        const uploadRes = await axiosInstance.post('/upload-issues', uploadFormData, {
-          headers: { 'Content-Type': 'multipart/form-data' },
-        });
+          uppy.use(AwsS3, {
+            limit: 2,
+            getChunkSize: () => 10 * 1024 * 1024,
+            shouldUseMultipart: true,
+            createMultipartUpload: async (file) => {
+              const cleanTitle = (draftData.title || 'LokAI_Issue').replace(/[^a-zA-Z0-9]/g, '_');
+              const dateStr = new Date().toISOString().split('T')[0].replace(/-/g, '');
+              const uniqueId = Math.random().toString(36).substring(2, 8);
+              const extension = file.name ? file.name.substring(file.name.lastIndexOf('.')) : '.jpeg';
+              const customFileName = `LokAI_${cleanTitle}_${uniqueId}_${dateStr}${extension}`;
 
-        if (!uploadRes.data || !uploadRes.data.success || !uploadRes.data.media) {
-          throw new Error("Failed to upload media to server");
-        }
-        finalMediaUrl = Array.isArray(uploadRes.data.media) ? uploadRes.data.media : [uploadRes.data.media];
+              const res = await axiosInstance.post('/multipart/create', {
+                filename: customFileName,
+                type: file.type,
+                metadata: { category: draftData.category, location: draftData.location }
+              });
+              return { uploadId: res.data.uploadId, key: res.data.key };
+            },
+            signPart: async (file, partData) => {
+              const res = await axiosInstance.post('/multipart/sign', {
+                uploadId: partData.uploadId, key: partData.key, partNumber: partData.partNumber
+              });
+              return { url: res.data.url };
+            },
+            completeMultipartUpload: async (file, uploadData) => {
+              const res = await axiosInstance.post('/multipart/complete', {
+                uploadId: uploadData.uploadId, key: uploadData.key, parts: uploadData.parts
+              });
+              return { location: res.data.location };
+            },
+            abortMultipartUpload: async (file, uploadData) => {
+              await axiosInstance.post('/multipart/abort', { uploadId: uploadData.uploadId, key: uploadData.key });
+            }
+          });
+
+          let successUrls = [];
+
+          uppy.on('upload-success', (file, response) => {
+            successUrls.push(response.body?.location || response.uploadURL);
+          });
+
+          uppy.on('complete', (result) => {
+            if (result.failed.length > 0) {
+              reject(new Error("Media upload failed for some chunks."));
+            } else {
+              resolve(successUrls);
+            }
+            uppy.destroy();
+          });
+
+          uppy.on('error', (error) => {
+            reject(error);
+            uppy.destroy();
+          });
+
+          // Process files
+          draftData.originalFiles.forEach((file, index) => {
+            // Ensure Blob is cast as File for Uppy compatibility
+            const fileObj = file instanceof File ? file : new File([file], `lokai_upload_${index}.jpeg`, { type: file.type });
+            uppy.addFile({ name: fileObj.name, type: fileObj.type, data: fileObj });
+          });
+        });
       }
 
       setMessages(prev => [...prev.slice(0, -1), { id: Date.now(), type: 'assistant', content: t('lokai_finalizing'), timestamp: new Date() }]);
@@ -295,6 +373,7 @@ const Assistant = () => {
         location: {
           address: draftData.location.address || 'Location not provided',
           city: draftData.location.city,
+          district: draftData.location.district || draftData.location.city,
           state: draftData.location.state,
           pinCode: draftData.location.pinCode,
           geoData: {
@@ -323,23 +402,26 @@ const Assistant = () => {
   const renderDataCard = (data) => {
     if (!data || !Array.isArray(data)) return null;
     return (
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mt-3">
+      <div className="flex flex-col gap-3 md:gap-4 mt-4 w-full max-h-[60vh] md:max-h-[400px] overflow-y-auto thin-scrollbar pr-1 md:pr-2">
         {data.map((issue) => (
-          <IssueCard
+          <div
             key={issue._id}
-            issue={issue}
-            onClick={() => navigate('/dashboard', { state: { selectedIssueId: issue._id } })}
-          />
+            className="w-full flex-shrink-0"
+          >
+            <IssueCard
+              issue={issue}
+              onClick={() => navigate('/dashboard', { state: { selectedIssueId: issue._id } })}
+              hideActions={true}
+            />
+          </div>
         ))}
       </div>
     );
   }
 
-  // 🚀 UPDATED DRAFT CARD FUNCTION 
   const renderDraftCard = (draftData) => {
     if (!draftData) return null;
 
-    // Check if the uploaded file is a video
     const isVideo = draftData.originalFiles && draftData.originalFiles[0]?.type?.startsWith('video/');
 
     return (
@@ -350,7 +432,6 @@ const Assistant = () => {
         </div>
         <div className="p-4 flex flex-col gap-3 text-foreground">
 
-          {/* 🚀 CONDITIONAL MEDIA RENDERER */}
           {draftData.previewUrl && (
             <div className="mb-2 h-36 w-full rounded-lg overflow-hidden border border-border/50 bg-black flex items-center justify-center">
               {isVideo ? (
@@ -398,6 +479,85 @@ const Assistant = () => {
             </button>
           </div>
         </div>
+      </div>
+    );
+  }
+
+  const renderLeaderboardCard = (data) => {
+    if (!data || (!data.topCitizens && !data.topAuthorities)) return null;
+
+    return (
+      <div className="mt-4 flex flex-col gap-4 w-full animate-fade-in-up">
+
+        {/* TOP CITIZENS CARD */}
+        {data.topCitizens?.length > 0 && (
+          <div className="bg-card border border-border/50 rounded-xl overflow-hidden shadow-sm">
+            <div className="bg-emerald-500/10 px-4 py-2 border-b border-emerald-500/20 flex items-center gap-2">
+              <Trophy size={16} className="text-emerald-600" />
+              <span className="text-xs font-bold text-emerald-600 uppercase tracking-widest">Top Citizens</span>
+            </div>
+            <div className="p-2 flex flex-col gap-1">
+              {data.topCitizens.map((user, idx) => (
+                <div key={idx} className="flex items-center gap-3 p-2 rounded-lg hover:bg-muted/50 transition-colors">
+                  <div className="w-6 text-center">
+                    <span className={`text-sm font-black ${idx === 0 ? 'text-yellow-500' : idx === 1 ? 'text-gray-400' : idx === 2 ? 'text-amber-600' : 'text-muted-foreground'}`}>
+                      #{user.rank}
+                    </span>
+                  </div>
+                  <Avatar className="h-8 w-8 border border-border/50 shadow-sm">
+                    <AvatarImage src={user.profilePic} className="object-cover" />
+                    <AvatarFallback className="bg-primary/10 text-primary text-xs font-bold">
+                      {user.name?.charAt(0)?.toUpperCase() || 'U'}
+                    </AvatarFallback>
+                  </Avatar>
+                  <div className="flex-1 min-w-0">
+                    <p className="text-sm font-bold text-foreground truncate leading-tight">{user.name}</p>
+                    <p className="text-[10px] text-muted-foreground uppercase tracking-wider truncate">{user.title}</p>
+                  </div>
+                  <div className="text-right">
+                    <p className="text-sm font-black text-emerald-500">{user.score}</p>
+                    <p className="text-[9px] text-muted-foreground uppercase tracking-widest">CSI</p>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+
+        {/* TOP AUTHORITIES CARD */}
+        {data.topAuthorities?.length > 0 && (
+          <div className="bg-card border border-border/50 rounded-xl overflow-hidden shadow-sm">
+            <div className="bg-blue-500/10 px-4 py-2 border-b border-blue-500/20 flex items-center gap-2">
+              <Medal size={16} className="text-blue-600" />
+              <span className="text-xs font-bold text-blue-600 uppercase tracking-widest">Top Authorities</span>
+            </div>
+            <div className="p-2 flex flex-col gap-1">
+              {data.topAuthorities.map((auth, idx) => (
+                <div key={idx} className="flex items-center gap-3 p-2 rounded-lg hover:bg-muted/50 transition-colors">
+                  <div className="w-6 text-center">
+                    <span className={`text-sm font-black ${idx === 0 ? 'text-yellow-500' : idx === 1 ? 'text-gray-400' : idx === 2 ? 'text-amber-600' : 'text-muted-foreground'}`}>
+                      #{auth.rank}
+                    </span>
+                  </div>
+                  <Avatar className="h-8 w-8 border border-border/50 shadow-sm">
+                    <AvatarImage src={auth.profilePic} className="object-cover" />
+                    <AvatarFallback className="bg-blue-500/10 text-blue-600 text-xs font-bold">
+                      {auth.name?.charAt(0)?.toUpperCase() || 'A'}
+                    </AvatarFallback>
+                  </Avatar>
+                  <div className="flex-1 min-w-0">
+                    <p className="text-sm font-bold text-foreground truncate leading-tight">{auth.name}</p>
+                    <p className="text-[10px] text-muted-foreground uppercase tracking-wider truncate">{auth.department}</p>
+                  </div>
+                  <div className="text-right">
+                    <p className="text-sm font-black text-blue-500">{auth.score}</p>
+                    <p className="text-[9px] text-muted-foreground uppercase tracking-widest">CSI</p>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
       </div>
     );
   }
@@ -504,7 +664,13 @@ const Assistant = () => {
                         </div>
                       )}
 
-                      {message.type === 'assistant' && message.toolData && renderDataCard(message.toolData)}
+                      {/* If it's the leaderboard, render the leaderboard card */}
+                      {message.type === 'assistant' && message.toolUsed === 'getCurrentLeaderboard' && renderLeaderboardCard(message.toolData)}
+
+                      {/* For all other standard searches, render the standard issue cards */}
+                      {message.type === 'assistant' && message.toolUsed !== 'getCurrentLeaderboard' && message.toolData && renderDataCard(message.toolData)}
+
+                      {/* If it's a draft, render the draft preview */}
                       {message.type === 'assistant' && message.isDraftReport && renderDraftCard(message.draftData)}
                     </Card>
                   </div>

@@ -192,7 +192,7 @@ const AdminVerification = () => {
             </div>
 
             {/* --- MAIN GRID AREA --- */}
-            <div className="bg-card/40 backdrop-blur-2xl border border-border/60 rounded-2xl overflow-hidden shadow-xl flex-1 flex flex-col relative z-[10] p-4 md:p-6 min-h-[400px]">
+            <div className="bg-card/40 backdrop-blur-2xl border border-border/60 rounded-2xl overflow-y-auto shadow-xl flex-1 flex flex-col relative z-[10] p-4 md:p-6 min-h-[400px] thin-scrollbar">
                 {loading ? (
                     /* 🟢 NEW YOUTUBE-STYLE SHIMMER EFFECT */
                     <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4 w-full">
