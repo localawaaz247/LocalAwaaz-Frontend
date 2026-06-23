@@ -1,7 +1,11 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useRef } from "react";
 import { useDispatch, useSelector } from "react-redux";
 import { updateProfile } from "../../reducer/profileReducer";
-import { User, FileText, Lock, ArrowRight, ArrowLeft, MapPin, Globe, Hash, Camera, Loader2 } from "lucide-react";
+import { motion, AnimatePresence } from "framer-motion";
+import {
+  User, FileText, Lock, ArrowLeft, AtSign, ChevronRight,
+  CheckCircle2, XCircle, Loader2, Camera
+} from "lucide-react";
 import toast from "react-hot-toast";
 import { useTranslation } from "react-i18next";
 
@@ -9,67 +13,71 @@ const EditProfileModal = ({ isOpen, onClose }) => {
   const { t } = useTranslation();
   const dispatch = useDispatch();
   const profileData = useSelector((state) => state.profile.profileDetail);
-  const [step, setStep] = useState(1);
+
+  // View State
+  const [activeField, setActiveField] = useState(null);
   const [isLoading, setIsLoading] = useState(false);
+  const [fieldValue, setFieldValue] = useState("");
 
-  const [isUploading, setIsUploading] = useState(false);
-  const [previewImage, setPreviewImage] = useState(null);
+  // Avatar Upload State
+  const fileInputRef = useRef(null);
+  const [isUploadingImage, setIsUploadingImage] = useState(false);
 
-  const [formData, setFormData] = useState({
-    name: "",
-    profilePic: "",
-    gender: "",
-    bio: "",
-    address: {
-      city: "",
-      state: "",
-      country: "",
-      pinCode: ""
-    },
-    password: "",
-  });
+  // Username validation state
+  const [isCheckingUsername, setIsCheckingUsername] = useState(false);
+  const [isUsernameAvailable, setIsUsernameAvailable] = useState(null);
 
+  // Reset state when modal opens/closes
   useEffect(() => {
-    if (profileData && isOpen) {
-      setFormData({
-        name: profileData.name || "",
-        profilePic: profileData.profilePic || "",
-        gender: profileData.gender || "",
-        bio: profileData.bio || "",
-        address: {
-          city: profileData.contact?.city || "",
-          state: profileData.contact?.state || "",
-          country: profileData.contact?.country || "",
-          pinCode: profileData.contact?.pinCode || ""
-        },
-        password: "",
-      });
-      setPreviewImage(profileData.profilePic || null);
-      setStep(1);
+    if (isOpen) {
+      setActiveField(null);
+      setFieldValue("");
+      setIsUsernameAvailable(null);
     }
-  }, [profileData, isOpen]);
+  }, [isOpen]);
 
-  const handleChange = (e) => {
-    const { name, value } = e.target;
-    setFormData((prev) => ({ ...prev, [name]: value }));
-  };
+  // Real-time Username Uniqueness Checker (Debounced)
+  useEffect(() => {
+    if (activeField !== 'userName') return;
 
-  const handleAddressChange = (e) => {
-    const { name, value } = e.target;
-    setFormData((prev) => ({
-      ...prev,
-      address: { ...prev.address, [name]: value }
-    }));
-  };
+    if (fieldValue === profileData?.userName) {
+      setIsUsernameAvailable(true);
+      setIsCheckingUsername(false);
+      return;
+    }
 
+    if (fieldValue.length < 3) {
+      setIsUsernameAvailable(false);
+      setIsCheckingUsername(false);
+      return;
+    }
+
+    setIsCheckingUsername(true);
+    setIsUsernameAvailable(null);
+
+    const timeoutId = setTimeout(async () => {
+      try {
+        const backendUrl = import.meta.env.VITE_BASE_URL || 'http://localhost:1111';
+        const res = await fetch(`${backendUrl}/check-username?q=${fieldValue}`);
+        const data = await res.json();
+        setIsUsernameAvailable(data.available);
+      } catch (error) {
+        console.error("Failed to check username:", error);
+        setIsUsernameAvailable(false);
+      } finally {
+        setIsCheckingUsername(false);
+      }
+    }, 500);
+
+    return () => clearTimeout(timeoutId);
+  }, [fieldValue, activeField, profileData]);
+
+  // Image Upload Logic
   const handleImageUpload = async (e) => {
     const file = e.target.files?.[0];
     if (!file) return;
 
-    const localPreviewUrl = URL.createObjectURL(file);
-    setPreviewImage(localPreviewUrl);
-    setIsUploading(true);
-
+    setIsUploadingImage(true);
     try {
       const uploadData = new FormData();
       uploadData.append('file', file);
@@ -80,317 +88,357 @@ const EditProfileModal = ({ isOpen, onClose }) => {
       const response = await fetch(`${backendUrl}/upload-avatar`, {
         method: 'POST',
         body: uploadData,
-        credentials: 'include',
-        headers: {
-          'Authorization': `Bearer ${token}`
-        }
+        headers: { 'Authorization': `Bearer ${token}` }
       });
 
-      if (!response.ok) {
-        const errorData = await response.json();
-        throw new Error(errorData.message || t('image_upload_failed'));
-      }
+      if (!response.ok) throw new Error(t('image_upload_failed'));
 
       const data = await response.json();
+      const newImageUrl = data.publicUrl || data.url || data.profilePic;
 
-      setFormData((prev) => ({ ...prev, profilePic: data.publicUrl }));
-      toast.success(data.message || t('image_uploaded_success'));
+      // Instantly dispatch the profile update for the new image
+      await dispatch(updateProfile({ profilePic: newImageUrl })).unwrap();
+      toast.success(t('image_uploaded_success', 'Profile picture updated!'));
 
     } catch (error) {
-      console.error("Image upload failed:", error);
-      setPreviewImage(formData.profilePic);
       toast.error(error.message || t('image_upload_failed'));
     } finally {
-      setIsUploading(false);
+      setIsUploadingImage(false);
+      if (fileInputRef.current) fileInputRef.current.value = '';
     }
   };
 
-  const handleSubmit = async () => {
+  const handleOpenField = (field, currentValue) => {
+    setActiveField(field);
+    setFieldValue(currentValue || "");
+    if (field === 'userName') setIsUsernameAvailable(true);
+  };
+
+  const handleBack = () => {
+    setActiveField(null);
+    setFieldValue("");
+  };
+
+  const handleSave = async () => {
+    if (!fieldValue && activeField !== 'password') return;
+
     setIsLoading(true);
-
     try {
-      const payload = { ...formData };
-      if (!payload.password || payload.password.trim() === "") {
-        delete payload.password;
-      }
-
+      const payload = { [activeField]: fieldValue };
       const result = await dispatch(updateProfile(payload)).unwrap();
-
       toast.success(result?.message || t('profile_updated_success'));
-      onClose();
+      setActiveField(null);
     } catch (error) {
-      console.error("Failed to update profile:", error);
       toast.error(error?.message || t('profile_update_failed'));
     } finally {
       setIsLoading(false);
     }
   };
 
-  if (!isOpen) return null;
+  // Render the Main List
+  const renderMainList = () => (
+    <motion.div
+      key="main-list"
+      initial={{ opacity: 0, x: -10 }}
+      animate={{ opacity: 1, x: 0 }}
+      exit={{ opacity: 0, x: -10 }}
+      transition={{ duration: 0.15, ease: "easeOut" }}
+      className="space-y-5"
+    >
+      <div className="text-center mb-6 flex flex-col items-center">
+        {/* Clickable Profile Picture */}
+        <div className="relative mb-4 group">
+          <input
+            type="file"
+            ref={fileInputRef}
+            className="hidden"
+            accept="image/*"
+            onChange={handleImageUpload}
+          />
+          <div
+            onClick={() => fileInputRef.current?.click()}
+            className="w-24 h-24 rounded-full bg-card border-4 border-background shadow-lg overflow-hidden relative cursor-pointer flex items-center justify-center transition-transform duration-200 group-hover:scale-105"
+          >
+            {isUploadingImage ? (
+              <div className="absolute inset-0 bg-black/50 backdrop-blur-sm flex flex-col items-center justify-center z-20">
+                <Loader2 className="w-6 h-6 text-white animate-spin" />
+              </div>
+            ) : null}
+
+            {profileData?.profilePic ? (
+              <img
+                src={profileData.profilePic}
+                alt="Profile"
+                className="w-full h-full object-cover"
+                referrerPolicy="no-referrer"
+              />
+            ) : (
+              <User className="w-10 h-10 text-muted-foreground" />
+            )}
+
+            <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity duration-200 flex items-center justify-center z-10 backdrop-blur-[1px]">
+              <Camera className="text-white w-6 h-6 drop-shadow-md" />
+            </div>
+          </div>
+        </div>
+
+        <h3 className="text-2xl font-bold text-foreground">{t('edit_profile')}</h3>
+        <p className="text-sm text-muted-foreground font-medium mt-1">{t('select_field_to_edit', 'Select a field to edit')}</p>
+      </div>
+
+      <div className="space-y-3">
+        <ListOption
+          icon={User}
+          title={t('name')}
+          value={profileData?.name || t('not_set')}
+          onClick={() => handleOpenField('name', profileData?.name)}
+        />
+        <ListOption
+          icon={AtSign}
+          title={t('username')}
+          value={`@${profileData?.userName || 'username'}`}
+          onClick={() => handleOpenField('userName', profileData?.userName)}
+        />
+        <ListOption
+          icon={FileText}
+          title={t('bio')}
+          value={profileData?.bio ? `${profileData.bio.substring(0, 30)}...` : t('add_bio', 'Add a bio')}
+          onClick={() => handleOpenField('bio', profileData?.bio)}
+        />
+        <ListOption
+          icon={Lock}
+          title={t('password')}
+          value="••••••••"
+          onClick={() => handleOpenField('password', "")}
+        />
+      </div>
+    </motion.div>
+  );
+
+  // Render the Specific Field Editor
+  const renderFieldEditor = () => {
+    let title = "";
+    let inputElement = null;
+    let isSaveDisabled = isLoading || !fieldValue.trim();
+
+    switch (activeField) {
+      case 'name':
+        title = t('edit_name');
+        isSaveDisabled = isLoading || fieldValue.length < 3;
+        inputElement = (
+          <input
+            type="text"
+            value={fieldValue}
+            onChange={(e) => setFieldValue(e.target.value)}
+            className="w-full px-5 py-4 bg-muted/30 border border-border/50 rounded-2xl text-[15px] focus:outline-none focus:border-primary focus:ring-4 focus:ring-primary/10 transition-all shadow-inner"
+            placeholder={t('enter_name')}
+            autoFocus
+          />
+        );
+        break;
+
+      case 'userName':
+        title = t('edit_username');
+        isSaveDisabled = isLoading || !isUsernameAvailable || fieldValue.length < 3;
+        inputElement = (
+          <div className="space-y-2">
+            <div className="relative flex items-center">
+              <AtSign className="absolute left-4 w-5 h-5 text-muted-foreground" />
+              <input
+                type="text"
+                value={fieldValue}
+                onChange={(e) => setFieldValue(e.target.value.toLowerCase().replace(/\s+/g, ''))}
+                className={`w-full pl-11 pr-12 py-4 bg-muted/30 border rounded-2xl text-[15px] focus:outline-none focus:ring-4 transition-all shadow-inner ${fieldValue.length > 0
+                    ? isCheckingUsername
+                      ? 'border-blue-500/50 focus:ring-blue-500/10'
+                      : isUsernameAvailable
+                        ? 'border-green-500 focus:border-green-500 focus:ring-green-500/10'
+                        : 'border-red-500 focus:border-red-500 focus:ring-red-500/10'
+                    : 'border-border/50 focus:border-primary focus:ring-primary/10'
+                  }`}
+                placeholder={t('enter_username')}
+                autoFocus
+              />
+              <div className="absolute right-4 flex items-center justify-center">
+                {isCheckingUsername ? (
+                  <Loader2 className="w-5 h-5 text-blue-500 animate-spin" />
+                ) : fieldValue.length >= 3 && fieldValue !== profileData?.userName ? (
+                  isUsernameAvailable ? (
+                    <motion.div initial={{ scale: 0 }} animate={{ scale: 1 }} transition={{ duration: 0.15 }}><CheckCircle2 className="w-5 h-5 text-green-500 drop-shadow-sm" /></motion.div>
+                  ) : (
+                    <motion.div initial={{ scale: 0 }} animate={{ scale: 1 }} transition={{ duration: 0.15 }}><XCircle className="w-5 h-5 text-red-500 drop-shadow-sm" /></motion.div>
+                  )
+                ) : null}
+              </div>
+            </div>
+            <AnimatePresence>
+              {!isCheckingUsername && fieldValue.length >= 3 && !isUsernameAvailable && fieldValue !== profileData?.userName && (
+                <motion.p initial={{ opacity: 0, height: 0 }} animate={{ opacity: 1, height: 'auto' }} exit={{ opacity: 0, height: 0 }} transition={{ duration: 0.15 }} className="text-xs text-red-500 ml-2 font-medium">
+                  {t('username_taken', 'This username is not available.')}
+                </motion.p>
+              )}
+              {!isCheckingUsername && isUsernameAvailable && fieldValue !== profileData?.userName && (
+                <motion.p initial={{ opacity: 0, height: 0 }} animate={{ opacity: 1, height: 'auto' }} exit={{ opacity: 0, height: 0 }} transition={{ duration: 0.15 }} className="text-xs text-green-500 ml-2 font-medium">
+                  {t('username_available', 'Username is available!')}
+                </motion.p>
+              )}
+            </AnimatePresence>
+          </div>
+        );
+        break;
+
+      case 'bio':
+        title = t('edit_bio');
+        inputElement = (
+          <div className="relative">
+            <textarea
+              value={fieldValue}
+              onChange={(e) => setFieldValue(e.target.value)}
+              rows={5}
+              maxLength={150}
+              className="w-full p-5 bg-muted/30 border border-border/50 rounded-2xl text-[15px] focus:outline-none focus:border-primary focus:ring-4 focus:ring-primary/10 transition-all resize-none shadow-inner"
+              placeholder={t('bio_placeholder')}
+              autoFocus
+            />
+            <span className={`absolute bottom-4 right-4 text-xs font-medium ${fieldValue.length >= 150 ? 'text-destructive' : 'text-muted-foreground'}`}>
+              {fieldValue.length}/150
+            </span>
+          </div>
+        );
+        break;
+
+      case 'password':
+        title = t('change_password');
+        isSaveDisabled = isLoading || fieldValue.length < 8;
+        inputElement = (
+          <div className="space-y-3">
+            <input
+              type="password"
+              value={fieldValue}
+              onChange={(e) => setFieldValue(e.target.value)}
+              className="w-full px-5 py-4 bg-muted/30 border border-border/50 rounded-2xl text-[15px] focus:outline-none focus:border-primary focus:ring-4 focus:ring-primary/10 transition-all shadow-inner"
+              placeholder={t('new_password_placeholder')}
+              autoFocus
+            />
+            <p className="text-xs text-muted-foreground ml-2 leading-relaxed">
+              {t('password_hint', 'Minimum 8 characters, including uppercase, lowercase, number, and symbol.')}
+            </p>
+          </div>
+        );
+        break;
+
+      default:
+        return null;
+    }
+
+    return (
+      <motion.div
+        key="field-editor"
+        initial={{ opacity: 0, x: 10 }}
+        animate={{ opacity: 1, x: 0 }}
+        exit={{ opacity: 0, x: 10 }}
+        transition={{ duration: 0.15, ease: "easeOut" }}
+        className="space-y-8"
+      >
+        <div className="flex items-center gap-4">
+          <button
+            onClick={handleBack}
+            className="w-10 h-10 rounded-full bg-muted/50 flex items-center justify-center hover:bg-muted text-muted-foreground hover:text-foreground transition-all shadow-sm"
+          >
+            <ArrowLeft className="w-5 h-5" />
+          </button>
+          <h3 className="text-2xl font-bold text-foreground">{title}</h3>
+        </div>
+
+        <div>
+          {inputElement}
+        </div>
+
+        <button
+          onClick={handleSave}
+          disabled={isSaveDisabled}
+          className="w-full btn-gradient py-4 rounded-2xl text-white font-bold shadow-lg shadow-primary/20 disabled:opacity-50 disabled:shadow-none disabled:cursor-not-allowed transition-all hover:-translate-y-0.5 active:translate-y-0 flex items-center justify-center gap-2 text-[15px]"
+        >
+          {isLoading ? <Loader2 className="w-5 h-5 animate-spin" /> : <CheckCircle2 className="w-5 h-5" />}
+          {isLoading ? t('saving') : t('save_changes')}
+        </button>
+      </motion.div>
+    );
+  };
 
   return (
-    <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50 p-4">
-      <div className="glass-card bg-card border border-border/50 rounded-2xl p-6 w-full max-w-lg shadow-2xl relative overflow-hidden">
-        <div className="flex justify-between items-center mb-6 relative z-10">
-          <h2 className="text-2xl font-bold text-foreground">
-            {t('edit_profile')}
-          </h2>
-          <button
+    <AnimatePresence>
+      {isOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 sm:p-6">
+          {/* Backdrop */}
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            transition={{ duration: 0.15 }}
             onClick={onClose}
-            className="w-8 h-8 rounded-full bg-muted text-muted-foreground flex items-center justify-center hover:bg-destructive hover:text-destructive-foreground transition-all duration-200"
+            className="absolute inset-0 bg-background/80 backdrop-blur-md"
+          />
+
+          {/* Modal Content */}
+          <motion.div
+            initial={{ opacity: 0, scale: 0.95 }}
+            animate={{ opacity: 1, scale: 1 }}
+            exit={{ opacity: 0, scale: 0.95 }}
+            transition={{ type: "spring", stiffness: 400, damping: 25 }}
+            className="glass-card bg-card border border-border/60 rounded-[32px] p-6 sm:p-8 w-full max-w-md shadow-2xl relative overflow-hidden flex flex-col justify-center min-h-[480px]"
           >
-            <X size={18} />
-          </button>
-        </div>
-
-        <div className="flex items-center justify-between mb-8 relative z-10">
-          {[1, 2, 3].map((s) => (
-            <div
-              key={s}
-              className={`h-2 w-full mx-1 rounded-full transition-all duration-300 ${step >= s ? "bg-primary shadow-[0_0_10px_rgba(var(--primary),0.5)]" : "bg-muted"}`}
-            />
-          ))}
-        </div>
-
-        {step === 1 && (
-          <div className="space-y-5 animate-fade-in">
-            <div className="text-center mb-4">
-              <h3 className="text-lg font-bold">{t('basic_info')}</h3>
-              <p className="text-xs text-muted-foreground">{t('update_identity')}</p>
-            </div>
-
-            <div className="flex flex-col items-center justify-center gap-2 mb-6">
-              <div className="relative group">
-                <div className="w-24 h-24 rounded-full overflow-hidden border-2 border-primary/20 bg-muted flex items-center justify-center relative">
-                  {previewImage ? (
-                    <img src={previewImage} alt="Profile Preview" className="w-full h-full object-cover" />
-                  ) : (
-                    <User className="w-10 h-10 text-muted-foreground" />
-                  )}
-
-                  {isUploading && (
-                    <div className="absolute inset-0 bg-black/50 flex items-center justify-center backdrop-blur-[2px]">
-                      <Loader2 className="w-6 h-6 text-white animate-spin" />
-                    </div>
-                  )}
-                </div>
-
-                <label className="absolute bottom-0 right-0 bg-primary text-primary-foreground p-2 rounded-full cursor-pointer shadow-lg hover:scale-110 transition-transform disabled:opacity-50 disabled:cursor-not-allowed">
-                  <Camera className="w-4 h-4" />
-                  <input
-                    type="file"
-                    accept="image/*"
-                    className="hidden"
-                    onChange={handleImageUpload}
-                    disabled={isUploading}
-                  />
-                </label>
-              </div>
-              <p className="text-[11px] text-muted-foreground mt-1">
-                {isUploading ? t('uploading') : t('click_camera')}
-              </p>
-            </div>
-
-            <div className="space-y-4">
-              <div className="space-y-1.5">
-                <label className="text-xs font-semibold text-muted-foreground ml-1">{t('name')} <span className="text-destructive">*</span></label>
-                <div className="relative">
-                  <User className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
-                  <input
-                    type="text"
-                    name="name"
-                    value={formData.name}
-                    onChange={handleChange}
-                    className="w-full pl-10 pr-4 py-2.5 bg-background border border-border/50 rounded-xl text-sm focus:outline-none focus:border-primary transition-colors"
-                    placeholder={t('enter_name')}
-                  />
-                </div>
-              </div>
-
-              <div className="space-y-1.5">
-                <label className="text-xs font-semibold text-muted-foreground ml-1">{t('gender')} <span className="text-destructive">*</span></label>
-                <select
-                  name="gender"
-                  value={formData.gender}
-                  onChange={handleChange}
-                  className="w-full px-4 py-2.5 bg-background border border-border/50 rounded-xl text-sm focus:outline-none focus:border-primary transition-colors cursor-pointer"
+            {/* Close Button (Only show on main list) */}
+            <AnimatePresence>
+              {!activeField && (
+                <motion.button
+                  initial={{ opacity: 0, scale: 0.5 }}
+                  animate={{ opacity: 1, scale: 1 }}
+                  exit={{ opacity: 0, scale: 0.5 }}
+                  transition={{ duration: 0.15 }}
+                  onClick={onClose}
+                  className="absolute top-5 right-5 w-10 h-10 rounded-full bg-muted/50 text-muted-foreground flex items-center justify-center hover:bg-destructive hover:text-destructive-foreground transition-all duration-150 z-10"
                 >
-                  <option value="">{t('select_gender')}</option>
-                  <option value="male">{t('male')}</option>
-                  <option value="female">{t('female')}</option>
-                  <option value="other">{t('other')}</option>
-                </select>
-              </div>
+                  <X size={20} />
+                </motion.button>
+              )}
+            </AnimatePresence>
+
+            {/* Content Container with AnimatePresence for smooth swapping */}
+            <div className="relative w-full">
+              <AnimatePresence mode="wait">
+                {activeField === null ? renderMainList() : renderFieldEditor()}
+              </AnimatePresence>
             </div>
 
-            <button
-              disabled={!formData.name || formData.name.length < 3 || !formData.gender || isUploading}
-              onClick={() => setStep(2)}
-              className="w-full btn-gradient flex items-center justify-center gap-2 py-3 rounded-xl font-semibold transition-all duration-200 mt-6 disabled:opacity-50 disabled:cursor-not-allowed"
-            >
-              {t('continue')} <ArrowRight className="w-4 h-4" />
-            </button>
-          </div>
-        )}
-
-        {step === 2 && (
-          <div className="space-y-5 animate-fade-in">
-            <div className="text-center mb-2">
-              <div className="w-16 h-16 rounded-full bg-secondary/10 flex items-center justify-center mx-auto mb-3 border border-secondary/20">
-                <MapPin className="w-8 h-8 text-secondary" />
-              </div>
-              <h3 className="text-lg font-bold">{t('about_location')}</h3>
-              <p className="text-xs text-muted-foreground">{t('where_impact')}</p>
-            </div>
-
-            <div className="space-y-4">
-              <div className="space-y-1.5">
-                <label className="text-xs font-semibold text-muted-foreground ml-1">{t('bio')}</label>
-                <div className="relative">
-                  <FileText className="absolute left-3 top-3 w-4 h-4 text-muted-foreground" />
-                  <textarea
-                    name="bio"
-                    value={formData.bio}
-                    onChange={handleChange}
-                    rows={2}
-                    maxLength={150}
-                    className="w-full pl-10 pr-4 py-2.5 bg-background border border-border/50 rounded-xl text-sm focus:outline-none focus:border-primary transition-colors resize-none"
-                    placeholder={t('bio_placeholder')}
-                  />
-                </div>
-              </div>
-
-              <div className="grid grid-cols-2 gap-3">
-                <div className="space-y-1.5">
-                  <label className="text-xs font-semibold text-muted-foreground ml-1">{t('city')}</label>
-                  <div className="relative">
-                    <MapPin className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
-                    <input
-                      type="text"
-                      name="city"
-                      value={formData.address.city}
-                      onChange={handleAddressChange}
-                      className="w-full pl-9 pr-3 py-2.5 bg-background border border-border/50 rounded-xl text-sm focus:outline-none focus:border-primary"
-                      placeholder={t('city')}
-                    />
-                  </div>
-                </div>
-                <div className="space-y-1.5">
-                  <label className="text-xs font-semibold text-muted-foreground ml-1">{t('state')}</label>
-                  <input
-                    type="text"
-                    name="state"
-                    value={formData.address.state}
-                    onChange={handleAddressChange}
-                    className="w-full px-4 py-2.5 bg-background border border-border/50 rounded-xl text-sm focus:outline-none focus:border-primary"
-                    placeholder={t('state')}
-                  />
-                </div>
-              </div>
-
-              <div className="grid grid-cols-2 gap-3">
-                <div className="space-y-1.5">
-                  <label className="text-xs font-semibold text-muted-foreground ml-1">{t('country')}</label>
-                  <div className="relative">
-                    <Globe className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
-                    <input
-                      type="text"
-                      name="country"
-                      value={formData.address.country}
-                      onChange={handleAddressChange}
-                      className="w-full pl-9 pr-3 py-2.5 bg-background border border-border/50 rounded-xl text-sm focus:outline-none focus:border-primary"
-                      placeholder={t('country')}
-                    />
-                  </div>
-                </div>
-                <div className="space-y-1.5">
-                  <label className="text-xs font-semibold text-muted-foreground ml-1">{t('pin_code')}</label>
-                  <div className="relative">
-                    <Hash className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
-                    <input
-                      type="text"
-                      name="pinCode"
-                      value={formData.address.pinCode}
-                      onChange={handleAddressChange}
-                      className="w-full pl-9 pr-3 py-2.5 bg-background border border-border/50 rounded-xl text-sm focus:outline-none focus:border-primary"
-                      placeholder={t('zip_pin')}
-                    />
-                  </div>
-                </div>
-              </div>
-            </div>
-
-            <div className="flex gap-3 mt-6">
-              <button
-                onClick={() => setStep(1)}
-                className="flex-1 flex items-center justify-center gap-2 py-3 rounded-xl font-semibold border border-border bg-muted hover:bg-border transition-colors text-sm"
-              >
-                <ArrowLeft className="w-4 h-4" /> {t('back')}
-              </button>
-              <button
-                onClick={() => setStep(3)}
-                className="flex-1 btn-gradient flex items-center justify-center gap-2 py-3 rounded-xl font-semibold transition-transform hover:scale-[1.02] text-sm"
-              >
-                {t('next')} <ArrowRight className="w-4 h-4" />
-              </button>
-            </div>
-          </div>
-        )}
-
-        {step === 3 && (
-          <div className="space-y-5 animate-fade-in">
-            <div className="text-center mb-2">
-              <div className="w-16 h-16 rounded-full bg-rose-500/10 flex items-center justify-center mx-auto mb-3 border border-rose-500/20">
-                <Lock className="w-8 h-8 text-rose-500" />
-              </div>
-              <h3 className="text-lg font-bold">{t('security')}</h3>
-              <p className="text-xs text-muted-foreground">{t('finalize_account')}</p>
-            </div>
-
-            <div className="space-y-5 py-4">
-              <div className="space-y-1.5">
-                <label className="text-xs font-semibold text-muted-foreground ml-1">{t('change_password')}</label>
-                <div className="relative">
-                  <Lock className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
-                  <input
-                    type="password"
-                    name="password"
-                    value={formData.password}
-                    onChange={handleChange}
-                    className="w-full pl-10 pr-4 py-2.5 bg-background border border-border/50 rounded-xl text-sm focus:outline-none focus:border-primary transition-colors"
-                    placeholder={t('new_password_placeholder')}
-                  />
-                </div>
-                <p className="text-[10px] text-muted-foreground ml-1">
-                  {t('password_hint')}
-                </p>
-              </div>
-            </div>
-
-            <div className="flex gap-3 mt-6">
-              <button
-                onClick={() => setStep(2)}
-                className="flex-1 flex items-center justify-center gap-2 py-3 rounded-xl font-semibold border border-border bg-muted hover:bg-border transition-colors text-sm"
-              >
-                <ArrowLeft className="w-4 h-4" /> {t('back')}
-              </button>
-              <button
-                onClick={handleSubmit}
-                disabled={isLoading}
-                className="flex-1 btn-gradient px-4 py-3 rounded-xl text-white font-semibold shadow-md disabled:opacity-50 disabled:cursor-not-allowed transition-transform hover:scale-[1.02] disabled:hover:scale-100 text-sm"
-              >
-                {isLoading ? t('saving') : t('save_profile')}
-              </button>
-            </div>
-          </div>
-        )}
-      </div>
-    </div>
+          </motion.div>
+        </div>
+      )}
+    </AnimatePresence>
   );
 };
 
+// Sub-component for main list options
+const ListOption = ({ icon: Icon, title, value, onClick }) => (
+  <button
+    onClick={onClick}
+    className="w-full flex items-center justify-between p-4 rounded-2xl border border-transparent bg-muted/30 hover:bg-muted/60 hover:border-border/80 transition-all duration-200 group shadow-sm hover:shadow-md"
+  >
+    <div className="flex items-center gap-4 overflow-hidden">
+      <div className="w-12 h-12 rounded-full bg-background border border-border/50 flex items-center justify-center shadow-sm text-foreground group-hover:scale-105 transition-transform duration-200 shrink-0">
+        <Icon className="w-5 h-5 text-muted-foreground group-hover:text-primary transition-colors" />
+      </div>
+      <div className="text-left flex flex-col min-w-0">
+        <span className="font-bold text-[15px] text-foreground">{title}</span>
+        <span className="text-sm text-muted-foreground truncate max-w-[200px] sm:max-w-[250px] font-medium">{value}</span>
+      </div>
+    </div>
+    <ChevronRight className="w-5 h-5 text-muted-foreground group-hover:text-primary group-hover:translate-x-1 transition-all shrink-0" />
+  </button>
+);
+
 const X = ({ size }) => (
-  <svg xmlns="http://www.w3.org/2000/svg" width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+  <svg xmlns="http://www.w3.org/2000/svg" width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
     <path d="M18 6 6 18" /><path d="m6 6 12 12" />
   </svg>
 );

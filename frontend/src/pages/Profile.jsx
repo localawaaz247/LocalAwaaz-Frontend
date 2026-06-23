@@ -1,4 +1,4 @@
-import React, { useEffect, useState, useRef } from "react";
+import React, { useEffect, useLayoutEffect, useState, useRef } from "react";
 import { useDispatch, useSelector } from "react-redux";
 import { getProfileDetails } from "../reducer/profileReducer";
 import EditProfileModal from "../components/modals/EditProfileModal";
@@ -39,6 +39,10 @@ const Profile = () => {
       dispatch(getProfileDetails());
     }
   }, [dispatch, profileData]);
+  
+  useLayoutEffect(() => {
+    window.scrollTo(0, 0);
+  }, []);
 
   // Handle Direct Avatar Upload
   const handleImageUpload = async (e) => {
