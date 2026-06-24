@@ -326,7 +326,8 @@ export default function ReportIssue() {
         setFormData(prev => ({
           ...prev,
           title: aiResult.title || prev.title,
-          category: aiResult.category ? aiResult.category.toUpperCase() : prev.category,
+          // Fallback to "OTHER" if the AI doesn't return a valid category
+          category: aiResult.category ? aiResult.category.toUpperCase() : "OTHER",
           description: aiResult.description || prev.description
         }));
         toast.success(t('ai_draft_success', 'Auto-filled successfully!'));
@@ -336,6 +337,12 @@ export default function ReportIssue() {
     } catch (error) {
       console.error("AI Fill Error:", error);
       toast.error(t('ai_fill_fail'));
+
+      // Fallback to "OTHER" if the API call fails completely and no category is currently selected
+      setFormData(prev => ({
+        ...prev,
+        category: prev.category || "OTHER"
+      }));
     } finally {
       setIsAILoading(false);
     }

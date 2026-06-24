@@ -244,7 +244,10 @@ const AuthorityAnalytics = () => {
     const openModal = async (issueId) => {
         try {
             setFetchingIssueId(issueId);
-            const res = await axiosInstance.get(`/issue/${issueId}`);
+
+            // 🟢 CHANGED: Pointing to the new authority-specific endpoint
+            const res = await axiosInstance.get(`/authority/issue/${issueId}`);
+
             setSelectedIssue(res.data.data?.issue || res.data.data);
             setCurrentMediaIndex(0);
             setIsModalVisible(true);

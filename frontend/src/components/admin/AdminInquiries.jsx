@@ -5,7 +5,7 @@ import { showToast } from '../../utils/toast';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
     X, Mail, User, Calendar, CheckCheck,
-    MessageSquare, Search, Inbox, Reply, ShieldAlert, Filter
+    MessageSquare, Search, Inbox, Reply, ShieldAlert, Filter, Trash2, ChevronLeft, ChevronRight
 } from 'lucide-react';
 import MiniLoader from '../MiniLoader';
 import CustomSelect from '../CustomSelect';
@@ -22,6 +22,9 @@ const AdminInquiries = () => {
 
     const [selectedInquiry, setSelectedInquiry] = useState(null);
     const [isMarkingAll, setIsMarkingAll] = useState(false);
+
+    // Custom Confirmation Dialog State
+    const [deleteConfirmation, setDeleteConfirmation] = useState(null);
 
     // Mobile Filter State
     const [isMobileFilterOpen, setIsMobileFilterOpen] = useState(false);
@@ -47,10 +50,10 @@ const AdminInquiries = () => {
     useEffect(() => { fetchInquiries(); }, [statusFilter, page]);
 
     useEffect(() => {
-        if (selectedInquiry) document.body.style.overflow = 'hidden';
+        if (selectedInquiry || deleteConfirmation) document.body.style.overflow = 'hidden';
         else document.body.style.overflow = 'unset';
         return () => { document.body.style.overflow = 'unset'; };
-    }, [selectedInquiry]);
+    }, [selectedInquiry, deleteConfirmation]);
 
     const fetchInquiries = async () => {
         try {
@@ -102,6 +105,46 @@ const AdminInquiries = () => {
         } finally {
             setIsMarkingAll(false);
         }
+    };
+
+    // --- Custom Delete Handlers ---
+    const triggerDeleteInquiry = (id, e) => {
+        if (e) e.stopPropagation();
+        setDeleteConfirmation({ type: 'SINGLE', id });
+    };
+
+    const triggerDeleteAll = () => {
+        setDeleteConfirmation({ type: 'ALL' });
+    };
+
+    const executeDelete = async () => {
+        if (!deleteConfirmation) return;
+
+        if (deleteConfirmation.type === 'ALL') {
+            try {
+                await axiosInstance.delete('/admin/inquiries');
+                setInquiries([]);
+                setSelectedInquiry(null);
+                setPage(1);
+                setTotalPages(1);
+                showToast({ icon: 'success', title: 'All inquiries wiped successfully' });
+            } catch (error) {
+                showToast({ icon: 'error', title: 'Failed to wipe inquiries' });
+            }
+        } else if (deleteConfirmation.type === 'SINGLE') {
+            const id = deleteConfirmation.id;
+            try {
+                await axiosInstance.delete(`/admin/inquiry/${id}`);
+                setInquiries(inquiries.filter(i => i._id !== id));
+                if (selectedInquiry && selectedInquiry._id === id) {
+                    setSelectedInquiry(null);
+                }
+                showToast({ icon: 'success', title: 'Inquiry deleted' });
+            } catch (error) {
+                showToast({ icon: 'error', title: 'Failed to delete inquiry' });
+            }
+        }
+        setDeleteConfirmation(null); // Close confirmation modal
     };
 
     const formatDate = (isoDate) => {
@@ -173,11 +216,19 @@ const AdminInquiries = () => {
                             {isMarkingAll ? <MiniLoader className="w-4 h-4 border-blue-500 border-t-transparent" /> : <CheckCheck size={16} />}
                             Mark All Read
                         </button>
+
+                        <button
+                            onClick={triggerDeleteAll}
+                            disabled={inquiries.length === 0}
+                            className="w-full sm:w-auto flex items-center justify-center gap-2 px-5 py-2.5 bg-red-500/10 text-red-500 border border-red-500/30 rounded-xl text-sm font-bold hover:bg-red-500/20 transition-all disabled:opacity-50 disabled:cursor-not-allowed shadow-sm shrink-0"
+                        >
+                            <Trash2 size={16} /> Delete All
+                        </button>
                     </div>
                 </div>
             </div>
 
-            {/* 🟢 Mobile Card View Wrapper (Hidden on md+) */}
+            {/* Mobile Card View Wrapper (Hidden on md+) */}
             <div className="md:hidden flex flex-col gap-3 relative z-[10]">
                 <AnimatePresence>
                     {loading ? (
@@ -242,7 +293,7 @@ const AdminInquiries = () => {
                 </AnimatePresence>
             </div>
 
-            {/* 🟢 Desktop Table Wrapper (Hidden on mobile) */}
+            {/* Desktop Table Wrapper (Hidden on mobile) */}
             <div className="hidden md:flex bg-card/40 backdrop-blur-2xl border border-border/60 rounded-2xl overflow-hidden shadow-xl flex-1 flex-col relative z-[10] min-h-[400px]">
                 <div className="overflow-auto thin-scrollbar flex-1 bg-background/20">
                     <table className="w-full text-left whitespace-nowrap">
@@ -326,10 +377,11 @@ const AdminInquiries = () => {
             {/* --- PORTAL MODALS --- */}
             {isMounted && createPortal(
                 <AnimatePresence>
+                    {/* Inquiry Details Modal */}
                     {selectedInquiry && (
                         <div className="fixed inset-0 z-[9999] flex items-end sm:items-center justify-center sm:p-6">
                             {/* Backdrop */}
-                            <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="absolute inset-0 bg-black/60 backdrop-blur-sm" onClick={() => setSelectedInquiry(null)} />
+                            <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="absolute inset-0 bg-black/70 backdrop-blur-sm" onClick={() => setSelectedInquiry(null)} />
 
                             {/* Modal Content */}
                             <motion.div
@@ -337,20 +389,29 @@ const AdminInquiries = () => {
                                 animate={{ opacity: 1, y: 0, scale: 1 }}
                                 exit={{ opacity: 0, y: '100%', scale: 0.95 }}
                                 transition={{ type: "spring", damping: 25, stiffness: 200 }}
-                                className="relative bg-card/95 backdrop-blur-2xl border-t sm:border border-border/50 rounded-t-3xl sm:rounded-3xl w-full max-w-2xl shadow-2xl flex flex-col max-h-[90vh] overflow-hidden z-10"
+                                className="relative bg-card sm:border border-border/50 rounded-t-3xl sm:rounded-3xl w-full max-w-2xl shadow-2xl flex flex-col max-h-[90vh] overflow-hidden z-10"
                                 onClick={e => e.stopPropagation()}
                             >
-                                {/* Modal Header */}
-                                <div className="flex justify-between items-center p-5 border-b border-border/50 bg-background/50 shrink-0">
-                                    <h3 className="text-xl font-black text-foreground flex items-center gap-2">
+                                {/* Modal Header - FIXED LAYOUT */}
+                                <div className="flex justify-between items-center px-6 py-4 border-b border-border/50 bg-background/50 shrink-0">
+                                    <h3 className="text-lg font-black text-foreground flex items-center gap-2">
                                         <MessageSquare className="text-primary w-5 h-5" /> Inquiry Record
                                     </h3>
-                                    <div className="flex items-center gap-3">
-                                        <span className={`px-3 py-1 rounded-lg text-[10px] font-black uppercase tracking-widest border shadow-sm ${getStatusStyles(selectedInquiry.status)}`}>
+                                    <div className="flex items-center gap-2">
+                                        <span className={`px-3 py-1.5 rounded-lg text-[10px] font-black uppercase tracking-widest border shadow-sm ${getStatusStyles(selectedInquiry.status)}`}>
                                             {selectedInquiry.status}
                                         </span>
-                                        <button onClick={() => setSelectedInquiry(null)} className="p-2 bg-muted border border-border/50 rounded-full hover:bg-muted/80 transition-colors">
-                                            <X size={18} />
+
+                                        <button
+                                            onClick={() => triggerDeleteInquiry(selectedInquiry._id)}
+                                            className="p-2 bg-red-500/10 border border-red-500/20 text-red-500 rounded-full hover:bg-red-500/20 transition-colors"
+                                            title="Delete Inquiry"
+                                        >
+                                            <Trash2 size={16} />
+                                        </button>
+
+                                        <button onClick={() => setSelectedInquiry(null)} className="p-2 bg-muted border border-border/50 rounded-full hover:bg-muted/80 transition-colors text-muted-foreground hover:text-foreground">
+                                            <X size={16} />
                                         </button>
                                     </div>
                                 </div>
@@ -381,10 +442,10 @@ const AdminInquiries = () => {
                                         </div>
                                     </div>
 
-                                    {/* Message Content */}
+                                    {/* Message Content - FIXED OVERFLOW */}
                                     <div className="bg-muted/20 border border-border/50 rounded-2xl p-5 shadow-inner">
                                         <p className="text-[10px] font-black text-muted-foreground uppercase tracking-widest mb-3 border-l-2 border-primary pl-2">Message Body</p>
-                                        <p className="text-sm md:text-base text-foreground/90 leading-relaxed whitespace-pre-wrap font-medium">
+                                        <p className="text-sm md:text-base text-foreground/90 leading-relaxed whitespace-pre-wrap break-all md:break-words font-medium">
                                             {selectedInquiry.message}
                                         </p>
                                     </div>
@@ -405,6 +466,52 @@ const AdminInquiries = () => {
                                     >
                                         <Reply size={16} /> Reply via Email
                                     </a>
+                                </div>
+                            </motion.div>
+                        </div>
+                    )}
+
+                    {/* Custom Delete Confirmation Modal */}
+                    {deleteConfirmation && (
+                        <div className="fixed inset-0 z-[99999] flex items-center justify-center p-4">
+                            <motion.div
+                                initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
+                                className="absolute inset-0 bg-black/80 backdrop-blur-sm"
+                                onClick={() => setDeleteConfirmation(null)}
+                            />
+                            <motion.div
+                                initial={{ opacity: 0, scale: 0.95, y: 20 }}
+                                animate={{ opacity: 1, scale: 1, y: 0 }}
+                                exit={{ opacity: 0, scale: 0.95, y: 20 }}
+                                className="relative bg-card border border-border/50 rounded-2xl w-full max-w-sm p-6 shadow-2xl flex flex-col items-center text-center z-10"
+                            >
+                                <div className="w-14 h-14 rounded-full bg-red-500/10 flex items-center justify-center mb-5">
+                                    <Trash2 className="w-7 h-7 text-red-500" />
+                                </div>
+
+                                <h3 className="text-xl font-bold text-foreground mb-2">
+                                    {deleteConfirmation.type === 'ALL' ? 'Delete All Inquiries?' : 'Delete Inquiry?'}
+                                </h3>
+
+                                <p className="text-sm text-muted-foreground mb-8">
+                                    {deleteConfirmation.type === 'ALL'
+                                        ? "This action is permanent and will completely wipe all inquiries from the database. This cannot be undone."
+                                        : "Are you sure you want to delete this inquiry? This cannot be undone."}
+                                </p>
+
+                                <div className="flex gap-3 w-full">
+                                    <button
+                                        onClick={() => setDeleteConfirmation(null)}
+                                        className="flex-1 py-3 rounded-xl border border-border bg-muted/50 hover:bg-muted text-foreground font-bold transition-colors"
+                                    >
+                                        Cancel
+                                    </button>
+                                    <button
+                                        onClick={executeDelete}
+                                        className="flex-1 py-3 rounded-xl bg-red-600 hover:bg-red-700 text-white font-bold transition-colors shadow-lg shadow-red-500/20"
+                                    >
+                                        Yes, Delete
+                                    </button>
                                 </div>
                             </motion.div>
                         </div>

@@ -389,7 +389,7 @@ const IssueCard = ({ issue, onClick, hideActions = false }) => {
       onClick={onClick}
     >
       {/* 1. MEDIA HEADER */}
-      <div className="relative w-full bg-black overflow-hidden border-b border-border/50 flex-1 min-h-[120px] lg:flex-none lg:h-[40%] lg:min-h-[160px]">
+      <div className="relative w-full bg-black overflow-hidden border-b border-border/50 flex-1 min-h-[120px] lg:min-h-0">
         {displayMediaUrl ? (
           isVideo ? (
             <video src={`${displayMediaUrl}#t=0.1`} className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-700" muted playsInline />
@@ -410,7 +410,7 @@ const IssueCard = ({ issue, onClick, hideActions = false }) => {
       </div>
 
       {/* 2. CORE INFORMATION */}
-      <div className="flex flex-col justify-start p-2.5 lg:p-5 bg-card overflow-hidden shrink-0 lg:shrink lg:flex-1 lg:min-h-0">
+      <div className="flex flex-col justify-start p-2.5 lg:p-5 bg-card overflow-hidden flex-none">
         <div className="shrink-0">
           <button
             onClick={openGoogleMaps}

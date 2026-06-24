@@ -5,6 +5,7 @@ import { showToast } from '../../utils/toast';
 import Uppy from '@uppy/core';
 import AwsS3 from '@uppy/aws-s3';
 import { motion, AnimatePresence } from 'framer-motion';
+import CustomSelect from '../CustomSelect';
 
 // --- ZERO-COST HD THUMBNAIL GENERATOR FOR VIDEOS ---
 const generateHDThumbnail = (file) => {

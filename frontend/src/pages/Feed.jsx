@@ -461,14 +461,16 @@ const Feed = () => {
               {sortedIssues.map((issue) => (
                 <div
                   key={issue._id || issue.id}
-                  className="max-lg:snap-start max-lg:snap-always max-lg:flex max-lg:items-stretch max-lg:justify-center max-lg:w-full max-lg:pt-2 lg:py-0"
-                  style={{ height: isMobile ? 'calc(100dvh - 300px)' : 'auto' }}
+                  className="max-lg:snap-start max-lg:snap-always max-lg:flex max-lg:items-stretch max-lg:justify-center max-lg:w-full max-lg:pt-2 lg:py-0 lg:h-full lg:min-h-[450px]"
+                  style={{ height: isMobile ? 'calc(100dvh - 300px)' : undefined }}
                 >
-                  <div className="w-full h-full max-h-full">
+                  <div className="w-full h-full max-h-full flex flex-col">
                     <IssueCard
                       issue={issue}
                       onClick={() => handleCardClick(issue)}
                       onFlagClick={() => handleFlagClick(issue)}
+                      // Optional: Pass a className prop if your IssueCard accepts it
+                      className="flex-1"
                     />
                   </div>
                 </div>
