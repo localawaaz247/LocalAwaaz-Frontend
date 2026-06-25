@@ -169,33 +169,37 @@ const Feed = () => {
     }
   };
 
+  // 🟢 2. INSTANT CACHE CHECK & NON-BLOCKING BACKGROUND SYNC
   useEffect(() => {
-    const CACHE_TIME_LIMIT = 2 * 60 * 60 * 1000;
+    const CACHE_TIME_LIMIT = 2 * 60 * 60 * 1000; // 2 hours
 
     const checkAndFetchLocation = async () => {
-      setIsLocating(true); // Force skeleton to show
-
+      setIsLocating(true);
       const cachedData = localStorage.getItem('cached_geo_location');
       let parsedCache = cachedData ? JSON.parse(cachedData) : null;
       const now = Date.now();
 
-      if (parsedCache && (now - parsedCache.timestamp < CACHE_TIME_LIMIT)) {
+      // INSTANT PAINT: Use cache immediately if available
+      if (parsedCache) {
         setChosenLocation(parsedCache);
         setIsLocating(false);
         fetchData(1, parsedCache);
-        return;
+
+        // Skip background sync entirely if cache is under 2 hours old
+        if (now - parsedCache.timestamp < CACHE_TIME_LIMIT) return;
+      } else {
+        // Fallback: Drop loading state so UI doesn't hang
+        setIsLocating(false);
+        fetchData(1);
       }
 
+      // BACKGROUND SYNC
       const locationDenied = localStorage.getItem('location_denied') === 'true';
 
       if (!locationDenied) {
-        showToast({ icon: "info", title: t('locating_neighborhood') });
-
         try {
-          // Use our newly updated Capacitor-powered utility!
-          const position = await getCurrentPosition();
+          const position = await getCurrentPosition({ enableHighAccuracy: false, timeout: 5000 });
 
-          // Reverse geocode via your Node backend
           const res = await axiosInstance.post('/get-location-from-coords', {
             lat: position.latitude,
             lng: position.longitude
@@ -212,20 +216,21 @@ const Feed = () => {
             };
 
             localStorage.setItem('cached_geo_location', JSON.stringify(newLocation));
-            setChosenLocation(newLocation);
-            setIsLocating(false);
-            fetchData(1, newLocation);
-            return; // Exit successfully
+
+            // Only update state if city changed (prevents unnecessary re-renders)
+            if (!parsedCache || parsedCache.city !== newLocation.city) {
+              setChosenLocation(newLocation);
+              fetchData(1, newLocation);
+              showToast({ icon: "info", title: t('location_updated', 'Location updated') });
+            }
           }
         } catch (err) {
-          console.warn("Location fetch failed or was denied:", err);
-          localStorage.setItem('location_denied', 'true');
+          console.warn("Background location sync failed:", err);
+          if (err.message?.includes('denied')) {
+            localStorage.setItem('location_denied', 'true');
+          }
         }
       }
-
-      // Fallback if denied or failed
-      setIsLocating(false);
-      fetchData(1);
     };
 
     checkAndFetchLocation();
@@ -293,21 +298,67 @@ const Feed = () => {
   };
 
   const dynamicStats = useMemo(() => {
-    let resolved = 0; let pending = 0; let totalImpact = 0;
-    if (!liveIssues || liveIssues.length === 0) return { resolved: 0, pending: 0, impactLevel: t('evaluating') };
+    let resolved = 0;
+    let pending = 0;
+    let activeImpactSum = 0;
+
+    if (!liveIssues || liveIssues.length === 0) {
+      return { resolved: 0, pending: 0, impactLevel: t('evaluating', 'Evaluating...') };
+    }
 
     liveIssues.forEach(issue => {
       const stat = issue.status?.toUpperCase() || 'OPEN';
-      if (stat === "RESOLVED") resolved += 1;
-      else if (["IN_REVIEW", "UNDER REVIEW", "OPEN", "PENDING"].includes(stat)) pending += 1;
-      totalImpact += (issue.impactScore || issue.impact || 0) + (issue.confirmationCount || 0);
+
+      if (stat === "RESOLVED") {
+        resolved += 1;
+      } else if (stat !== "REJECTED") {
+        // Count all unresolved, non-rejected issues as "Pending Action"
+        // This includes OPEN, LOCKED, FAILED, DISPUTED, ORPHANED, etc.
+        pending += 1;
+
+        // 1. Base Score (Impact + Confirmations)
+        const baseImpact = issue.impactScore || 10; // Default from schema
+        const confirmations = issue.confirmationCount || 0;
+
+        // 2. Priority Multiplier
+        let priorityMultiplier = 1; // Default/LOW
+        if (issue.priority === 'CRITICAL') priorityMultiplier = 4;
+        else if (issue.priority === 'HIGH') priorityMultiplier = 3;
+        else if (issue.priority === 'MEDIUM') priorityMultiplier = 2;
+
+        // 3. Status Penalty (Add extra weight if the issue is stuck/failed)
+        let statusPenalty = 0;
+        if (['FAILED', 'DISPUTED', 'ORPHANED'].includes(stat)) {
+          statusPenalty = 15;
+        }
+
+        // Calculate final weight for this specific issue
+        const calculatedImpact = ((baseImpact + confirmations) * priorityMultiplier) + statusPenalty;
+        activeImpactSum += calculatedImpact;
+      }
     });
 
-    let impactLevel = t('low');
-    if (totalImpact > 100) impactLevel = t('critical');
-    else if (totalImpact > 50) impactLevel = t('high');
-    else if (totalImpact > 20) impactLevel = t('medium');
-    else if (totalImpact > 0) impactLevel = t('emerging');
+    // Calculate Average Active Impact (Prevents inflation when scrolling)
+    const averageActiveImpact = pending > 0 ? (activeImpactSum / pending) : 0;
+
+    let impactLevel = t('low', 'Low');
+
+    // Determine the state of the neighborhood based on average severity AND volume
+    if (pending === 0 && resolved > 0) {
+      impactLevel = t('optimal', 'Optimal / Clear');
+    } else if (averageActiveImpact >= 60 || pending > 20) {
+      // e.g., Mostly CRITICAL issues, or an overwhelming volume (>20) of issues
+      impactLevel = t('critical', 'Critical');
+    } else if (averageActiveImpact >= 35 || pending > 10) {
+      // e.g., Mostly HIGH priority, or a large volume (>10)
+      impactLevel = t('high', 'High');
+    } else if (averageActiveImpact >= 15 || pending > 5) {
+      // e.g., Mostly MEDIUM priority, or a moderate volume
+      impactLevel = t('moderate', 'Moderate');
+    } else if (pending > 0) {
+      // e.g., 1 to 5 LOW priority issues
+      impactLevel = t('emerging', 'Emerging');
+    }
 
     return { resolved, pending, impactLevel };
   }, [liveIssues, t]);
@@ -469,7 +520,6 @@ const Feed = () => {
                       issue={issue}
                       onClick={() => handleCardClick(issue)}
                       onFlagClick={() => handleFlagClick(issue)}
-                      // Optional: Pass a className prop if your IssueCard accepts it
                       className="flex-1"
                     />
                   </div>

@@ -62,8 +62,8 @@ const AppLanguageInitializer = ({ children }) => {
   return children;
 };
 
-const AppContent = () => {
-  // PWA Registration Hook
+// 🟢 Extract PWA logic to prevent Android execution
+const PwaRegistrar = () => {
   useRegisterSW({
     onRegistered(r) {
       console.log('LocalAwaaz PWA Service Worker Registered');
@@ -72,7 +72,10 @@ const AppContent = () => {
       console.error('PWA registration error:', error);
     }
   });
+  return null;
+};
 
+const AppContent = () => {
   const dispatch = useDispatch();
   const { isAuthenticated } = useSelector((state) => state.auth);
 
@@ -80,7 +83,14 @@ const AppContent = () => {
   const [showUpdateModal, setShowUpdateModal] = useState(false);
   const [updateDetails, setUpdateDetails] = useState(null);
 
-  // Fire off the token validation immediately on app load
+  // 🟢 1. INSTANT WEBVIEW RELEASE: Drop splash screen immediately
+  useEffect(() => {
+    if (Capacitor.isNativePlatform()) {
+      CapacitorUpdater.notifyAppReady().catch(err => console.warn("Capgo notify failed", err));
+    }
+  }, []);
+
+  // 2. Token validation
   useEffect(() => {
     const token = localStorage.getItem("access_token");
     if (token) {
@@ -96,8 +106,6 @@ const AppContent = () => {
       if (!Capacitor.isNativePlatform()) return;
 
       try {
-        await CapacitorUpdater.notifyAppReady();
-
         const response = await axiosInstance.get('/check-update');
         const data = response.data;
 
@@ -248,6 +256,9 @@ const AppContent = () => {
           <Route path="*" element={<NotFound />} />
         </Routes>
       </BrowserRouter>
+
+      {/* 🟢 Render PWA only on web to prevent Android asset errors */}
+      {!Capacitor.isNativePlatform() && <PwaRegistrar />}
 
       {/* 🟢 BEAUTIFUL GLASSMORPHIC OPTIONAL OTA DIALOG MODAL */}
       {showUpdateModal && updateDetails && (

@@ -23,6 +23,34 @@ const WhatsAppIcon = ({ size = 20, className = "" }) => (
     </svg>
 );
 
+const LocalAwaazLogo = ({ size = 32, className = "" }) => (
+    <svg
+        width={size}
+        height={size}
+        viewBox="0 0 128 128"
+        fill="none"
+        xmlns="http://www.w3.org/2000/svg"
+        className={className}
+    >
+        {/* Map Pin Background */}
+        <path d="M64 12C36.386 12 14 34.386 14 62c0 20.426 18.063 43.195 45.452 52.883a14 14 0 0 0 9.096 0C95.937 105.195 114 82.426 114 62c0-27.614-22.386-50-50-50z" fill="#3B82F6" />
+
+        {/* Inner Light Circle */}
+        <circle cx="64" cy="56" r="32" fill="#E2E8F0" />
+
+        {/* Sound Waves */}
+        <rect x="45" y="44" width="8" height="24" rx="4" fill="#3B82F6" />
+        <rect x="60" y="36" width="8" height="40" rx="4" fill="#3B82F6" />
+        <rect x="75" y="44" width="8" height="24" rx="4" fill="#3B82F6" />
+
+        {/* Green Check Circle */}
+        <circle cx="96" cy="96" r="24" fill="#10B981" />
+
+        {/* White Checkmark */}
+        <path d="M84 96l8 8 16-16" stroke="white" strokeWidth="8" strokeLinecap="round" strokeLinejoin="round" />
+    </svg>
+);
+
 const getAvatar = (name) => `https://ui-avatars.com/api/?name=${encodeURIComponent(name || 'U')}&background=random&color=fff&size=128&bold=true`;
 
 const getCorsSafeUrl = (url) => {
@@ -149,7 +177,7 @@ const LeaderBoard = () => {
 
     const openCareerModal = async (userId) => {
         try {
-            const res = await axiosInstance.get(`/admin/user/${userId}`);
+            const res = await axiosInstance.get(`/leaderboard/user/${userId}`);
             if (res.data.success) {
                 setCareerModal({
                     isOpen: true,
@@ -424,8 +452,8 @@ const LeaderBoard = () => {
                     <div className="absolute bottom-[-50px] left-[-50px] w-64 h-64 bg-emerald-500/20 rounded-full blur-[80px]" />
 
                     <div className="flex flex-col items-center gap-2 mb-8 relative z-10">
-                        <div className="w-14 h-14 rounded-2xl bg-indigo-600 flex items-center justify-center shadow-[0_0_20px_rgba(79,70,229,0.5)]">
-                            <ShieldCheck size={32} className="text-white" />
+                        <div className="w-14 h-14 rounded-2xl bg-slate-800 border border-white/10 flex items-center justify-center shadow-[0_0_20px_rgba(59,130,246,0.3)]">
+                            <LocalAwaazLogo size={36} />
                         </div>
                         <h1 className="text-2xl font-black tracking-widest text-white uppercase mt-2">LocalAwaaz</h1>
                         <p className="text-xs font-bold text-slate-400 tracking-widest uppercase">
@@ -604,7 +632,7 @@ const LeaderBoard = () => {
                                             const iconStyle = getPodiumStyle(index);
                                             const isCitizenTab = activeTab === 'CITIZENS';
                                             const isAuthorityTab = activeTab === 'AUTHORITIES';
-                                            const canViewProfile = isAuthorityTab || (isCitizenTab && isAdmin);
+                                            const canViewProfile = true;
 
                                             return (
                                                 <motion.div
@@ -671,9 +699,8 @@ const LeaderBoard = () => {
                     </div>
 
                     <div className="w-full mt-10 pt-6 flex flex-col items-center justify-center gap-2 relative z-10 opacity-70">
-                        <div className="flex items-center gap-2 text-primary">
-                            <Shield size={16} />
-                            <span className="text-xs font-bold uppercase tracking-[0.15em]">Empowering Local Communities</span>
+                        <div className="w-14 h-14 rounded-2xl bg-card border border-border/50 flex items-center justify-center shadow-xl shadow-primary/10 flex-shrink-0">
+                            <LocalAwaazLogo size={36} />
                         </div>
                         <p className="text-sm font-black text-foreground tracking-wide">www.localawaaz.in</p>
                     </div>

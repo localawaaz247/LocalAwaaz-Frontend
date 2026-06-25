@@ -84,7 +84,10 @@ const IssueDetail = ({ issue, isOpen, onClose, hideConfirm = false }) => {
   const [localShareCount, setLocalShareCount] = useState(0);
   const [localFlagCount, setLocalFlagCount] = useState(0);
   const [localConfirmationCount, setLocalConfirmationCount] = useState(0);
+
   const [isConfirmedByUser, setIsConfirmedByUser] = useState(false);
+  const [isFlaggedByUser, setIsFlaggedByUser] = useState(false);
+
   const [isCopied, setIsCopied] = useState(false);
 
   // Flagging
@@ -157,7 +160,7 @@ const IssueDetail = ({ issue, isOpen, onClose, hideConfirm = false }) => {
   const {
     _id, title, category, status, description, location,
     isAnonymous, reportedBy, isVerified, impactScore,
-    confirmations, hasConfirmed, workCycle
+    confirmations, hasConfirmed, workCycle, flags
   } = localIssue || {};
 
   useEffect(() => {
@@ -173,14 +176,24 @@ const IssueDetail = ({ issue, isOpen, onClose, hideConfirm = false }) => {
       setFlagReason("");
       setIsOpposing(false);
 
-      if (hasConfirmed === true || localIssue.isConfirmed === true) {
-        setIsConfirmedByUser(true);
-      } else if (currentUser && currentUser._id && Array.isArray(confirmations)) {
+      if (currentUser && currentUser._id) {
         const currentUserId = String(currentUser._id);
-        const hasConfirmedCheck = confirmations.some((conf) => safeId(conf.user) === currentUserId);
-        setIsConfirmedByUser(hasConfirmedCheck);
-      } else {
-        setIsConfirmedByUser(false);
+
+        // Check Confirmations
+        if (hasConfirmed === true || localIssue.isConfirmed === true) {
+          setIsConfirmedByUser(true);
+        } else if (Array.isArray(confirmations)) {
+          setIsConfirmedByUser(confirmations.some((conf) => safeId(conf.user) === currentUserId));
+        } else {
+          setIsConfirmedByUser(false);
+        }
+
+        // Check Flags
+        if (Array.isArray(flags)) {
+          setIsFlaggedByUser(flags.some((flag) => safeId(flag.flaggedBy) === currentUserId));
+        } else {
+          setIsFlaggedByUser(false);
+        }
       }
 
       if (!isAnonymous && reportedBy && safeId(reportedBy)) {
@@ -200,7 +213,7 @@ const IssueDetail = ({ issue, isOpen, onClose, hideConfirm = false }) => {
       setReporterRank(null);
     }
     return () => { document.body.style.overflow = 'unset'; };
-  }, [isOpen, currentUser, confirmations, hasConfirmed, isAnonymous, reportedBy, localIssue]);
+  }, [isOpen, currentUser, confirmations, hasConfirmed, isAnonymous, reportedBy, localIssue, flags]);
 
   // --- CONSENSUS & VOTING LOGIC ---
   const currentUserIdStr = safeId(currentUser);
@@ -305,7 +318,6 @@ const IssueDetail = ({ issue, isOpen, onClose, hideConfirm = false }) => {
 
       const response = await axiosInstance.post(url);
       if (!isConfirmedByUser && response.data?.success) {
-        setLocalConfirmationCount(prev => prev + 1);
         setIsConfirmedByUser(true);
       }
       toast.dismiss(toastId);
@@ -329,7 +341,15 @@ const IssueDetail = ({ issue, isOpen, onClose, hideConfirm = false }) => {
     setIsFlagging(true);
     const toastId = toast.loading(t('submitting', 'Submitting flag...'));
     try {
-      const coords = await getCurrentLocation().catch(() => null);
+      // 🟢 FIX: Apply the same cache fallback here so flagging doesn't fail on first click
+      const coords = await getCurrentLocation().catch(() => {
+        const cached = JSON.parse(localStorage.getItem('cached_geo_location'));
+        if (cached?.latitude && cached?.longitude) {
+          return { lat: cached.latitude, lng: cached.longitude };
+        }
+        return null;
+      });
+
       let url = `/issue/${_id}/${flagReason}`;
       if (coords?.lng && coords?.lat) url += `?lng=${coords.lng}&lat=${coords.lat}`;
       else {
@@ -646,12 +666,32 @@ const IssueDetail = ({ issue, isOpen, onClose, hideConfirm = false }) => {
                           </div>
                         ) : (
                           <>
-                            <button onClick={() => setIsFlagOpen(true)} className="flex-1 flex items-center justify-center gap-1.5 sm:gap-2 px-3 py-2.5 sm:py-3 rounded-lg sm:rounded-xl text-xs sm:text-sm font-bold transition-all bg-red-500/10 text-red-600 dark:text-red-500 border border-red-500/20 hover:bg-red-500/20 whitespace-nowrap">
-                              <Flag size={14} className="sm:w-4 sm:h-4" /> {t('flag_issue')}
-                            </button>
+                            {!isConfirmedByUser && (
+                              <button
+                                onClick={() => !isFlaggedByUser && !isReporterUser && setIsFlagOpen(true)}
+                                disabled={isFlaggedByUser || isReporterUser}
+                                className={`flex-1 flex items-center justify-center gap-1.5 sm:gap-2 px-3 py-2.5 sm:py-3 rounded-lg sm:rounded-xl text-xs sm:text-sm font-bold transition-all whitespace-nowrap ${isFlaggedByUser || isReporterUser
+                                  ? 'bg-red-500/10 text-red-600 border border-red-500/20 opacity-50 cursor-not-allowed'
+                                  : 'bg-red-500/10 text-red-600 dark:text-red-500 border border-red-500/20 hover:bg-red-500/20'
+                                  }`}
+                              >
+                                <Flag size={14} className="sm:w-4 sm:h-4" />
+                                {isFlaggedByUser ? t('already_flagged', 'Already Flagged') : t('flag_issue', 'Flag Issue')}
+                              </button>
+                            )}
+
                             {!hideConfirm && (
-                              <button onClick={handleConfirm} disabled={confirmLoading} className={`flex-[2] flex items-center justify-center gap-1.5 sm:gap-2 px-4 py-2.5 sm:px-6 sm:py-3 rounded-lg sm:rounded-xl text-xs sm:text-sm font-bold transition-all whitespace-nowrap shadow-sm hover:shadow-md ${isConfirmedByUser ? "bg-green-500/20 text-green-600 border border-green-500/30" : status === 'OPEN' ? "btn-gradient text-white border border-transparent" : "bg-secondary/20 text-secondary border border-secondary/30"}`}>
-                                {confirmLoading ? <MiniLoader className="w-4 h-4" /> : isConfirmedByUser ? <><CheckCircle2 size={14} className="sm:w-[18px] sm:h-[18px]" /> {t('confirmed')}</> : <><CheckCircle2 size={14} className="sm:w-[18px] sm:h-[18px]" /> {t('i_confirm_this')}</>}
+                              <button
+                                onClick={handleConfirm}
+                                disabled={confirmLoading || isConfirmedByUser || isFlaggedByUser || isReporterUser}
+                                className={`flex-[2] flex items-center justify-center gap-1.5 sm:gap-2 px-4 py-2.5 sm:px-6 sm:py-3 rounded-lg sm:rounded-xl text-xs sm:text-sm font-bold transition-all whitespace-nowrap shadow-sm hover:shadow-md ${isConfirmedByUser || isFlaggedByUser || isReporterUser
+                                  ? "bg-green-500/10 text-green-600 border border-green-500/20 opacity-50 cursor-not-allowed"
+                                  : status === 'OPEN'
+                                    ? "btn-gradient text-white border border-transparent"
+                                    : "bg-secondary/20 text-secondary border border-secondary/30"
+                                  }`}
+                              >
+                                {confirmLoading ? <MiniLoader className="w-4 h-4" /> : isConfirmedByUser ? <><CheckCircle2 size={14} className="sm:w-[18px] sm:h-[18px]" /> {t('already_confirmed', 'Already Confirmed')}</> : <><CheckCircle2 size={14} className="sm:w-[18px] sm:h-[18px]" /> {t('i_confirm_this', 'I Confirm This')}</>}
                               </button>
                             )}
                           </>
