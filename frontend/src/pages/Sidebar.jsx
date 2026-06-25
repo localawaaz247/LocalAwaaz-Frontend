@@ -15,6 +15,9 @@ import { Capacitor } from '@capacitor/core';
 import axiosInstance from "../utils/axios";
 import { showToast } from "../utils/toast";
 
+// 🟢 Added Logo Import (Adjust the path according to your folder structure)
+import Logo from "../components/Logo";
+
 const Sidebar = () => {
   const { t } = useTranslation();
   const location = useLocation();
@@ -147,12 +150,8 @@ const Sidebar = () => {
       ">
         <div className="flex w-full h-full flex-row items-center justify-between lg:flex-col lg:items-stretch lg:justify-start">
 
-          <div className="hidden lg:flex items-center gap-3 lg:mb-10 lg:px-2 flex-shrink-0">
-            <div className="w-10 h-10 lg:w-12 lg:h-12 rounded-xl flex items-center justify-center shadow-lg">
-              <img src="/logo.png" alt="/logo" className="h-6 w-8 lg:h-8 lg:w-10" />
-            </div>
-            <span className="text-lg lg:text-xl text-gradient font-semibold">LocalAwaaz</span>
-          </div>
+          {/* 🟢 Replaced old logo implementation with the new SVG Logo component */}
+          <Logo className="hidden lg:flex lg:mb-10 lg:px-2 flex-shrink-0 h-10 lg:h-12" />
 
           <nav className="flex flex-row w-full justify-between items-center px-4 lg:px-0 lg:flex-col lg:gap-2 lg:items-start lg:w-full lg:mt-0">
             <NavLink to="/dashboard" end className="w-auto lg:w-full">

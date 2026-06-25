@@ -1,9 +1,9 @@
 import {
   MapPin, Navigation, CheckCircle2, Zap, Share2, User, ShieldCheck,
   AlertTriangle, Bookmark, ThumbsUp, ThumbsDown, ShieldAlert, Camera as CameraIcon,
-  Twitter, Facebook, Send, Copy, X
+  Twitter, Facebook, Send, Copy, X, Flag
 } from "lucide-react";
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { useSelector } from "react-redux";
 import axiosInstance from "../utils/axios";
 import toast from "react-hot-toast";
@@ -85,10 +85,11 @@ const IssueCard = ({ issue, onClick, hideActions = false }) => {
   const {
     _id, status, category, title, description, location,
     confirmationCount, impactScore, reportedBy, isAnonymous,
-    isVerified, confirmations, hasConfirmed, workCycle
+    isVerified, confirmations, hasConfirmed, workCycle, flags
   } = localIssue || {};
 
   const [isConfirmedByUser, setIsConfirmedByUser] = useState(false);
+  const [isFlaggedByUser, setIsFlaggedByUser] = useState(false);
   const [confirmLoading, setConfirmLoading] = useState(false);
   const [liveDistance, setLiveDistance] = useState(null);
   const [isSaved, setIsSaved] = useState(false);
@@ -101,6 +102,7 @@ const IssueCard = ({ issue, onClick, hideActions = false }) => {
     if (currentUser && currentUser._id) {
       const currentUserId = String(currentUser._id);
 
+      // Check Confirmations
       if (hasConfirmed === true || localIssue.isConfirmed === true) {
         setIsConfirmedByUser(true);
       } else if (Array.isArray(confirmations)) {
@@ -109,11 +111,21 @@ const IssueCard = ({ issue, onClick, hideActions = false }) => {
         ));
       }
 
+      // Check Flags
+      if (Array.isArray(flags)) {
+        setIsFlaggedByUser(flags.some((flag) =>
+          safeId(flag.flaggedBy) === currentUserId
+        ));
+      } else {
+        setIsFlaggedByUser(false);
+      }
+
+      // Check Saves
       if (Array.isArray(currentUser.savedIssues)) {
         setIsSaved(currentUser.savedIssues.some(savedId => String(savedId) === String(_id)));
       }
     }
-  }, [currentUser, confirmations, hasConfirmed, localIssue, _id]);
+  }, [currentUser, confirmations, hasConfirmed, localIssue, _id, flags]);
 
   const currentUserIdStr = safeId(currentUser);
   const reporterIdStr = safeId(reportedBy);
@@ -262,13 +274,21 @@ const IssueCard = ({ issue, onClick, hideActions = false }) => {
     const toastId = toast.loading(t('confirming', 'Confirming issue...'));
     try {
       setConfirmLoading(true);
-      const coords = await getCurrentLocation().catch(() => JSON.parse(localStorage.getItem('cached_geo_location')));
+
+      // 🟢 FIX: Safely map cached 'latitude/longitude' to 'lat/lng'
+      const coords = await getCurrentLocation().catch(() => {
+        const cached = JSON.parse(localStorage.getItem('cached_geo_location'));
+        if (cached?.latitude && cached?.longitude) {
+          return { lat: cached.latitude, lng: cached.longitude };
+        }
+        return cached; // Fallback just in case
+      });
+
       let url = `/issue/${_id}/confirm`;
       if (coords?.lng && coords?.lat) url += `?lng=${coords.lng}&lat=${coords.lat}`;
 
       const response = await axiosInstance.post(url);
       if (!isConfirmedByUser && response.data?.success) {
-        setLocalConfirmationCount(prev => prev + 1);
         setIsConfirmedByUser(true);
       }
       toast.dismiss(toastId);
@@ -510,10 +530,25 @@ const IssueCard = ({ issue, onClick, hideActions = false }) => {
               ) : (
                 <button
                   onClick={handleConfirm}
-                  disabled={confirmLoading}
-                  className={`flex-1 flex items-center justify-center gap-1.5 px-4 py-1.5 lg:px-5 lg:py-2 rounded-xl text-sm lg:text-base font-bold transition-all min-w-0 shrink ${isConfirmedByUser ? "bg-emerald-500/10 text-emerald-600 border border-emerald-500/20" : status?.toUpperCase() === 'OPEN' ? "bg-primary text-primary-foreground hover:bg-primary/90" : "bg-muted text-muted-foreground border-border hover:bg-muted/80"}`}
+                  disabled={confirmLoading || isConfirmedByUser || isFlaggedByUser || isReporterUser}
+                  className={`flex-1 flex items-center justify-center gap-1.5 px-4 py-1.5 lg:px-5 lg:py-2 rounded-xl text-sm lg:text-base font-bold transition-all min-w-0 shrink ${isConfirmedByUser
+                    ? "bg-emerald-500/10 text-emerald-600 border border-emerald-500/20 opacity-60 cursor-not-allowed"
+                    : isFlaggedByUser
+                      ? "bg-red-500/10 text-red-600 border border-red-500/20 opacity-60 cursor-not-allowed"
+                      : status?.toUpperCase() === 'OPEN'
+                        ? "bg-primary text-primary-foreground hover:bg-primary/90"
+                        : "bg-muted text-muted-foreground border-border hover:bg-muted/80"
+                    }`}
                 >
-                  {confirmLoading ? "..." : isConfirmedByUser ? <><CheckCircle2 className="w-4 h-4 lg:w-5 lg:h-5 shrink-0" /> <span className="truncate">Confirmed</span></> : <><CheckCircle2 className="w-4 h-4 lg:w-5 lg:h-5 shrink-0" /> <span className="truncate">Confirm</span></>}
+                  {confirmLoading ? (
+                    "..."
+                  ) : isConfirmedByUser ? (
+                    <><CheckCircle2 className="w-4 h-4 lg:w-5 lg:h-5 shrink-0" /> <span className="truncate">{t('already_confirmed', 'Already Confirmed')}</span></>
+                  ) : isFlaggedByUser ? (
+                    <><Flag className="w-4 h-4 lg:w-5 lg:h-5 shrink-0" /> <span className="truncate">{t('already_flagged', 'Already Flagged')}</span></>
+                  ) : (
+                    <><CheckCircle2 className="w-4 h-4 lg:w-5 lg:h-5 shrink-0" /> <span className="truncate">{t('confirm', 'Confirm')}</span></>
+                  )}
                 </button>
               )}
             </div>

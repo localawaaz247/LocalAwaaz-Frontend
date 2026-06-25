@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { X, CheckCircle, Clock, AlertTriangle, UploadCloud, Info, FileText, Plus } from 'lucide-react';
+import { X, CheckCircle, Clock, AlertTriangle, UploadCloud, Info, FileText, Plus, LogOut } from 'lucide-react';
 import axiosInstance from '../../utils/axios';
 import { showToast } from '../../utils/toast';
 import Uppy from '@uppy/core';
@@ -7,7 +7,6 @@ import AwsS3 from '@uppy/aws-s3';
 import { motion, AnimatePresence } from 'framer-motion';
 import CustomSelect from '../CustomSelect';
 
-// --- ZERO-COST HD THUMBNAIL GENERATOR FOR VIDEOS ---
 const generateHDThumbnail = (file) => {
     return new Promise((resolve) => {
         const video = document.createElement("video");
@@ -43,8 +42,8 @@ const JobManagerModal = ({ job, onClose, onSuccess }) => {
     const uppyRef = useRef(null);
     const isCancelledRef = useRef(false);
 
-    const [timeValue, setTimeValue] = useState(''); // 🟢 NEW
-    const [timeUnit, setTimeUnit] = useState('HOURS'); // 🟢 NEW
+    const [timeValue, setTimeValue] = useState('');
+    const [timeUnit, setTimeUnit] = useState('HOURS');
 
     useEffect(() => {
         document.body.style.overflow = 'hidden';
@@ -147,22 +146,7 @@ const JobManagerModal = ({ job, onClose, onSuccess }) => {
         });
     };
 
-    const handleHandoverSubmit = async (e) => {
-        e.preventDefault();
-        if (selectedFiles.length === 0) return showToast({ icon: 'warning', title: 'Please upload partial work documents.' });
-        setLoading(true);
-        try {
-            const uploadedUrls = await uploadFilesToCloud();
-            await axiosInstance.post(`/authority/issues/${job._id}/handover`, { mediaUrls: uploadedUrls, reasonForFailure: remarks });
-            showToast({ icon: 'success', title: 'Handover report submitted.' });
-            onSuccess();
-        } catch (err) {
-            if (err.message !== "UPLOAD_CANCELLED") showToast({ icon: 'error', title: err.response?.data?.message || 'Failed to submit handover' });
-        } finally {
-            if (!isCancelledRef.current) { setLoading(false); setUploadProgress(0); }
-        }
-    };
-
+    // --- ACTIONS ---
     const handleResolveSubmit = async (e) => {
         e.preventDefault();
         if (selectedFiles.length === 0) return showToast({ icon: 'warning', title: 'Please provide proof of resolution.' });
@@ -183,16 +167,43 @@ const JobManagerModal = ({ job, onClose, onSuccess }) => {
         e.preventDefault();
         setLoading(true);
         try {
-            // Send the new fields that match the backend expectation
-            await axiosInstance.post(`/authority/issues/${job._id}/extend`, {
-                requestedTimeValue: timeValue,
-                requestedTimeUnit: timeUnit,
-                reason: remarks
-            });
+            await axiosInstance.post(`/authority/issues/${job._id}/extend`, { requestedTimeValue: timeValue, requestedTimeUnit: timeUnit, reason: remarks });
             showToast({ icon: 'success', title: 'Extension requested successfully' });
             onSuccess();
         } catch (err) {
             showToast({ icon: 'error', title: err.response?.data?.message || 'Failed to request extension' });
+        } finally {
+            setLoading(false);
+        }
+    };
+
+    const handleHandoverSubmit = async (e) => {
+        e.preventDefault();
+        if (selectedFiles.length === 0) return showToast({ icon: 'warning', title: 'Please upload partial work documents.' });
+        setLoading(true);
+        try {
+            const uploadedUrls = await uploadFilesToCloud();
+            await axiosInstance.post(`/authority/issues/${job._id}/handover`, { mediaUrls: uploadedUrls, reasonForFailure: remarks });
+            showToast({ icon: 'success', title: 'Handover report submitted.' });
+            onSuccess();
+        } catch (err) {
+            if (err.message !== "UPLOAD_CANCELLED") showToast({ icon: 'error', title: err.response?.data?.message || 'Failed to submit handover' });
+        } finally {
+            if (!isCancelledRef.current) { setLoading(false); setUploadProgress(0); }
+        }
+    };
+
+    // 🟢 NEW ACTION: VOLUNTARY RELEASE
+    const handleReleaseSubmit = async (e) => {
+        e.preventDefault();
+        if (!remarks) return showToast({ icon: 'warning', title: 'Please provide a reason for releasing the job.' });
+        setLoading(true);
+        try {
+            await axiosInstance.post(`/authority/issues/${job._id}/release`, { reason: remarks });
+            showToast({ icon: 'success', title: 'Job released successfully.' });
+            onSuccess();
+        } catch (err) {
+            showToast({ icon: 'error', title: err.response?.data?.message || 'Failed to release job' });
         } finally {
             setLoading(false);
         }
@@ -222,14 +233,18 @@ const JobManagerModal = ({ job, onClose, onSuccess }) => {
                 {/* Segmented Control Tabs */}
                 {!isAwaitingHandover && (
                     <div className="px-6 pt-6 pb-2 shrink-0">
-                        <div className="flex bg-background border border-border/50 p-1.5 rounded-2xl shadow-inner">
-                            <button onClick={() => setView('resolve')} disabled={loading} className={`relative flex-1 py-3 text-sm font-bold flex items-center justify-center gap-2 rounded-xl transition-all duration-300 z-10 ${view === 'resolve' ? 'text-primary shadow-sm' : 'text-muted-foreground hover:text-foreground'}`}>
+                        <div className="flex bg-background border border-border/50 p-1.5 rounded-2xl shadow-inner gap-1">
+                            <button onClick={() => setView('resolve')} disabled={loading} className={`relative flex-1 py-2.5 text-sm font-bold flex items-center justify-center gap-2 rounded-xl transition-all duration-300 z-10 ${view === 'resolve' ? 'text-primary shadow-sm' : 'text-muted-foreground hover:text-foreground'}`}>
                                 {view === 'resolve' && <motion.div layoutId="jobTab" className="absolute inset-0 bg-primary/10 border border-primary/20 rounded-xl" transition={{ type: "spring", stiffness: 500, damping: 30 }} />}
-                                <span className="relative z-10 flex items-center gap-2"><CheckCircle size={18} /> Resolve</span>
+                                <span className="relative z-10 flex items-center gap-1.5"><CheckCircle size={16} /> Resolve</span>
                             </button>
-                            <button onClick={() => setView('extend')} disabled={loading} className={`relative flex-1 py-3 text-sm font-bold flex items-center justify-center gap-2 rounded-xl transition-all duration-300 z-10 ${view === 'extend' ? 'text-amber-500 shadow-sm' : 'text-muted-foreground hover:text-foreground'}`}>
+                            <button onClick={() => setView('extend')} disabled={loading} className={`relative flex-1 py-2.5 text-sm font-bold flex items-center justify-center gap-2 rounded-xl transition-all duration-300 z-10 ${view === 'extend' ? 'text-amber-500 shadow-sm' : 'text-muted-foreground hover:text-foreground'}`}>
                                 {view === 'extend' && <motion.div layoutId="jobTab" className="absolute inset-0 bg-amber-500/10 border border-amber-500/20 rounded-xl" transition={{ type: "spring", stiffness: 500, damping: 30 }} />}
-                                <span className="relative z-10 flex items-center gap-2"><Clock size={18} /> Extend</span>
+                                <span className="relative z-10 flex items-center gap-1.5"><Clock size={16} /> Extend</span>
+                            </button>
+                            <button onClick={() => setView('release')} disabled={loading} className={`relative flex-1 py-2.5 text-sm font-bold flex items-center justify-center gap-2 rounded-xl transition-all duration-300 z-10 ${view === 'release' ? 'text-destructive shadow-sm' : 'text-muted-foreground hover:text-foreground'}`}>
+                                {view === 'release' && <motion.div layoutId="jobTab" className="absolute inset-0 bg-destructive/10 border border-destructive/20 rounded-xl" transition={{ type: "spring", stiffness: 500, damping: 30 }} />}
+                                <span className="relative z-10 flex items-center gap-1.5"><LogOut size={16} /> Release</span>
                             </button>
                         </div>
                     </div>
@@ -238,10 +253,10 @@ const JobManagerModal = ({ job, onClose, onSuccess }) => {
                 {/* Scrollable Form Area */}
                 <div className="p-6 overflow-y-auto thin-scrollbar flex-1 relative bg-background/20">
                     <AnimatePresence mode="wait">
+
+                        {/* RESOLVE / HANDOVER FORMS */}
                         {(view === 'resolve' || view === 'handover') && (
                             <motion.form key="media-form" id="media-form" initial={{ opacity: 0, x: -20 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: 20 }} onSubmit={view === 'resolve' ? handleResolveSubmit : handleHandoverSubmit} className="space-y-6">
-
-                                {/* Info Banner */}
                                 {view === 'resolve' ? (
                                     <div className="bg-primary/5 border border-primary/20 p-4 rounded-2xl flex gap-3 shadow-inner">
                                         <Info className="text-primary shrink-0" size={24} />
@@ -254,7 +269,6 @@ const JobManagerModal = ({ job, onClose, onSuccess }) => {
                                     </div>
                                 )}
 
-                                {/* Glossy Upload Zone */}
                                 <div className="space-y-3">
                                     <label className="text-xs font-bold uppercase tracking-widest text-foreground">
                                         {view === 'resolve' ? 'Resolution Evidence (Req)' : 'Proof of Work / Documents (Req)'}
@@ -305,33 +319,37 @@ const JobManagerModal = ({ job, onClose, onSuccess }) => {
 
                                 <div className="space-y-3">
                                     <label className="text-xs font-bold uppercase tracking-widest text-foreground">{view === 'resolve' ? 'Closing Remarks (Optional)' : 'Reason for Delay / Abandonment (Req)'}</label>
-                                    <textarea
-                                        required={view === 'handover'}
-                                        value={remarks}
-                                        onChange={(e) => setRemarks(e.target.value)}
-                                        disabled={loading}
-                                        className="w-full bg-background/50 backdrop-blur-sm border border-border/60 rounded-2xl p-4 text-sm font-medium focus:ring-4 focus:ring-primary/10 focus:border-primary outline-none disabled:opacity-50 transition-all shadow-inner"
-                                        rows="3"
-                                        placeholder={view === 'resolve' ? "Add final notes..." : "Explain blockages..."}
-                                    />
+                                    <textarea required={view === 'handover'} value={remarks} onChange={(e) => setRemarks(e.target.value)} disabled={loading} className="w-full bg-background/50 backdrop-blur-sm border border-border/60 rounded-2xl p-4 text-sm font-medium focus:ring-4 focus:ring-primary/10 focus:border-primary outline-none disabled:opacity-50 transition-all shadow-inner" rows="3" placeholder={view === 'resolve' ? "Add final notes..." : "Explain blockages..."} />
                                 </div>
                             </motion.form>
                         )}
 
+                        {/* EXTEND FORM */}
                         {view === 'extend' && (
-                            <motion.form key="extend-form" id="extend-form" initial={{ opacity: 0, x: 20 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: -20 }} onSubmit={handleExtendSubmit} className="space-y-6">
+                            <motion.form key="extend-form" id="extend-form" initial={{ opacity: 0, scale: 0.95 }} animate={{ opacity: 1, scale: 1 }} exit={{ opacity: 0, scale: 0.95 }} onSubmit={handleExtendSubmit} className="space-y-6">
                                 <div className="flex gap-4">
-                                    <div className="w-1/3 space-y-3">
+                                    <div className="w-1/3 flex flex-col gap-2.5">
                                         <label className="text-xs font-bold uppercase tracking-widest text-foreground">Value</label>
-                                        <input type="number" min="1" required disabled={loading} value={timeValue} onChange={(e) => setTimeValue(e.target.value)} className="w-full p-4 bg-background/50 border border-border/60 rounded-2xl text-sm font-bold focus:border-amber-500 outline-none transition-all shadow-inner" placeholder="e.g. 24" />
-                                    </div>
-                                    <div className="w-2/3 space-y-3">
-                                        <label className="text-xs font-bold uppercase tracking-widest text-foreground">Unit</label>
-                                        <CustomSelect
-                                            options={[{ value: 'HOURS', label: 'Hours' }, { value: 'DAYS', label: 'Days' }, { value: 'WEEKS', label: 'Weeks' }, { value: 'MONTHS', label: 'Months' }]}
-                                            value={timeUnit}
-                                            onChange={setTimeUnit}
+                                        <input
+                                            type="number"
+                                            min="1"
+                                            required
+                                            disabled={loading}
+                                            value={timeValue}
+                                            onChange={(e) => setTimeValue(e.target.value)}
+                                            className="w-full h-[42px] px-4 bg-background/50 border border-border/60 rounded-xl text-sm font-bold focus:border-amber-500 outline-none transition-all shadow-inner box-border"
+                                            placeholder="e.g. 24"
                                         />
+                                    </div>
+                                    <div className="w-2/3 flex flex-col gap-2.5">
+                                        <label className="text-xs font-bold uppercase tracking-widest text-foreground">Unit</label>
+                                        <div className="w-full h-[42px]">
+                                            <CustomSelect
+                                                options={[{ value: 'HOURS', label: 'Hours' }, { value: 'DAYS', label: 'Days' }, { value: 'WEEKS', label: 'Weeks' }, { value: 'MONTHS', label: 'Months' }]}
+                                                value={timeUnit}
+                                                onChange={setTimeUnit}
+                                            />
+                                        </div>
                                     </div>
                                 </div>
 
@@ -341,6 +359,27 @@ const JobManagerModal = ({ job, onClose, onSuccess }) => {
                                 </div>
                             </motion.form>
                         )}
+
+                        {/* RELEASE FORM */}
+                        {view === 'release' && (
+                            <motion.form key="release-form" id="release-form" initial={{ opacity: 0, x: 20 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: -20 }} onSubmit={handleReleaseSubmit} className="space-y-6">
+                                <div className="bg-destructive/5 border border-destructive/20 p-4 rounded-2xl flex gap-3 shadow-inner">
+                                    <AlertTriangle className="text-destructive shrink-0" size={24} />
+                                    <div className="space-y-1">
+                                        <h4 className="text-sm font-bold text-destructive">Are you sure you want to release this job?</h4>
+                                        <p className="text-xs font-medium text-destructive/80 leading-relaxed">
+                                            Releasing this job will drop it from your active list and place it back on the radar for other officials to bid on.
+                                        </p>
+                                    </div>
+                                </div>
+
+                                <div className="space-y-3">
+                                    <label className="text-xs font-bold uppercase tracking-widest text-foreground">Reason for Release (Required)</label>
+                                    <textarea required disabled={loading} value={remarks} onChange={(e) => setRemarks(e.target.value)} className="w-full bg-background/50 backdrop-blur-sm border border-border/60 rounded-2xl p-4 text-sm font-medium focus:ring-4 focus:ring-destructive/10 focus:border-destructive outline-none disabled:opacity-50 transition-all shadow-inner resize-none" rows="4" placeholder="e.g. Outside of my jurisdiction, lacking resources..."></textarea>
+                                </div>
+                            </motion.form>
+                        )}
+
                     </AnimatePresence>
                 </div>
 
@@ -362,17 +401,18 @@ const JobManagerModal = ({ job, onClose, onSuccess }) => {
 
                     <button
                         type="submit"
-                        form={view === 'extend' ? 'extend-form' : 'media-form'}
+                        form={view === 'extend' ? 'extend-form' : view === 'release' ? 'release-form' : 'media-form'}
                         disabled={loading}
                         className={`px-8 py-3 rounded-xl font-black text-sm text-white shadow-lg transition-all disabled:opacity-50 relative z-10 min-w-[160px] hover:scale-[1.02] active:scale-[0.98]
                             ${view === 'resolve' ? 'bg-primary shadow-primary/30 hover:bg-primary/90' : ''}
                             ${view === 'extend' ? 'bg-amber-500 shadow-amber-500/30 hover:bg-amber-600' : ''}
-                            ${view === 'handover' ? 'bg-destructive shadow-destructive/30 hover:bg-destructive/90' : ''}
+                            ${view === 'release' || view === 'handover' ? 'bg-destructive shadow-destructive/30 hover:bg-destructive/90' : ''}
                         `}
                     >
                         {loading ? (uploadProgress > 0 ? `Uploading (${uploadProgress}%)` : 'Processing...') :
                             view === 'resolve' ? 'Submit to Escrow' :
-                                view === 'extend' ? 'Submit Request' : 'Submit Handover'}
+                                view === 'extend' ? 'Submit Request' :
+                                    view === 'release' ? 'Release Job' : 'Submit Handover'}
                     </button>
                 </div>
 

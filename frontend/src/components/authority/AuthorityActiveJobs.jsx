@@ -11,6 +11,36 @@ import JobManagerModal from './JobManagerModal';
 import { motion, AnimatePresence } from 'framer-motion';
 import { socket } from '../../utils/socket';
 
+// 🟢 YouTube-style Shimmer Skeleton Card for Active Jobs
+const ShimmerCard = () => (
+    <div className="bg-card/40 backdrop-blur-xl border border-border/30 rounded-3xl overflow-hidden shadow-sm flex flex-col min-h-[420px]">
+        {/* Image Skeleton */}
+        <div className="h-44 bg-muted/30 animate-pulse relative shrink-0">
+            <div className="absolute top-3 left-3 w-20 h-6 bg-muted/40 rounded-lg"></div>
+        </div>
+
+        {/* Body Skeleton */}
+        <div className="p-5 flex-1 flex flex-col gap-4">
+            {/* Title */}
+            <div>
+                <div className="h-6 w-3/4 bg-muted/30 rounded-md animate-pulse mb-2"></div>
+                <div className="h-6 w-1/2 bg-muted/30 rounded-md animate-pulse"></div>
+            </div>
+
+            {/* Location Box */}
+            <div className="h-10 w-full bg-muted/20 rounded-xl animate-pulse mb-2"></div>
+
+            {/* Status & Action Area */}
+            <div className="mt-auto pt-4 border-t border-border/30 flex flex-col gap-3">
+                {/* Live Timer Box */}
+                <div className="h-14 w-full bg-muted/20 rounded-2xl animate-pulse"></div>
+                {/* Button */}
+                <div className="h-12 w-full bg-muted/20 rounded-xl animate-pulse"></div>
+            </div>
+        </div>
+    </div>
+);
+
 const AuthorityActiveJobs = () => {
     const [jobs, setJobs] = useState([]);
     const [loading, setLoading] = useState(true);
@@ -174,8 +204,6 @@ const AuthorityActiveJobs = () => {
         return combined.sort((a, b) => b.time - a.time);
     };
 
-    if (loading) return <div className="flex h-[50vh] items-center justify-center"><MiniLoader /></div>;
-
     return (
         <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} className="space-y-6 flex flex-col h-full relative pb-12">
 
@@ -187,14 +215,20 @@ const AuthorityActiveJobs = () => {
                 <p className="text-sm font-medium text-muted-foreground">Manage your current commitments, resolve issues, and track deadlines.</p>
             </div>
 
-            {jobs.length === 0 ? (
+            {loading ? (
+                <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-6 relative z-10 pb-8 mt-2">
+                    {[...Array(6)].map((_, i) => (
+                        <ShimmerCard key={i} />
+                    ))}
+                </div>
+            ) : jobs.length === 0 ? (
                 <motion.div initial={{ opacity: 0, scale: 0.95 }} animate={{ opacity: 1, scale: 1 }} className="bg-card/40 backdrop-blur-xl border border-border/50 rounded-3xl p-12 text-center shadow-lg mt-8">
                     <Briefcase size={56} className="mx-auto text-muted-foreground/30 mb-4" />
                     <h3 className="text-2xl font-black text-foreground">No Active Commitments</h3>
                     <p className="text-muted-foreground font-medium mt-2">Check the Radar to place bids and claim new jobs in your district.</p>
                 </motion.div>
             ) : (
-                <div className="grid grid-cols-1 gap-4">
+                <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-6 relative z-10 pb-8 mt-2">
                     <AnimatePresence>
                         {jobs.map((job, index) => {
                             const isAwaitingHandover = job.status === 'AWAITING_HANDOVER';
@@ -203,60 +237,69 @@ const AuthorityActiveJobs = () => {
                             return (
                                 <motion.div
                                     layout
-                                    initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, scale: 0.95 }} transition={{ delay: index * 0.05 }}
+                                    initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, scale: 0.9 }} transition={{ delay: index * 0.05 }}
                                     key={job._id}
                                     onClick={() => { setCurrentMediaIndex(0); setViewingJob(job); }}
-                                    className={`group bg-card/60 backdrop-blur-xl border p-4 sm:p-5 rounded-3xl shadow-sm flex flex-col md:flex-row items-start md:items-center gap-4 cursor-pointer transition-all duration-300 hover:shadow-lg hover:-translate-y-1 ${isAwaitingHandover ? 'border-destructive/40 bg-destructive/5' : 'border-border/60 hover:border-primary/50'}`}
+                                    className={`bg-card/80 backdrop-blur-2xl border rounded-3xl overflow-hidden shadow-lg flex flex-col transition-all duration-300 group hover:shadow-[0_10px_40px_-10px_rgba(0,0,0,0.2)] hover:-translate-y-1 cursor-pointer ${isAwaitingHandover ? 'border-destructive/40 bg-destructive/5' : 'border-border/60 hover:border-primary/50'}`}
                                 >
-                                    {/* Image Thumbnail */}
-                                    <div className="w-full md:w-20 h-40 md:h-20 bg-background/50 rounded-2xl overflow-hidden shrink-0 relative border border-border/50 shadow-inner group-hover:shadow-md transition-shadow">
-                                        {job.media?.[0] ?
-                                            <img src={job.media[0].url} className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-110" alt="Issue" /> :
-                                            <div className="w-full h-full flex items-center justify-center"><Search size={24} className="text-muted-foreground/30" /></div>
-                                        }
-                                        {/* Mobile-only category badge overlay */}
-                                        <div className="absolute top-2 left-2 md:hidden bg-black/60 backdrop-blur-md text-white text-[9px] font-black uppercase px-2 py-1 rounded-md border border-white/10">
+                                    {/* Image Header */}
+                                    <div className="h-44 bg-muted relative overflow-hidden shrink-0">
+                                        {job.media?.[0] ? (
+                                            <img src={job.media[0].url} alt="Issue" className="w-full h-full object-cover transition-transform duration-700 group-hover:scale-105" />
+                                        ) : (
+                                            <div className="w-full h-full flex items-center justify-center bg-background/50"><Search size={32} className="text-muted-foreground/30" /></div>
+                                        )}
+
+                                        {/* Badges Overlays */}
+                                        <div className="absolute top-3 left-3 bg-black/60 backdrop-blur-md text-white text-[10px] font-black uppercase tracking-widest px-3 py-1.5 rounded-lg border border-white/10 shadow-sm">
                                             {job.category}
                                         </div>
+
+                                        {isAwaitingHandover && (
+                                            <div className="absolute top-3 right-3 bg-destructive text-white text-[10px] font-black tracking-wider px-2.5 py-1 rounded-lg flex items-center gap-1 shadow-lg uppercase">
+                                                <AlertTriangle size={14} /> Handover
+                                            </div>
+                                        )}
+                                        {isPaused && !isAwaitingHandover && (
+                                            <div className="absolute top-3 right-3 bg-amber-500 text-white text-[10px] font-black tracking-wider px-2.5 py-1 rounded-lg flex items-center gap-1 shadow-lg uppercase">
+                                                <Clock size={14} /> Paused
+                                            </div>
+                                        )}
                                     </div>
 
-                                    {/* Core Data */}
-                                    <div className="flex-1 min-w-0 w-full">
-                                        <div className="flex items-center gap-3 mb-1.5 flex-wrap">
-                                            <h4 className="font-black text-lg text-foreground truncate group-hover:text-primary transition-colors">{job.title}</h4>
-                                            {isAwaitingHandover && (
-                                                <span className="bg-destructive/10 text-destructive border border-destructive/20 text-[9px] px-2 py-1 rounded-md font-black flex items-center gap-1 shadow-sm uppercase tracking-widest">
-                                                    <AlertTriangle size={12} /> Handover Req
-                                                </span>
-                                            )}
-                                            {isPaused && !isAwaitingHandover && (
-                                                <span className="bg-amber-500/10 text-amber-500 border border-amber-500/20 text-[9px] px-2 py-1 rounded-md font-black flex items-center gap-1 shadow-sm uppercase tracking-widest">
-                                                    <Clock size={12} /> Extension Pending
-                                                </span>
-                                            )}
-                                        </div>
-                                        <p className="text-xs font-medium text-muted-foreground flex items-center gap-1.5 hidden md:flex"><span className="uppercase tracking-widest font-bold text-[10px]">{job.category}</span> • <MapPin size={12} /> {job.location?.city}</p>
-                                        <p className="text-xs font-medium text-muted-foreground flex items-center gap-1.5 md:hidden"><MapPin size={12} /> {job.location?.city}</p>
-                                    </div>
+                                    {/* Body */}
+                                    <div className="p-5 flex-1 flex flex-col bg-gradient-to-b from-transparent to-background/50">
+                                        <h3 className="font-black text-xl leading-tight mb-3 line-clamp-2 text-foreground group-hover:text-primary transition-colors">{job.title}</h3>
 
-                                    {/* Live Deadline & Action */}
-                                    <div className="flex items-center justify-between md:justify-end gap-6 w-full md:w-auto mt-2 md:mt-0 pt-3 md:pt-0 border-t md:border-t-0 border-border/50">
-                                        <div className="text-left md:text-right">
-                                            <p className="text-[10px] uppercase font-bold tracking-widest text-muted-foreground flex items-center gap-1 mb-0.5">
-                                                <Clock size={12} /> Time Left
-                                            </p>
-                                            <p className={`font-mono font-black text-base tracking-tight ${isAwaitingHandover ? 'text-destructive' : isPaused ? 'text-amber-500' : 'text-primary'}`}>
-                                                {formatDetailedTimeLeft(job)}
-                                            </p>
+                                        <div className="space-y-2 mb-5">
+                                            <div className="flex items-start gap-2 text-xs font-medium text-muted-foreground bg-muted/30 p-2.5 rounded-xl border border-border/40">
+                                                <MapPin size={16} className="shrink-0 text-primary" />
+                                                <span className="line-clamp-2">{job.location?.address}, {job.location?.city}</span>
+                                            </div>
                                         </div>
 
-                                        <button
-                                            onClick={(e) => { e.stopPropagation(); setSelectedJob(job); }}
-                                            className={`px-5 py-2.5 rounded-xl font-black text-sm transition-all shadow-md flex items-center gap-2 hover:scale-[1.02] active:scale-[0.98]
-                                                ${isAwaitingHandover ? 'bg-destructive text-white hover:bg-destructive/90 shadow-destructive/20' : 'bg-primary text-primary-foreground hover:bg-primary/90 shadow-primary/20'}`}
-                                        >
-                                            Manage <ChevronRight size={16} />
-                                        </button>
+                                        {/* Status Area & Actions */}
+                                        <div className="mt-auto pt-4 border-t border-border/50">
+                                            {/* Live Timer Box */}
+                                            <div className={`border rounded-2xl p-3 flex justify-between items-center relative overflow-hidden mb-3 ${isAwaitingHandover ? 'bg-destructive/10 border-destructive/20' : isPaused ? 'bg-amber-500/10 border-amber-500/20' : 'bg-primary/5 border-primary/20'}`}>
+                                                <div>
+                                                    <p className={`text-[10px] uppercase font-black tracking-widest flex items-center gap-1 mb-0.5 ${isAwaitingHandover ? 'text-destructive' : isPaused ? 'text-amber-500' : 'text-primary'}`}>
+                                                        <Clock size={12} /> Time Left
+                                                    </p>
+                                                    <p className={`font-mono font-black text-lg ${isAwaitingHandover ? 'text-destructive' : isPaused ? 'text-amber-500' : 'text-primary'}`}>
+                                                        {formatDetailedTimeLeft(job)}
+                                                    </p>
+                                                </div>
+                                            </div>
+
+                                            {/* Action Button */}
+                                            <button
+                                                onClick={(e) => { e.stopPropagation(); setSelectedJob(job); }}
+                                                className={`w-full px-4 py-3 rounded-xl font-black text-sm flex justify-center items-center gap-2 shadow-sm transition-all hover:scale-[1.02] active:scale-[0.98] ${isAwaitingHandover ? 'bg-destructive text-white hover:bg-destructive/90 shadow-destructive/20' : 'bg-primary text-primary-foreground hover:bg-primary/90 shadow-primary/20'}`}
+                                            >
+                                                Manage Job <ChevronRight size={16} />
+                                            </button>
+                                        </div>
                                     </div>
                                 </motion.div>
                             );

@@ -6,30 +6,23 @@ import {
     Target, CheckSquare, AlertTriangle, AlertCircle, Search,
     MapPin, Zap, Download, X, List, Eye, Briefcase, Clock,
     Star, ChevronLeft, ChevronRight, FileText, History, Shield,
-    TrendingUp, TrendingDown, Activity, Info, Filter
+    TrendingUp, TrendingDown, Activity, Info, Filter, Navigation
 } from 'lucide-react';
 import CustomSelect from '../CustomSelect';
-import MiniLoader from '../MiniLoader';
 import { cscApi } from '../../utils/cscAPI';
 import { motion, AnimatePresence } from 'framer-motion';
 import { socket } from '../../utils/socket';
 
-// Helper for Relative Time
-const timeAgo = (dateInput) => {
-    if (!dateInput) return '';
-    const date = new Date(dateInput);
-    const seconds = Math.floor((new Date() - date) / 1000);
-    let interval = seconds / 31536000;
-    if (interval > 1) return Math.floor(interval) + "y ago";
-    interval = seconds / 2592000;
-    if (interval > 1) return Math.floor(interval) + "mo ago";
-    interval = seconds / 86400;
-    if (interval > 1) return Math.floor(interval) + "d ago";
-    interval = seconds / 3600;
-    if (interval > 1) return Math.floor(interval) + "h ago";
-    interval = seconds / 60;
-    if (interval > 1) return Math.floor(interval) + "m ago";
-    return Math.floor(seconds) + "s ago";
+// Helper for Haversine Distance Calculation
+const calculateHaversine = (lat1, lon1, lat2, lon2) => {
+    const R = 6371; // Earth radius in km
+    const dLat = (lat2 - lat1) * Math.PI / 180;
+    const dLon = (lon2 - lon1) * Math.PI / 180;
+    const a = Math.sin(dLat / 2) * Math.sin(dLat / 2) +
+        Math.cos(lat1 * Math.PI / 180) * Math.cos(lat2 * Math.PI / 180) *
+        Math.sin(dLon / 2) * Math.sin(dLon / 2);
+    const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+    return (R * c).toFixed(1);
 };
 
 const AuthorityAnalytics = () => {
@@ -38,6 +31,9 @@ const AuthorityAnalytics = () => {
     const [stats, setStats] = useState(null);
     const [issues, setIssues] = useState([]);
     const [loading, setLoading] = useState(true);
+
+    // Geolocation State
+    const [currentLocation, setCurrentLocation] = useState(null);
 
     // Filters for the table
     const [page, setPage] = useState(1);
@@ -82,6 +78,17 @@ const AuthorityAnalytics = () => {
         { value: 'RELEASED', label: 'Released' }
     ];
 
+    // Fetch User Location on Mount
+    useEffect(() => {
+        if ("geolocation" in navigator) {
+            navigator.geolocation.getCurrentPosition(
+                (pos) => setCurrentLocation({ lat: pos.coords.latitude, lng: pos.coords.longitude }),
+                (err) => console.warn("Location access denied or failed", err),
+                { enableHighAccuracy: true, timeout: 10000, maximumAge: 60000 }
+            );
+        }
+    }, []);
+
     useEffect(() => {
         cscApi.get("/countries/IN/states").then(res => setStatesList(res.data)).catch(console.error);
     }, []);
@@ -113,23 +120,18 @@ const AuthorityAnalytics = () => {
     }, [isModalVisible, metricModal.isOpen, csiModal.isOpen]);
 
     // 🟢 Real-Time Synchronization Listener
-    // 🟢 Real-Time Synchronization Listener
     useEffect(() => {
         if (!socket) return;
 
-        // 1. SURGICAL UPDATES: Update the issues array and modal instantly in memory
         socket.on('issue_updated', (data) => {
             setIssues((prev) => prev.map((issue) => issue._id === data.issueId ? data.updatedData : issue));
             setSelectedIssue((prev) => prev && prev._id === data.issueId ? data.updatedData : prev);
-
-            // Silently update the aggregate stats in the background without a loading spinner
             axiosInstance.get('/authority/analytics/summary').then(res => setStats(res.data.data)).catch(console.error);
         });
 
         socket.on('issue_status_updated', (data) => {
             setIssues((prev) => prev.map((issue) => issue._id === data.issueId ? { ...issue, status: data.newStatus } : issue));
             setSelectedIssue((prev) => prev && prev._id === data.issueId ? { ...prev, status: data.newStatus } : prev);
-
             axiosInstance.get('/authority/analytics/summary').then(res => setStats(res.data.data)).catch(console.error);
         });
 
@@ -145,20 +147,13 @@ const AuthorityAnalytics = () => {
             axiosInstance.get('/authority/analytics/summary').then(res => setStats(res.data.data)).catch(console.error);
         });
 
-        // 2. NOTIFICATION UPDATES: Refresh specific ledgers if a direct notification hits
         const handleRealTimeUpdate = (notification) => {
             const relevantTypes = ['UPDATE', 'URGENT', 'CRITICAL', 'SYSTEM_BROADCAST', 'REWARD', 'ACTION_REQUIRED'];
-
             if (relevantTypes.includes(notification.type)) {
-                // If they have the CSI modal open, refresh it so they see their points change instantly
-                if (csiModal.isOpen) {
-                    fetchCsiHistory();
-                }
+                if (csiModal.isOpen) fetchCsiHistory();
             }
         };
 
-        // Note: Make sure this matches the event name your backend uses in triggerNotification()
-        // In your GlobalNotificationListener, you used 'new_notification', so I've updated it here to match.
         socket.on('new_notification', handleRealTimeUpdate);
 
         return () => {
@@ -218,7 +213,6 @@ const AuthorityAnalytics = () => {
             });
 
             const ledger = [...completed, ...failed].sort((a, b) => new Date(b.updatedAt) - new Date(a.updatedAt));
-
             setCsiModal(prev => ({ ...prev, loading: false, history: ledger }));
         } catch (error) {
             showToast({ icon: 'error', title: 'Failed to load CSI history' });
@@ -244,10 +238,7 @@ const AuthorityAnalytics = () => {
     const openModal = async (issueId) => {
         try {
             setFetchingIssueId(issueId);
-
-            // 🟢 CHANGED: Pointing to the new authority-specific endpoint
             const res = await axiosInstance.get(`/authority/issue/${issueId}`);
-
             setSelectedIssue(res.data.data?.issue || res.data.data);
             setCurrentMediaIndex(0);
             setIsModalVisible(true);
@@ -261,6 +252,13 @@ const AuthorityAnalytics = () => {
     const closeModal = () => {
         setIsModalVisible(false);
         setTimeout(() => setSelectedIssue(null), 300);
+    };
+
+    const openGoogleMaps = (e, coordinates) => {
+        e.stopPropagation();
+        if (!coordinates || coordinates.length < 2) return;
+        const [lng, lat] = coordinates;
+        window.open(`https://maps.google.com/?q=${lat},${lng}`, '_blank');
     };
 
     const visibleIssues = issues.filter(issue => {
@@ -308,19 +306,39 @@ const AuthorityAnalytics = () => {
         { id: 'COMPLETED', title: 'Jobs Finished', value: stats?.jobsCompleted || 0, icon: CheckSquare, color: 'text-emerald-500', bgGlow: 'from-emerald-500/20', borderColor: 'border-emerald-500/30', description: 'Issues you have successfully resolved and submitted to Escrow for verification.' },
         { id: 'RELEASED', title: 'Jobs Released', value: stats?.jobsReleased || 0, icon: Briefcase, color: 'text-amber-500', bgGlow: 'from-amber-500/20', borderColor: 'border-amber-500/30', description: 'Jobs you voluntarily unassigned yourself from before the deadline expired.' },
         { id: 'PENDING', title: 'Jobs Active', value: stats?.jobsPending || 0, icon: Clock, color: 'text-indigo-500', bgGlow: 'from-indigo-500/20', borderColor: 'border-indigo-500/30', description: 'Issues currently locked to you. Be sure to resolve them or request extensions before time runs out!' },
-        { id: 'FAILED', title: 'Jobs Failed', value: stats?.jobsFailed || 0, icon: AlertTriangle, color: 'text-rose-500', bgGlow: 'from-rose-500/20', borderColor: 'border-rose-500/30', description: 'Issues where you failed to meet the deadline or completely abandoned the job (Ghost Protocol).' },
+        { id: 'FAILED', title: 'Jobs Failed', value: stats?.jobsFailed || 0, icon: AlertTriangle, color: 'text-rose-500', bgGlow: 'from-rose-500/20', borderColor: 'border-rose-500/30', description: 'Issues where you failed to meet the deadline or abandoned the job.' },
         { id: 'OPEN_LOCAL', title: 'Open Issues', value: stats?.openLocalIssues || 0, icon: AlertCircle, color: 'text-cyan-500', bgGlow: 'from-cyan-500/20', borderColor: 'border-cyan-500/30', description: 'Unassigned issues in your assigned district currently waiting for bids on the Radar.' },
     ];
 
+    // 🟢 INITIAL FULL PAGE SHIMMER (Replaces traditional loader)
     if (loading && !stats) {
-        return <div className="flex h-[80vh] items-center justify-center"><MiniLoader /></div>;
+        return (
+            <div className="space-y-6 flex flex-col min-h-full h-auto md:h-full relative px-2 sm:px-0">
+                <div className="flex flex-col gap-2 animate-pulse">
+                    <div className="h-8 md:h-10 w-64 bg-card/60 rounded-xl"></div>
+                    <div className="h-4 w-48 bg-card/40 rounded-md"></div>
+                </div>
+                {/* Metrics Shimmer */}
+                <div className="grid grid-cols-2 lg:grid-cols-3 xl:grid-cols-6 gap-4">
+                    {[...Array(6)].map((_, i) => (
+                        <div key={i} className="h-28 sm:h-32 rounded-2xl bg-card/60 border border-border/50 animate-pulse"></div>
+                    ))}
+                </div>
+                {/* Controls Shimmer */}
+                <div className="h-14 w-full bg-card/40 rounded-2xl border border-border/50 animate-pulse mt-4 hidden md:block"></div>
+                {/* List Shimmer */}
+                <div className="flex-1 rounded-2xl bg-card/20 border border-border/50 p-4 space-y-4">
+                    {[...Array(5)].map((_, i) => <div key={i} className="h-[90px] w-full bg-card/50 rounded-xl animate-pulse"></div>)}
+                </div>
+            </div>
+        );
     }
 
     return (
         <motion.div
             initial={{ opacity: 0, y: 10 }}
             animate={{ opacity: 1, y: 0 }}
-            className="space-y-6 flex flex-col min-h-full h-auto md:h-full relative"
+            className="space-y-6 flex flex-col min-h-full h-auto md:h-full relative pb-24 md:pb-10"
         >
             {/* Header */}
             <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 relative z-[50]">
@@ -340,7 +358,7 @@ const AuthorityAnalytics = () => {
                 </motion.button>
             </div>
 
-            {/* 🟢 Glossy Metric Cards with Hover Tooltips & Mobile Responsive Text */}
+            {/* 🟢 Glossy Metric Cards with Hover Tooltips */}
             <div className="grid grid-cols-2 lg:grid-cols-3 xl:grid-cols-6 gap-4 shrink-0 relative z-[50]">
                 {metricsData.map((metric, index) => {
                     const Icon = metric.icon;
@@ -440,9 +458,26 @@ const AuthorityAnalytics = () => {
             </div>
 
             {/* 🟢 Mobile Card View Wrapper (Hidden on md+) */}
-            <div className="md:hidden flex flex-col gap-3 relative z-[10] mb-6">
+            <div className="md:hidden flex flex-col gap-3 relative z-[10] pb-10">
                 <AnimatePresence>
-                    {visibleIssues.length === 0 ? (
+                    {loading ? (
+                        /* Mobile Shimmer Effect */
+                        [...Array(6)].map((_, i) => (
+                            <div key={i} className="p-4 rounded-2xl bg-card/40 border border-border/50 flex flex-col h-[140px] animate-pulse">
+                                <div className="flex justify-between items-start mb-4">
+                                    <div className="h-5 w-2/3 bg-muted rounded shrink-0"></div>
+                                    <div className="w-16 h-5 rounded-md bg-muted shrink-0"></div>
+                                </div>
+                                <div className="flex-1 space-y-3 mt-2">
+                                    <div className="h-3 w-1/3 bg-muted/50 rounded"></div>
+                                </div>
+                                <div className="pt-3 border-t border-border/50 mt-auto flex justify-between">
+                                    <div className="h-3 w-24 bg-muted rounded"></div>
+                                    <div className="h-4 w-12 bg-muted rounded"></div>
+                                </div>
+                            </div>
+                        ))
+                    ) : visibleIssues.length === 0 ? (
                         <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="p-10 text-center bg-card/40 border border-border/50 rounded-2xl">
                             <Search className="w-8 h-8 opacity-20 mx-auto mb-2 text-muted-foreground" />
                             <p className="text-sm font-medium text-muted-foreground">No issues found matching your filters.</p>
@@ -450,6 +485,14 @@ const AuthorityAnalytics = () => {
                     ) : (
                         visibleIssues.map((issue) => {
                             const isMyJob = issue.bidding?.winningBid?.authorityId === user?._id;
+
+                            // Calculate Distance
+                            let distance = null;
+                            if (currentLocation && issue.location?.geoData?.coordinates) {
+                                const [lng, lat] = issue.location.geoData.coordinates;
+                                distance = calculateHaversine(currentLocation.lat, currentLocation.lng, lat, lng);
+                            }
+
                             return (
                                 <motion.div
                                     layout
@@ -473,7 +516,15 @@ const AuthorityAnalytics = () => {
                                     <div className="flex justify-between items-end mt-1 pt-3 border-t border-border/30">
                                         <div>
                                             <p className="text-xs font-semibold text-foreground flex items-center gap-1"><MapPin size={12} className="opacity-50" />{issue.location?.city || issue.location?.district}</p>
-                                            <p className="text-[10px] text-muted-foreground mt-0.5 ml-4">{issue.location?.state}</p>
+
+                                            {/* Google Maps / Distance Button */}
+                                            <button
+                                                onClick={(e) => openGoogleMaps(e, issue.location?.geoData?.coordinates)}
+                                                className="mt-2 flex items-center gap-1.5 text-[10px] font-bold bg-blue-500/10 text-blue-500 hover:bg-blue-500 hover:text-white border border-blue-500/30 px-2 py-1.5 rounded-md transition-colors w-max"
+                                            >
+                                                <Navigation size={12} />
+                                                {distance ? `${distance} km away` : 'View on Map'}
+                                            </button>
                                         </div>
                                         <div className="flex flex-col items-end gap-1.5">
                                             {isMyJob && (
@@ -507,7 +558,27 @@ const AuthorityAnalytics = () => {
                         </thead>
                         <tbody className="divide-y divide-border/30">
                             <AnimatePresence>
-                                {visibleIssues.length === 0 ? (
+                                {loading ? (
+                                    /* Desktop Table Shimmer */
+                                    [...Array(6)].map((_, i) => (
+                                        <tr key={i} className="animate-pulse">
+                                            <td className="py-4 px-6">
+                                                <div className="h-4 w-48 bg-muted rounded mb-2"></div>
+                                                <div className="h-3 w-24 bg-muted/50 rounded"></div>
+                                            </td>
+                                            <td className="py-4 px-6">
+                                                <div className="h-4 w-32 bg-muted rounded mb-2"></div>
+                                                <div className="h-6 w-20 bg-muted/30 rounded"></div>
+                                            </td>
+                                            <td className="py-4 px-6">
+                                                <div className="h-6 w-20 bg-muted rounded-md"></div>
+                                            </td>
+                                            <td className="py-4 px-6 flex justify-end">
+                                                <div className="h-6 w-12 bg-muted rounded-md"></div>
+                                            </td>
+                                        </tr>
+                                    ))
+                                ) : visibleIssues.length === 0 ? (
                                     <motion.tr initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}>
                                         <td colSpan="4" className="p-12 text-center text-sm font-medium text-muted-foreground">
                                             <Search className="w-8 h-8 opacity-20 mx-auto mb-2" />
@@ -517,6 +588,14 @@ const AuthorityAnalytics = () => {
                                 ) : (
                                     visibleIssues.map((issue) => {
                                         const isMyJob = issue.bidding?.winningBid?.authorityId === user?._id;
+
+                                        // Calculate Distance
+                                        let distance = null;
+                                        if (currentLocation && issue.location?.geoData?.coordinates) {
+                                            const [lng, lat] = issue.location.geoData.coordinates;
+                                            distance = calculateHaversine(currentLocation.lat, currentLocation.lng, lat, lng);
+                                        }
+
                                         return (
                                             <motion.tr
                                                 layout
@@ -535,7 +614,13 @@ const AuthorityAnalytics = () => {
                                                 </td>
                                                 <td className="py-4 px-6">
                                                     <p className="text-sm font-semibold">{issue.location?.city || issue.location?.district}</p>
-                                                    <p className="text-[11px] text-muted-foreground mt-0.5">{issue.location?.state}</p>
+                                                    <button
+                                                        onClick={(e) => openGoogleMaps(e, issue.location?.geoData?.coordinates)}
+                                                        className="mt-1.5 flex items-center gap-1.5 text-[10px] font-bold bg-blue-500/10 text-blue-500 hover:bg-blue-500 hover:text-white border border-blue-500/30 px-2 py-1 rounded-md transition-colors w-fit"
+                                                    >
+                                                        <Navigation size={12} />
+                                                        {distance ? `${distance} km away` : 'View Map'}
+                                                    </button>
                                                 </td>
                                                 <td className="py-4 px-6 flex items-center gap-2">
                                                     <span className={`text-[10px] border px-2.5 py-1 rounded-md font-bold uppercase tracking-widest shadow-sm ${statusColors[issue.status] || statusColors.OPEN}`}>
@@ -562,9 +647,9 @@ const AuthorityAnalytics = () => {
                 </div>
             </div>
 
-            {/* Pagination (Visible for both desktop and mobile) */}
+            {/* Pagination */}
             {!loading && totalPages > 1 && (
-                <div className="p-4 border border-border/50 rounded-2xl md:rounded-b-2xl md:border-t-0 md:rounded-t-none bg-background/40 backdrop-blur-md flex justify-between items-center text-xs font-semibold text-muted-foreground shadow-sm">
+                <div className="p-4 border border-border/50 rounded-2xl md:rounded-b-2xl md:border-t-0 md:rounded-t-none bg-background/40 backdrop-blur-md flex justify-between items-center text-xs font-semibold text-muted-foreground shadow-sm mb-16 md:mb-0">
                     <span className="tracking-widest uppercase">Page {page} of {totalPages}</span>
                     <div className="space-x-2 flex">
                         <button disabled={page === 1} onClick={() => setPage(p => p - 1)} className="p-2 bg-card/80 border border-border/50 rounded-xl hover:bg-muted disabled:opacity-50 transition-all shadow-sm">
@@ -576,8 +661,6 @@ const AuthorityAnalytics = () => {
                     </div>
                 </div>
             )}
-
-            {/* ... Modals remaining identically exactly as original ... */}
 
             {/* 🟢 1. CSI SCORE HISTORY MODAL */}
             <AnimatePresence>
@@ -600,7 +683,12 @@ const AuthorityAnalytics = () => {
 
                             <div className="overflow-y-auto thin-scrollbar flex-1 p-4 md:p-6 space-y-4 bg-background/30">
                                 {csiModal.loading ? (
-                                    <div className="flex justify-center py-20"><MiniLoader /></div>
+                                    /* Modal Shimmer Effect */
+                                    <div className="space-y-4">
+                                        {[...Array(5)].map((_, i) => (
+                                            <div key={i} className="h-24 w-full bg-card border border-border/50 rounded-2xl animate-pulse"></div>
+                                        ))}
+                                    </div>
                                 ) : csiModal.history.length === 0 ? (
                                     <div className="text-center py-20 text-muted-foreground">
                                         <Activity className="w-16 h-16 mx-auto mb-4 opacity-20" />
@@ -660,7 +748,12 @@ const AuthorityAnalytics = () => {
 
                             <div className="overflow-y-auto thin-scrollbar flex-1 p-4 md:p-6 space-y-3 bg-background/30">
                                 {metricModal.loading ? (
-                                    <div className="flex justify-center py-20"><MiniLoader /></div>
+                                    /* Modal Shimmer Effect */
+                                    <div className="space-y-4">
+                                        {[...Array(5)].map((_, i) => (
+                                            <div key={i} className="h-24 w-full bg-card border border-border/50 rounded-2xl animate-pulse"></div>
+                                        ))}
+                                    </div>
                                 ) : metricModal.issues.length === 0 ? (
                                     <div className="text-center py-20 text-muted-foreground">
                                         <AlertCircle className="w-16 h-16 mx-auto mb-4 opacity-20" />
