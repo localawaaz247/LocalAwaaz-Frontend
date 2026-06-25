@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { useSelector } from 'react-redux';
 import { useNavigate } from 'react-router-dom';
-import { LayoutDashboard, Briefcase, FileSignature, ArrowLeftRight, Menu, X, ShieldCheck } from 'lucide-react';
+import { LayoutDashboard, Briefcase, FileSignature, ArrowLeftRight, Menu, X } from 'lucide-react';
 import AuthorityAnalytics from '../components/authority/AuthorityAnalytics';
 import AuthorityRadar from '../components/authority/AuthorityRadar';
 import AuthorityActiveJobs from '../components/authority/AuthorityActiveJobs';
@@ -42,7 +42,7 @@ const AuthorityDashboard = () => {
                     {isMobileMenuOpen ? <X size={26} /> : <Menu size={26} />}
                 </button>
                 <div className="flex items-center gap-2">
-                    <ShieldCheck className="text-primary w-7 h-7 drop-shadow-sm" />
+                    <CustomAuthorityAdminIcon className="w-7 h-7" />
                     <span className="font-black text-xl tracking-wide bg-clip-text text-transparent bg-gradient-to-r from-foreground to-foreground/70">
                         Authority Space
                     </span>
@@ -72,7 +72,7 @@ const AuthorityDashboard = () => {
                 {/* Profile Header */}
                 <div className="p-6 md:p-7 flex items-center gap-4 border-b border-border/50 shrink-0 bg-gradient-to-b from-primary/5 to-transparent">
                     <div className="w-12 h-12 rounded-2xl bg-primary/10 flex items-center justify-center border border-primary/20 shadow-inner">
-                        <ShieldCheck className="text-primary w-6 h-6" />
+                        <CustomAuthorityAdminIcon className="w-6 h-6" />
                     </div>
                     <div className="flex-1 min-w-0">
                         <h1 className="font-black text-lg leading-tight text-foreground truncate">Authority Space</h1>
@@ -148,5 +148,39 @@ const AuthorityDashboard = () => {
         </div>
     );
 };
+
+// 🟢 Custom SVG Wrapper for Authority Space Logo
+const CustomAuthorityAdminIcon = ({ className }) => (
+    <svg
+        viewBox="0 0 24 24"
+        fill="none"
+        xmlns="http://www.w3.org/2000/svg"
+        className={`${className || ''} drop-shadow-sm`}
+    >
+        {/* Base Location Pin (Local) */}
+        <path
+            d="M12 21.5C12 21.5 19.5 14.5 19.5 9.5C19.5 5.35786 16.1421 2 12 2C7.85786 2 4.5 5.35786 4.5 9.5C4.5 14.5 12 21.5 12 21.5Z"
+            className="fill-primary/10 stroke-primary"
+            strokeWidth="1.75"
+            strokeLinecap="round"
+            strokeLinejoin="round"
+        />
+
+        {/* Sound Wave Bars (Awaaz / Voice) */}
+        <path d="M9 8.5V11.5" className="stroke-primary" strokeWidth="2" strokeLinecap="round" />
+        <path d="M12 7V13" className="stroke-primary" strokeWidth="2" strokeLinecap="round" />
+        <path d="M15 8.5V11.5" className="stroke-primary" strokeWidth="2" strokeLinecap="round" />
+
+        {/* Resolution Badge (Rewards/Tracking) */}
+        <g transform="translate(1, 1)">
+            {/* Background cutout to make it pop over the pin */}
+            <circle cx="17" cy="17" r="5.5" className="fill-background" />
+            {/* The Badge */}
+            <circle cx="17" cy="17" r="4.5" className="fill-accent" />
+            {/* The Checkmark */}
+            <path d="M15 17L16.5 18.5L19.5 15.5" className="stroke-white dark:stroke-background" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
+        </g>
+    </svg>
+);
 
 export default AuthorityDashboard;

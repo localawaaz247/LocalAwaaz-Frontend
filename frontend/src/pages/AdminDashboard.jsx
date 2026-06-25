@@ -8,7 +8,6 @@ import AdminUsers from '../components/admin/AdminUsers';
 import AdminInquiries from '../components/admin/AdminInquiries';
 import AdminBroadcast from '../components/admin/AdminBroadcast';
 import AdminVerification from '../components/admin/AdminVerification';
-import logo from "/logo.png";
 import { useTranslation } from "react-i18next";
 
 const AdminDashboard = () => {
@@ -72,7 +71,8 @@ const AdminDashboard = () => {
 
                 <div className="p-5 md:p-6 flex items-center justify-between gap-3 border-b border-border/50 shrink-0">
                     <div className="flex items-center gap-3">
-                        <img src={logo} alt="Logo" className="w-8 h-8" />
+                        {/* 🟢 Replaced static image with the Custom SVG Icon */}
+                        <CustomAuthorityAdminIcon className="w-8 h-8" />
                         <span className="text-lg md:text-xl font-bold font-display text-gradient">{t('admin_panel')}</span>
                     </div>
                     <button onClick={() => setIsSidebarOpen(false)} className="lg:hidden p-1.5 rounded-full text-muted-foreground hover:bg-muted transition-colors">
@@ -159,5 +159,39 @@ const AdminDashboard = () => {
         </div>
     );
 };
+
+// 🟢 Custom SVG Wrapper for Admin Panel Logo
+const CustomAuthorityAdminIcon = ({ className }) => (
+    <svg
+        viewBox="0 0 24 24"
+        fill="none"
+        xmlns="http://www.w3.org/2000/svg"
+        className={`${className || ''} drop-shadow-sm`}
+    >
+        {/* Base Location Pin (Local) */}
+        <path
+            d="M12 21.5C12 21.5 19.5 14.5 19.5 9.5C19.5 5.35786 16.1421 2 12 2C7.85786 2 4.5 5.35786 4.5 9.5C4.5 14.5 12 21.5 12 21.5Z"
+            className="fill-primary/10 stroke-primary"
+            strokeWidth="1.75"
+            strokeLinecap="round"
+            strokeLinejoin="round"
+        />
+
+        {/* Sound Wave Bars (Awaaz / Voice) */}
+        <path d="M9 8.5V11.5" className="stroke-primary" strokeWidth="2" strokeLinecap="round" />
+        <path d="M12 7V13" className="stroke-primary" strokeWidth="2" strokeLinecap="round" />
+        <path d="M15 8.5V11.5" className="stroke-primary" strokeWidth="2" strokeLinecap="round" />
+
+        {/* Resolution Badge (Rewards/Tracking) */}
+        <g transform="translate(1, 1)">
+            {/* Background cutout to make it pop over the pin */}
+            <circle cx="17" cy="17" r="5.5" className="fill-background" />
+            {/* The Badge */}
+            <circle cx="17" cy="17" r="4.5" className="fill-accent" />
+            {/* The Checkmark */}
+            <path d="M15 17L16.5 18.5L19.5 15.5" className="stroke-white dark:stroke-background" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
+        </g>
+    </svg>
+);
 
 export default AdminDashboard;

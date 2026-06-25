@@ -172,13 +172,13 @@ const Sidebar = () => {
 
             {isApprovedAuthority && (
               <NavLink to="/authority" className="w-auto lg:w-full hidden lg:block">
-                <SidebarItem icon={CustomAuthorityAdminIcon} label="Authority Space" active={path.startsWith("/authority")} isAuthorityLink={true} />
+                <SidebarItem icon={Briefcase} label="Authority Space" active={path.startsWith("/authority")} isAuthorityLink={true} />
               </NavLink>
             )}
 
             {user?.role === 'admin' && (
               <NavLink to="/admin" className="w-auto lg:w-full hidden lg:block">
-                <SidebarItem icon={CustomAuthorityAdminIcon} label={t('nav_admin_panel')} active={path.startsWith("/admin")} isAdminLink={true} />
+                <SidebarItem icon={ShieldCheck} label={t('nav_admin_panel')} active={path.startsWith("/admin")} isAdminLink={true} />
               </NavLink>
             )}
 
@@ -274,7 +274,7 @@ const Sidebar = () => {
                   onClick={() => setOpenModal(false)}
                   className="w-full flex lg:hidden items-center gap-3 px-4 py-3 rounded-xl text-foreground/80 hover:text-foreground hover:bg-black/10 dark:hover:bg-black/40 transition-all duration-200 text-left active:scale-95"
                 >
-                  <CustomAuthorityAdminIcon className="w-5 h-5" />
+                  <Briefcase className="w-5 h-5" />
                   <span className="text-sm md:text-base font-medium">Authority Space</span>
                 </NavLink>
               )}
@@ -284,7 +284,7 @@ const Sidebar = () => {
                   onClick={() => setOpenModal(false)}
                   className="w-full flex lg:hidden items-center gap-3 px-4 py-3 rounded-xl text-foreground/80 hover:text-foreground hover:bg-black/10 dark:hover:bg-black/40 transition-all duration-200 text-left active:scale-95"
                 >
-                  <CustomAuthorityAdminIcon className="w-5 h-5" />
+                  <ShieldCheck className="w-5 h-5" />
                   <span className="text-sm md:text-base font-medium">{t('nav_admin_panel')}</span>
                 </NavLink>
               )}
@@ -401,39 +401,5 @@ const SidebarItem = ({ icon: Icon, label, active, unreadCount, isAdminLink, isAu
     </div>
   );
 };
-
-// 🟢 Custom SVG Wrapper for Admin and Authority Icons
-const CustomAuthorityAdminIcon = ({ className }) => (
-  <svg
-    viewBox="0 0 24 24"
-    fill="none"
-    xmlns="http://www.w3.org/2000/svg"
-    className={`${className || ''} drop-shadow-sm`}
-  >
-    {/* Base Location Pin (Local) */}
-    <path
-      d="M12 21.5C12 21.5 19.5 14.5 19.5 9.5C19.5 5.35786 16.1421 2 12 2C7.85786 2 4.5 5.35786 4.5 9.5C4.5 14.5 12 21.5 12 21.5Z"
-      className="fill-primary/10 stroke-primary"
-      strokeWidth="1.75"
-      strokeLinecap="round"
-      strokeLinejoin="round"
-    />
-
-    {/* Sound Wave Bars (Awaaz / Voice) */}
-    <path d="M9 8.5V11.5" className="stroke-primary" strokeWidth="2" strokeLinecap="round" />
-    <path d="M12 7V13" className="stroke-primary" strokeWidth="2" strokeLinecap="round" />
-    <path d="M15 8.5V11.5" className="stroke-primary" strokeWidth="2" strokeLinecap="round" />
-
-    {/* Resolution Badge (Rewards/Tracking) */}
-    <g transform="translate(1, 1)">
-      {/* Background cutout to make it pop over the pin */}
-      <circle cx="17" cy="17" r="5.5" className="fill-background" />
-      {/* The Badge */}
-      <circle cx="17" cy="17" r="4.5" className="fill-accent" />
-      {/* The Checkmark */}
-      <path d="M15 17L16.5 18.5L19.5 15.5" className="stroke-white dark:stroke-background" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
-    </g>
-  </svg>
-);
 
 export default Sidebar;
