@@ -26,6 +26,10 @@
       "showSpinner": false,
       "splashFullScreen": false,
       "splashImmersive": false
+    },
+    "CapacitorUpdater": {
+      "autoUpdate": false,
+      "resetWhenUpdate": false
     }
   }
 }
