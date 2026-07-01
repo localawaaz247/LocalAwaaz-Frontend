@@ -483,10 +483,6 @@ const Feed = () => {
               {[1, 2, 3, 4].map(n => <IssueSkeleton key={n} />)}
             </div>
           ) : sortedIssues.length === 0 && !error ? (
-            <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 lg:gap-6 pt-2 pb-2 overflow-hidden w-full h-full">
-              {[1, 2, 3, 4].map(n => <IssueSkeleton key={n} />)}
-            </div>
-          ) : sortedIssues.length === 0 && !error ? (
             <div className="h-full w-full">
               <EmptyFeedState onReport={() => navigate("/dashboard/report")} t={t} />
             </div>
@@ -495,6 +491,7 @@ const Feed = () => {
               <p className="text-red-500 font-medium mb-2">{t('failed_load_issues')}</p>
               <button onClick={() => fetchData(1)} className="px-4 py-2 bg-muted rounded-xl hover:bg-muted/80 transition-colors text-sm">{t('try_again')}</button>
             </div>
+
           ) : (
             <InfiniteScroll
               dataLength={sortedIssues.length}

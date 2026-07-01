@@ -13,6 +13,15 @@ export const fetchIssuesByCurrentLocation = createAsyncThunk(
     } catch (error) {
       return rejectWithValue(error?.response?.data || error.message);
     }
+  },
+  {
+    // 🟢 FIX: Prevent duplicate concurrent requests for the same page
+    condition: (arg, { getState }) => {
+      const { issueFeed } = getState();
+      if (issueFeed.loading && arg.page === 1) {
+        return false; // Cancels the duplicate request before it fires
+      }
+    }
   }
 );
 
@@ -27,6 +36,15 @@ export const fetchIssuesByArea = createAsyncThunk(
       return res.data;
     } catch (error) {
       return rejectWithValue(error?.response?.data || error.message);
+    }
+  },
+  {
+    // 🟢 FIX: Prevent duplicate concurrent requests for the same page
+    condition: (arg, { getState }) => {
+      const { issueFeed } = getState();
+      if (issueFeed.loading && arg.page === 1) {
+        return false; // Cancels the duplicate request before it fires
+      }
     }
   }
 );
@@ -71,7 +89,7 @@ const issueFeedSlice = createSlice({
       hasMore: false
     },
     currentLocation: null,
-    locationType: null 
+    locationType: null
   },
   reducers: {
     clearIssues: (state) => {
@@ -91,63 +109,51 @@ const issueFeedSlice = createSlice({
   },
   extraReducers: (builder) => {
     builder
-      // --- Fetch by current location ---
+      // --- FETCH BY CURRENT LOCATION ---
       .addCase(fetchIssuesByCurrentLocation.pending, (state) => {
         state.loading = true;
         state.error = null;
         state.locationType = 'current';
       })
       .addCase(fetchIssuesByCurrentLocation.fulfilled, (state, action) => {
-        state.loading = false;
+        state.loading = false; // 🟢 Ensures shimmer stops
         const newIssues = action.payload.data || [];
         const currentPage = action.payload.currentPage || 1;
 
-        // FIXED: Append if page > 1, Replace if page === 1
-        if (currentPage === 1) {
-          state.issues = newIssues;
-        } else {
-          state.issues = [...state.issues, ...newIssues];
-        }
-
+        state.issues = currentPage === 1 ? newIssues : [...state.issues, ...newIssues];
         state.pagination = {
-          currentPage: currentPage,
+          currentPage,
           totalPages: action.payload.totalPages || 1,
           totalIssues: action.payload.totalIssues || action.payload.issueCount || 0,
           hasMore: action.payload.hasMore || false
         };
       })
       .addCase(fetchIssuesByCurrentLocation.rejected, (state, action) => {
-        state.loading = false;
+        state.loading = false; // 🟢 Ensures shimmer stops on error
         state.error = action.payload;
       })
-      
-      // --- Fetch by area ---
+
+      // --- FETCH BY AREA ---
       .addCase(fetchIssuesByArea.pending, (state) => {
         state.loading = true;
         state.error = null;
         state.locationType = 'area';
       })
       .addCase(fetchIssuesByArea.fulfilled, (state, action) => {
-        state.loading = false;
+        state.loading = false; // 🟢 Ensures shimmer stops
         const newIssues = action.payload.data || [];
         const currentPage = action.payload.currentPage || 1;
 
-        // FIXED: Append if page > 1, Replace if page === 1
-        if (currentPage === 1) {
-          state.issues = newIssues;
-        } else {
-          state.issues = [...state.issues, ...newIssues];
-        }
-
+        state.issues = currentPage === 1 ? newIssues : [...state.issues, ...newIssues];
         state.pagination = {
-          currentPage: currentPage,
+          currentPage,
           totalPages: action.payload.totalPages || 1,
           totalIssues: action.payload.totalIssues || action.payload.issueCount || 0,
           hasMore: action.payload.hasMore || false
         };
       })
       .addCase(fetchIssuesByArea.rejected, (state, action) => {
-        state.loading = false;
+        state.loading = false; // 🟢 Ensures shimmer stops on error
         state.error = action.payload;
       });
   }

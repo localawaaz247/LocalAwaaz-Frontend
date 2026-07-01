@@ -1,5 +1,5 @@
 import "./utils/i18n";
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useState, Suspense, lazy } from "react";
 import { useSelector, useDispatch } from "react-redux";
 import { useTranslation } from "react-i18next";
 import { BrowserRouter, Routes, Route } from "react-router-dom";
@@ -21,33 +21,41 @@ import { PushNotifications } from '@capacitor/push-notifications';
 import { CapacitorUpdater } from '@capgo/capacitor-updater';
 import { App as CapacitorApp } from '@capacitor/app';
 
-// Pages & Components
-import LoginRegister from "./pages/LoginRegister";
-import ForgotPassword from "./pages/ForgotPassword";
-import NotFound from "./pages/NotFound";
-import LandingPage from "./pages/LandingPage";
-import Homepage from "./pages/Homepage";
-import ReportIssue from "./pages/ReportIssue";
-import Notifications from "./pages/Notifications";
-import Profile from "./pages/Profile";
-import Feed from "./pages/Feed";
-import Assistant from "./pages/Assistant";
-import GoogleCallback from "./pages/GoogleCallback";
-import IssueDetailPage from "./pages/IssueDetailPage";
+// 🟢 Standard Imports for Routing Components
 import { ProtectedRoute } from "./components/ProtectedRoute";
 import { PublicRoute } from "./components/PublicRoute";
-import Careers from "./pages/Careers";
-import Press from "./pages/Press";
-import Privacy from "./pages/Privacy";
-import TermsOfService from "./pages/TermsOfService";
-import Cookies from "./pages/Cookies";
-import FAQ from "./pages/FAQ";
-import Help from "./pages/Help";
-import AdminDashboard from "./pages/AdminDashboard";
-import AuthorityDashboard from "./pages/AuthorityDashboard";
+import axiosInstance from "./utils/axios";
 import LeaderBoard from "./components/shared/LeaderBoard";
 
-import axiosInstance from "./utils/axios";
+// 🟢 LAZY LOADED PAGES (Code Splitting for instant boot)
+const LoginRegister = lazy(() => import("./pages/LoginRegister"));
+const ForgotPassword = lazy(() => import("./pages/ForgotPassword"));
+const NotFound = lazy(() => import("./pages/NotFound"));
+const LandingPage = lazy(() => import("./pages/LandingPage"));
+const Homepage = lazy(() => import("./pages/Homepage"));
+const ReportIssue = lazy(() => import("./pages/ReportIssue"));
+const Notifications = lazy(() => import("./pages/Notifications"));
+const Profile = lazy(() => import("./pages/Profile"));
+const Feed = lazy(() => import("./pages/Feed"));
+const Assistant = lazy(() => import("./pages/Assistant"));
+const GoogleCallback = lazy(() => import("./pages/GoogleCallback"));
+const IssueDetailPage = lazy(() => import("./pages/IssueDetailPage"));
+const Careers = lazy(() => import("./pages/Careers"));
+const Press = lazy(() => import("./pages/Press"));
+const Privacy = lazy(() => import("./pages/Privacy"));
+const TermsOfService = lazy(() => import("./pages/TermsOfService"));
+const Cookies = lazy(() => import("./pages/Cookies"));
+const FAQ = lazy(() => import("./pages/FAQ"));
+const Help = lazy(() => import("./pages/Help"));
+const AdminDashboard = lazy(() => import("./pages/AdminDashboard"));
+const AuthorityDashboard = lazy(() => import("./pages/AuthorityDashboard"));
+
+// 🟢 Suspense Loading Fallback
+const PageLoader = () => (
+  <div className="flex h-screen w-full items-center justify-center bg-[#0B131E]">
+    <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-teal-500"></div>
+  </div>
+);
 
 const AppLanguageInitializer = ({ children }) => {
   const { i18n } = useTranslation();
@@ -62,7 +70,7 @@ const AppLanguageInitializer = ({ children }) => {
   return children;
 };
 
-// 🟢 Extract PWA logic to prevent Android execution
+// Extract PWA logic to prevent Android execution
 const PwaRegistrar = () => {
   useRegisterSW({
     onRegistered(r) {
@@ -79,18 +87,17 @@ const AppContent = () => {
   const dispatch = useDispatch();
   const { isAuthenticated } = useSelector((state) => state.auth);
 
-  // 🟢 OTA (Web Bundle) States
   const [showUpdateModal, setShowUpdateModal] = useState(false);
   const [updateDetails, setUpdateDetails] = useState(null);
 
-  // 🟢 1. INSTANT WEBVIEW RELEASE: Drop splash screen immediately
+  // 1. INSTANT WEBVIEW RELEASE: Drop splash screen immediately
   useEffect(() => {
     if (Capacitor.isNativePlatform()) {
       CapacitorUpdater.notifyAppReady().catch(err => console.warn("Capgo notify failed", err));
     }
   }, []);
 
-  // 2. Token validation
+  // 2. Token validation - Happens quietly in the background now
   useEffect(() => {
     const token = localStorage.getItem("access_token");
     if (token) {
@@ -99,7 +106,7 @@ const AppContent = () => {
   }, [dispatch]);
 
   // -------------------------------------------------------------
-  // 🟢 OTA (WEB BUNDLE) LOGIC (Checks /check-update)
+  // 🟢 OTA (WEB BUNDLE) LOGIC - Polling only, no wake-up listeners
   // -------------------------------------------------------------
   useEffect(() => {
     const checkAndApplyOTA = async () => {
@@ -132,18 +139,10 @@ const AppContent = () => {
 
     checkAndApplyOTA();
 
-    // Background polling every 10 minutes
+    // Background polling every 10 minutes (Does not block app resume)
     const intervalId = setInterval(checkAndApplyOTA, 10 * 60 * 1000);
 
-    // Instantly check when app resumes from background
-    const appStateListener = CapacitorApp.addListener('appStateChange', ({ isActive }) => {
-      if (isActive) checkAndApplyOTA();
-    });
-
-    return () => {
-      clearInterval(intervalId);
-      appStateListener.then(listener => listener.remove());
-    };
+    return () => clearInterval(intervalId);
   }, []);
 
   const executeOTAUpdate = async (targetVersion, downloadUrl) => {
@@ -175,7 +174,7 @@ const AppContent = () => {
   };
 
   // -------------------------------------------------------------
-  // 🟢 CAPACITOR PUSH NOTIFICATIONS LOGIC
+  // CAPACITOR PUSH NOTIFICATIONS LOGIC
   // -------------------------------------------------------------
   useEffect(() => {
     const setupPushNotifications = async () => {
@@ -230,37 +229,40 @@ const AppContent = () => {
   return (
     <AppLanguageInitializer>
       <BrowserRouter>
-        <Routes>
-          <Route path="/" element={<PublicRoute><LandingPage /></PublicRoute>} />
-          <Route path="/login" element={<PublicRoute><LoginRegister /></PublicRoute>} />
-          <Route path="/forgot-password" element={<PublicRoute><ForgotPassword /></PublicRoute>} />
-          <Route path="/FAQ" element={<FAQ />} />
-          <Route path="/careers" element={<Careers />} />
-          <Route path="/press" element={<Press />} />
-          <Route path="/privacy" element={<Privacy />} />
-          <Route path="/terms" element={<TermsOfService />} />
-          <Route path="/cookies" element={<Cookies />} />
-          <Route path="/google/callback" element={<GoogleCallback />} />
-          <Route path="/issue/:id" element={<IssueDetailPage />} />
-          <Route path="/dashboard" element={<ProtectedRoute><Homepage /></ProtectedRoute>}>
-            <Route index element={<Feed />} />
-            <Route path="report" element={<ReportIssue />} />
-            <Route path="assistant" element={<Assistant />} />
-            <Route path="notifications" element={<Notifications />} />
-            <Route path="profile" element={<Profile />} />
-            <Route path="help" element={<Help />} />
-            <Route path="leaderboard" element={<LeaderBoard />} />
-          </Route>
-          <Route path="/admin" element={<ProtectedRoute requireAdmin={true}><AdminDashboard /></ProtectedRoute>} />
-          <Route path="/authority" element={<ProtectedRoute><AuthorityDashboard /></ProtectedRoute>} />
-          <Route path="*" element={<NotFound />} />
-        </Routes>
+        {/* 🟢 Suspense handles the async injection of the lazy components */}
+        <Suspense fallback={<PageLoader />}>
+          <Routes>
+            <Route path="/" element={<PublicRoute><LandingPage /></PublicRoute>} />
+            <Route path="/login" element={<PublicRoute><LoginRegister /></PublicRoute>} />
+            <Route path="/forgot-password" element={<PublicRoute><ForgotPassword /></PublicRoute>} />
+            <Route path="/FAQ" element={<FAQ />} />
+            <Route path="/careers" element={<Careers />} />
+            <Route path="/press" element={<Press />} />
+            <Route path="/privacy" element={<Privacy />} />
+            <Route path="/terms" element={<TermsOfService />} />
+            <Route path="/cookies" element={<Cookies />} />
+            <Route path="/google/callback" element={<GoogleCallback />} />
+            <Route path="/issue/:id" element={<IssueDetailPage />} />
+            <Route path="/dashboard" element={<ProtectedRoute><Homepage /></ProtectedRoute>}>
+              <Route index element={<Feed />} />
+              <Route path="report" element={<ReportIssue />} />
+              <Route path="assistant" element={<Assistant />} />
+              <Route path="notifications" element={<Notifications />} />
+              <Route path="profile" element={<Profile />} />
+              <Route path="help" element={<Help />} />
+              <Route path="leaderboard" element={<LeaderBoard />} />
+            </Route>
+            <Route path="/admin" element={<ProtectedRoute requireAdmin={true}><AdminDashboard /></ProtectedRoute>} />
+            <Route path="/authority" element={<ProtectedRoute><AuthorityDashboard /></ProtectedRoute>} />
+            <Route path="*" element={<NotFound />} />
+          </Routes>
+        </Suspense>
       </BrowserRouter>
 
-      {/* 🟢 Render PWA only on web to prevent Android asset errors */}
+      {/* Render PWA only on web to prevent Android asset errors */}
       {!Capacitor.isNativePlatform() && <PwaRegistrar />}
 
-      {/* 🟢 BEAUTIFUL GLASSMORPHIC OPTIONAL OTA DIALOG MODAL */}
+      {/* OPTIONAL OTA DIALOG MODAL */}
       {showUpdateModal && updateDetails && (
         <div className="fixed inset-0 z-[999999] flex items-center justify-center p-4 bg-black/70 backdrop-blur-md animate-fade-in">
           <div className="w-full max-w-sm rounded-2xl border border-teal-500/20 bg-[#0B131E]/95 p-6 text-slate-100 shadow-2xl backdrop-blur-xl transition-all duration-300">

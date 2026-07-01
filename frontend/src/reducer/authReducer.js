@@ -43,7 +43,7 @@ export const validateToken = createAsyncThunk("/me/profile", async (_, { rejectW
     }
 });
 
-// 👇 FIX: Check for token synchronously on load
+// 🟢 FIX: Check for token synchronously on load before the slice initializes
 const hasToken = !!localStorage.getItem("access_token");
 
 const authSlice = createSlice({
@@ -52,9 +52,10 @@ const authSlice = createSlice({
         user: null,
         loading: false,
         error: null,
-        isAuthenticated: false,
-        // 👇 FIX: Start as TRUE if a token exists in local storage
-        tokenValidationLoading: hasToken 
+        // 🟢 FIX: Instantly authenticate if a local token exists
+        isAuthenticated: hasToken,
+        // 🟢 FIX: Set to false so we don't trigger full-screen loading spinners on boot
+        tokenValidationLoading: false
     },
     reducers: {
         clearError: (state) => {
@@ -126,6 +127,8 @@ const authSlice = createSlice({
 
             // --- VALIDATE TOKEN ---
             .addCase(validateToken.pending, (state) => {
+                // We keep this true so smaller internal components know we are syncing, 
+                // but it won't block the main feed anymore.
                 state.tokenValidationLoading = true;
                 state.error = null;
             })
