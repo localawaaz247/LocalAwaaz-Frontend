@@ -342,6 +342,9 @@ const AdminAnalytics = () => {
             if (roleQuery === 'user') {
                 const res = await axiosInstance.get('/admin/users', { params: { role: 'user', limit: 100 } });
                 setUserMetricModal(prev => ({ ...prev, users: res.data.data.users, loading: false }));
+            } else if (roleQuery === 'pending') { // 🟢 NEW: Handle Pending Approvals
+                const res = await axiosInstance.get('/admin/pending-authorities');
+                setUserMetricModal(prev => ({ ...prev, users: res.data.data, loading: false }));
             } else {
                 // Fetch all approved authorities, then filter to match the dashboard stats perfectly
                 const res = await axiosInstance.get('/admin/authorities', { params: { status: 'APPROVED' } });
@@ -652,6 +655,7 @@ const AdminAnalytics = () => {
             {/* 🟢 3x3 Metric Cards Grid */}
             <div className="grid grid-cols-2 lg:grid-cols-3 gap-4 shrink-0 relative z-[45]">
                 <MetricCard icon={Users} title="Standard Users" count={stats?.totalUsers || 0} color="text-blue-500" bg="from-blue-500/20" onClick={() => handleUserMetricClick('user', 'Standard Users')} />
+                <MetricCard icon={ShieldAlert} title="Pending Verifications" count={stats?.pendingRequests || 0} color="text-amber-500" bg="from-amber-500/20" onClick={() => handleUserMetricClick('pending', 'Pending Approvals')} />
                 <MetricCard icon={ShieldCheck} title="Verified Officials" count={stats?.totalOfficials || 0} color="text-emerald-500" bg="from-emerald-500/20" onClick={() => handleUserMetricClick('official', 'Verified Officials')} />
                 <MetricCard icon={Briefcase} title="Verified NGOs" count={stats?.totalNGOs || 0} color="text-indigo-500" bg="from-indigo-500/20" onClick={() => handleUserMetricClick('ngo', 'Verified NGOs')} />
 

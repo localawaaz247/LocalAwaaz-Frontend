@@ -27,27 +27,31 @@ const LocalAwaazLogo = ({ size = 32, className = "" }) => (
     <svg
         width={size}
         height={size}
-        viewBox="0 0 128 128"
+        viewBox="0 0 24 24"
         fill="none"
         xmlns="http://www.w3.org/2000/svg"
-        className={className}
+        className={`drop-shadow-sm ${className}`}
     >
-        {/* Map Pin Background */}
-        <path d="M64 12C36.386 12 14 34.386 14 62c0 20.426 18.063 43.195 45.452 52.883a14 14 0 0 0 9.096 0C95.937 105.195 114 82.426 114 62c0-27.614-22.386-50-50-50z" fill="#3B82F6" />
+        {/* Base Location Pin (Local) */}
+        <path
+            d="M12 21.5C12 21.5 19.5 14.5 19.5 9.5C19.5 5.35786 16.1421 2 12 2C7.85786 2 4.5 5.35786 4.5 9.5C4.5 14.5 12 21.5 12 21.5Z"
+            className="fill-primary/10 stroke-primary"
+            strokeWidth="1.75"
+            strokeLinecap="round"
+            strokeLinejoin="round"
+        />
 
-        {/* Inner Light Circle */}
-        <circle cx="64" cy="56" r="32" fill="#E2E8F0" />
+        {/* Sound Wave Bars (Awaaz / Voice) */}
+        <path d="M9 8.5V11.5" className="stroke-primary" strokeWidth="2" strokeLinecap="round" />
+        <path d="M12 7V13" className="stroke-primary" strokeWidth="2" strokeLinecap="round" />
+        <path d="M15 8.5V11.5" className="stroke-primary" strokeWidth="2" strokeLinecap="round" />
 
-        {/* Sound Waves */}
-        <rect x="45" y="44" width="8" height="24" rx="4" fill="#3B82F6" />
-        <rect x="60" y="36" width="8" height="40" rx="4" fill="#3B82F6" />
-        <rect x="75" y="44" width="8" height="24" rx="4" fill="#3B82F6" />
-
-        {/* Green Check Circle */}
-        <circle cx="96" cy="96" r="24" fill="#10B981" />
-
-        {/* White Checkmark */}
-        <path d="M84 96l8 8 16-16" stroke="white" strokeWidth="8" strokeLinecap="round" strokeLinejoin="round" />
+        {/* Resolution Badge (Rewards/Tracking) */}
+        <g transform="translate(1, 1)">
+            <circle cx="17" cy="17" r="5.5" className="fill-background" />
+            <circle cx="17" cy="17" r="4.5" className="fill-accent" />
+            <path d="M15 17L16.5 18.5L19.5 15.5" className="stroke-white dark:stroke-background" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
+        </g>
     </svg>
 );
 
@@ -299,7 +303,7 @@ const LeaderBoard = () => {
                 await NativeShare.share({
                     title: 'Leaderboard Data',
                     text: `Here is the exported ${activeTab} leaderboard from LocalAwaaz.`,
-                    files: [fileWriteResult.uri] // Removed URL to stop Share plugin crash on Android
+                    files: [fileWriteResult.uri]
                 });
             } else {
                 const blob = new Blob([buffer], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
@@ -310,7 +314,6 @@ const LeaderBoard = () => {
                 document.body.appendChild(a);
                 a.click();
 
-                // Add a small delay so browser has time to register the download
                 setTimeout(() => {
                     document.body.removeChild(a);
                     window.URL.revokeObjectURL(url);
@@ -318,12 +321,9 @@ const LeaderBoard = () => {
             }
         } catch (error) {
             console.error("Excel Export failed", error);
-
-            // Ignore if the user manually cancelled the share dialog
             if (error?.message?.includes('canceled') || error?.message === 'Share canceled') {
                 return;
             }
-
             showToast({ icon: 'error', title: 'Export Failed' });
         } finally {
             setIsExporting(false);
@@ -339,7 +339,7 @@ const LeaderBoard = () => {
             await new Promise(resolve => setTimeout(resolve, 100));
 
             const canvas = await html2canvas(element, {
-                backgroundColor: '#0f172a',
+                // FIXED: Removed backgroundColor: null so it properly grabs the solid bg-card color
                 scale: 3,
                 useCORS: true,
                 allowTaint: false,
@@ -414,7 +414,6 @@ const LeaderBoard = () => {
                 if (shareIntentUrl) window.open(shareIntentUrl, '_blank');
             }
         } catch (error) {
-            // Ignore if the user manually cancelled the share dialog
             if (error?.message?.includes('canceled') || error?.message === 'Share canceled') {
                 return;
             }
@@ -445,18 +444,17 @@ const LeaderBoard = () => {
             <div style={{ position: 'fixed', left: '-9999px', top: '-9999px', pointerEvents: 'none' }}>
                 <div
                     ref={shareCardRef}
-                    className="w-[480px] p-10 flex flex-col items-center text-center relative overflow-hidden font-sans"
-                    style={{ background: 'linear-gradient(145deg, #0f172a 0%, #1e293b 100%)', color: '#fff' }}
+                    className="w-[480px] p-10 flex flex-col items-center text-center relative overflow-hidden font-sans bg-card text-foreground"
                 >
                     <div className="absolute top-[-50px] right-[-50px] w-64 h-64 bg-indigo-500/30 rounded-full blur-[80px]" />
                     <div className="absolute bottom-[-50px] left-[-50px] w-64 h-64 bg-emerald-500/20 rounded-full blur-[80px]" />
 
                     <div className="flex flex-col items-center gap-2 mb-8 relative z-10">
-                        <div className="w-14 h-14 rounded-2xl bg-slate-800 border border-white/10 flex items-center justify-center shadow-[0_0_20px_rgba(59,130,246,0.3)]">
+                        <div className="w-14 h-14 rounded-2xl bg-muted border border-border/50 flex items-center justify-center shadow-[0_0_20px_rgba(59,130,246,0.3)]">
                             <LocalAwaazLogo size={36} />
                         </div>
-                        <h1 className="text-2xl font-black tracking-widest text-white uppercase mt-2">LocalAwaaz</h1>
-                        <p className="text-xs font-bold text-slate-400 tracking-widest uppercase">
+                        <h1 className="text-2xl font-black tracking-widest text-foreground uppercase mt-2">LocalAwaaz</h1>
+                        <p className="text-xs font-bold text-muted-foreground tracking-widest uppercase">
                             {isCitizenShare ? 'Civic Impact Ranking' : 'Authority Performance'}
                         </p>
                     </div>
@@ -465,62 +463,63 @@ const LeaderBoard = () => {
                         <img
                             src={getCorsSafeUrl(shareProfile?.profilePic) || getAvatar(shareProfile?.name)}
                             alt="Profile" crossOrigin="anonymous"
-                            className="w-36 h-36 rounded-full border-4 border-amber-400 shadow-[0_0_40px_rgba(251,191,36,0.4)] object-cover bg-slate-800"
+                            className="w-36 h-36 rounded-full border-4 border-amber-400 shadow-[0_0_40px_rgba(251,191,36,0.4)] object-cover bg-muted"
                         />
-                        <div className="absolute -bottom-5 left-1/2 -translate-x-1/2 bg-gradient-to-r from-amber-400 to-yellow-600 text-black text-sm font-black uppercase tracking-widest px-5 py-2 rounded-full shadow-lg whitespace-nowrap border-2 border-slate-900">
+                        <div className="absolute -bottom-5 left-1/2 -translate-x-1/2 bg-gradient-to-r from-amber-400 to-yellow-600 text-black text-sm font-black uppercase tracking-widest px-5 py-2 rounded-full shadow-lg whitespace-nowrap border-2 border-background">
                             Rank #{shareRank}
                         </div>
                     </div>
 
-                    <h2 className="text-4xl font-black text-white mt-4 mb-1 relative z-10 leading-tight">
+                    <h2 className="text-4xl font-black text-foreground mt-4 mb-1 relative z-10 leading-tight">
                         {shareProfile?.name || 'Contributor'}
                     </h2>
 
                     {isCitizenShare ? (
-                        <p className="text-sm font-bold text-indigo-400 uppercase tracking-widest mb-8 relative z-10 bg-indigo-500/10 px-3 py-1 rounded-lg">Verified Citizen</p>
+                        <p className="text-sm font-bold text-indigo-500 uppercase tracking-widest mb-8 relative z-10 bg-indigo-500/10 px-3 py-1 rounded-lg">Verified Citizen</p>
                     ) : (
-                        <p className="text-sm font-bold text-emerald-400 uppercase tracking-widest mb-8 relative z-10 bg-emerald-500/10 px-3 py-1 rounded-lg">
+                        <p className="text-sm font-bold text-emerald-500 uppercase tracking-widest mb-8 relative z-10 bg-emerald-500/10 px-3 py-1 rounded-lg">
                             {shareProfile?.authorityProfile?.designation || 'Official Authority'}
                         </p>
                     )}
 
                     <div className="grid grid-cols-3 w-full gap-4 relative z-10 mb-6">
-                        <div className="bg-slate-800/80 rounded-2xl p-5 border border-white/10 flex flex-col items-center shadow-lg backdrop-blur-sm">
+                        <div className="bg-muted/80 rounded-2xl p-5 border border-border/50 flex flex-col items-center shadow-lg backdrop-blur-sm">
                             <Zap size={28} className="text-yellow-400 mb-3 drop-shadow-[0_0_10px_rgba(250,204,21,0.5)]" />
-                            <span className="text-3xl font-black text-white">{shareScore}</span>
-                            <span className="text-[10px] text-slate-400 uppercase font-bold tracking-widest mt-1">CSI Score</span>
+                            <span className="text-3xl font-black text-foreground">{shareScore}</span>
+                            <span className="text-[10px] text-muted-foreground uppercase font-bold tracking-widest mt-1">CSI Score</span>
                         </div>
                         {isCitizenShare ? (
                             <>
-                                <div className="bg-slate-800/80 rounded-2xl p-5 border border-white/10 flex flex-col items-center shadow-lg backdrop-blur-sm">
-                                    <AlertTriangle size={28} className="text-amber-400 mb-3 drop-shadow-[0_0_10px_rgba(251,191,36,0.5)]" />
-                                    <span className="text-3xl font-black text-white">{shareProfile?.issuesReported?.length ?? shareProfile?.issuesReported ?? 0}</span>
-                                    <span className="text-[10px] text-slate-400 uppercase font-bold tracking-widest mt-1">Reported</span>
+                                <div className="bg-muted/80 rounded-2xl p-5 border border-border/50 flex flex-col items-center shadow-lg backdrop-blur-sm">
+                                    <AlertTriangle size={28} className="text-amber-500 mb-3 drop-shadow-[0_0_10px_rgba(251,191,36,0.5)]" />
+                                    <span className="text-3xl font-black text-foreground">{shareProfile?.issuesReported?.length ?? shareProfile?.issuesReported ?? 0}</span>
+                                    <span className="text-[10px] text-muted-foreground uppercase font-bold tracking-widest mt-1">Reported</span>
                                 </div>
-                                <div className="bg-slate-800/80 rounded-2xl p-5 border border-white/10 flex flex-col items-center shadow-lg backdrop-blur-sm">
-                                    <CheckSquare size={28} className="text-emerald-400 mb-3 drop-shadow-[0_0_10px_rgba(52,211,153,0.5)]" />
-                                    <span className="text-3xl font-black text-white">{shareProfile?.issuesResolved?.length ?? shareProfile?.issuesResolved ?? 0}</span>
-                                    <span className="text-[10px] text-slate-400 uppercase font-bold tracking-widest mt-1">Resolved</span>
+                                <div className="bg-muted/80 rounded-2xl p-5 border border-border/50 flex flex-col items-center shadow-lg backdrop-blur-sm">
+                                    <CheckSquare size={28} className="text-emerald-500 mb-3 drop-shadow-[0_0_10px_rgba(52,211,153,0.5)]" />
+                                    <span className="text-3xl font-black text-foreground">{shareProfile?.issuesResolved?.length ?? shareProfile?.issuesResolved ?? 0}</span>
+                                    <span className="text-[10px] text-muted-foreground uppercase font-bold tracking-widest mt-1">Resolved</span>
                                 </div>
                             </>
                         ) : (
                             <>
-                                <div className="bg-slate-800/80 rounded-2xl p-5 border border-white/10 flex flex-col items-center shadow-lg backdrop-blur-sm">
-                                    <Clock size={28} className="text-indigo-400 mb-3 drop-shadow-[0_0_10px_rgba(129,140,248,0.5)]" />
-                                    <span className="text-3xl font-black text-white">{shareProfile?.authorityProfile?.activeJobsCount || 0}</span>
-                                    <span className="text-[10px] text-slate-400 uppercase font-bold tracking-widest mt-1">Active</span>
+                                <div className="bg-muted/80 rounded-2xl p-5 border border-border/50 flex flex-col items-center shadow-lg backdrop-blur-sm">
+                                    <Clock size={28} className="text-indigo-500 mb-3 drop-shadow-[0_0_10px_rgba(129,140,248,0.5)]" />
+                                    {/* FIXED: Added Math.max to prevent negative numbers displaying on the share card */}
+                                    <span className="text-3xl font-black text-foreground">{Math.max(0, shareProfile?.authorityProfile?.activeJobsCount || 0)}</span>
+                                    <span className="text-[10px] text-muted-foreground uppercase font-bold tracking-widest mt-1">Active</span>
                                 </div>
-                                <div className="bg-slate-800/80 rounded-2xl p-5 border border-white/10 flex flex-col items-center shadow-lg backdrop-blur-sm">
-                                    <CheckSquare size={28} className="text-emerald-400 mb-3 drop-shadow-[0_0_10px_rgba(52,211,153,0.5)]" />
-                                    <span className="text-3xl font-black text-white">{shareProfile?.authorityProfile?.jobsCompleted || 0}</span>
-                                    <span className="text-[10px] text-slate-400 uppercase font-bold tracking-widest mt-1">Completed</span>
+                                <div className="bg-muted/80 rounded-2xl p-5 border border-border/50 flex flex-col items-center shadow-lg backdrop-blur-sm">
+                                    <CheckSquare size={28} className="text-emerald-500 mb-3 drop-shadow-[0_0_10px_rgba(52,211,153,0.5)]" />
+                                    <span className="text-3xl font-black text-foreground">{Math.max(0, shareProfile?.authorityProfile?.jobsCompleted || 0)}</span>
+                                    <span className="text-[10px] text-muted-foreground uppercase font-bold tracking-widest mt-1">Completed</span>
                                 </div>
                             </>
                         )}
                     </div>
 
-                    <div className="mt-4 text-[10px] text-slate-500 font-bold uppercase tracking-widest relative z-10 flex flex-col items-center gap-1.5">
-                        <span className="text-slate-400 border-b border-slate-700 pb-1">www.localawaaz.in</span>
+                    <div className="mt-4 text-[10px] text-muted-foreground font-bold uppercase tracking-widest relative z-10 flex flex-col items-center gap-1.5">
+                        <span className="text-muted-foreground border-b border-border/50 pb-1">www.localawaaz.in</span>
                         <span>Generated on {new Date().toLocaleDateString('en-IN')}</span>
                     </div>
                 </div>
@@ -543,7 +542,6 @@ const LeaderBoard = () => {
                                 <ShieldCheck className="w-7 h-7 text-primary-foreground" />
                             </div>
                             <div>
-                                {/* RESTORED TEXT SIZE HERE: text-3xl */}
                                 <h1 className={`text-3xl font-extrabold tracking-tight text-foreground mb-1 ${isCapturing ? 'px-2 pb-1' : ''}`}>
                                     Leaderboard
                                 </h1>
@@ -915,4 +913,4 @@ const MetricBox = ({ icon, title, count, color, onClick }) => (
     </button>
 );
 
-export default LeaderBoard; 
+export default LeaderBoard;

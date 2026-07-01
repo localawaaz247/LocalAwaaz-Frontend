@@ -1,5 +1,5 @@
 import {
-  Home, PlusCircle, Bell, User, Sparkle, Settings, HelpCircle,
+  Home, PlusCircle, Bell, User, Settings, HelpCircle,
   LogOut, Sun, Moon, X, ShieldCheck, Download, Briefcase, Trophy
 } from "lucide-react";
 import { useState, useEffect } from "react";
@@ -10,12 +10,11 @@ import { useNotifications } from "../hooks/useNotifications";
 import SettingsModal from "../components/modals/SettingsModal";
 import { useTranslation } from "react-i18next";
 
-// 🟢 Capacitor Imports
+// Capacitor Imports
 import { Capacitor } from '@capacitor/core';
 import axiosInstance from "../utils/axios";
 import { showToast } from "../utils/toast";
 
-// 🟢 Added Logo Import (Adjust the path according to your folder structure)
 import Logo from "../components/Logo";
 
 const Sidebar = () => {
@@ -46,9 +45,7 @@ const Sidebar = () => {
     ['official', 'ngo', 'other'].includes(currentRole) &&
     currentAuthorityProfile?.verificationStatus === 'APPROVED';
 
-  // -----------------------------------
-  // 🟢 App Download Logic (For EVERYONE)
-  // -----------------------------------
+  // --- App Download Logic ---
   const isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent) && !window.MSStream;
   const isNative = Capacitor.isNativePlatform();
   const [isDownloading, setIsDownloading] = useState(false);
@@ -64,8 +61,6 @@ const Sidebar = () => {
           title: 'Download Started',
           subtitle: isNative ? 'Downloading update...' : 'Your APK file is downloading.'
         });
-
-        // Safely route the download based on environment
         window.open(data.release.downloadUrl, isNative ? '_system' : '_blank');
       } else {
         showToast({
@@ -85,7 +80,6 @@ const Sidebar = () => {
       setIsDownloading(false);
     }
   };
-  // -----------------------------------
 
   const getInitials = (name) => {
     if (!name) return '';
@@ -150,25 +144,44 @@ const Sidebar = () => {
       ">
         <div className="flex w-full h-full flex-row items-center justify-between lg:flex-col lg:items-stretch lg:justify-start">
 
-          {/* 🟢 Replaced old logo implementation with the new SVG Logo component */}
           <Logo className="hidden lg:flex lg:mb-10 lg:px-2 flex-shrink-0 h-10 lg:h-12" />
 
+          {/* Nav Order: Home -> Leaderboard -> Report -> Notifications -> Profile */}
           <nav className="flex flex-row w-full justify-between items-center px-4 lg:px-0 lg:flex-col lg:gap-2 lg:items-start lg:w-full lg:mt-0">
+
             <NavLink to="/dashboard" end className="w-auto lg:w-full">
               <SidebarItem icon={Home} label={t('nav_home_feed')} active={path === "/dashboard"} />
             </NavLink>
-            <NavLink to="report" className="w-auto lg:w-full">
-              <SidebarItem icon={PlusCircle} label={t('nav_report_issue')} active={path === "/dashboard/report"} />
-            </NavLink>
-            <NavLink to="notifications" onClick={() => markAsRead()} className="w-auto lg:w-full">
-              <SidebarItem icon={Bell} label={t('nav_notifications')} active={path === "/dashboard/notifications"} unreadCount={unreadCount} />
-            </NavLink>
-            <NavLink to="assistant" className="w-auto lg:w-full">
-              <SidebarItem icon={Sparkle} label={t('nav_lokai')} active={path === "/dashboard/assistant"} />
-            </NavLink>
+
             <NavLink to="leaderboard" className="w-auto lg:w-full">
               <SidebarItem icon={Trophy} label={t('nav_leaderboard', 'Leaderboard')} active={path.startsWith("/dashboard/leaderboard")} />
             </NavLink>
+
+            <NavLink to="report" className="w-auto lg:w-full">
+              <SidebarItem icon={PlusCircle} label={t('nav_report_issue')} active={path === "/dashboard/report"} />
+            </NavLink>
+
+            <NavLink to="notifications" onClick={() => markAsRead()} className="w-auto lg:w-full">
+              <SidebarItem icon={Bell} label={t('nav_notifications')} active={path === "/dashboard/notifications"} unreadCount={unreadCount} />
+            </NavLink>
+
+            {/* Profile Avatar Button directly in the nav line */}
+            <div className="w-auto lg:w-full" onClick={() => setOpenModal(true)}>
+              <SidebarItem
+                icon={User}
+                label={t('my_profile', 'Profile')}
+                active={openModal}
+                customIcon={
+                  <div className={`w-6 h-6 md:w-5 md:h-5 lg:w-5 lg:h-5 rounded-full border flex justify-center items-center overflow-hidden transition-colors ${openModal ? 'border-primary text-primary' : 'border-foreground/30 text-foreground'}`}>
+                    {profilePic ? (
+                      <img src={profilePic} alt={name} className="w-full h-full object-cover" referrerPolicy="no-referrer" />
+                    ) : (
+                      <span className="text-[10px] font-bold">{getInitials(name)}</span>
+                    )}
+                  </div>
+                }
+              />
+            </div>
 
             {isApprovedAuthority && (
               <NavLink to="/authority" className="w-auto lg:w-full hidden lg:block">
@@ -182,43 +195,7 @@ const Sidebar = () => {
               </NavLink>
             )}
 
-            <div className="flex lg:hidden flex-shrink-0 relative items-center justify-center">
-              <button
-                className="flex items-center justify-center p-2 transition-transform active:scale-95"
-                onClick={() => setOpenModal(true)}
-              >
-                <div className={`w-8 h-8 rounded-full border text-xs flex justify-center items-center overflow-hidden transition-colors 
-                  ${openModal ? 'border-primary text-primary' : 'border-foreground/30 text-foreground'}`}
-                >
-                  {profilePic ? (
-                    <img src={profilePic} alt={name} className="w-full h-full object-cover" referrerPolicy="no-referrer" />
-                  ) : (
-                    getInitials(name)
-                  )}
-                </div>
-              </button>
-            </div>
           </nav>
-
-          <div className="hidden lg:flex flex-col mt-auto w-full pt-4 border-t border-border/50">
-            <button
-              className="flex items-center gap-3 w-full p-2.5 rounded-xl hover:bg-muted transition-all duration-200 group active:scale-95 text-left"
-              onClick={() => setOpenModal(true)}
-            >
-              <div className="w-10 h-10 rounded-full border border-accent text-xs flex justify-center items-center overflow-hidden flex-shrink-0 bg-background group-hover:border-primary transition-colors">
-                {profilePic ? (
-                  <img src={profilePic} alt={name} className="w-full h-full object-cover" referrerPolicy="no-referrer" />
-                ) : (
-                  <span className="text-gradient font-bold">{getInitials(name)}</span>
-                )}
-              </div>
-              <div className="flex flex-col overflow-hidden">
-                <span className="text-gradient font-semibold truncate leading-tight">{name}</span>
-                <span className="text-[11px] text-muted-foreground capitalize truncate mt-0.5">{currentRole || 'User'}</span>
-              </div>
-            </button>
-          </div>
-
         </div>
       </aside>
 
@@ -243,8 +220,7 @@ const Sidebar = () => {
             </div>
 
             <div className="space-y-1">
-
-              {/* 🟢 APP DOWNLOAD BANNER (ALWAYS VISIBLE FOR BOTH WEB AND NATIVE) */}
+              {/* APP DOWNLOAD BANNER */}
               <div className="mb-3 p-3 bg-primary/10 rounded-xl border border-primary/20 flex flex-col gap-3">
                 <div className="flex items-center gap-3 px-1">
                   <div className="w-9 h-9 rounded-lg bg-primary/20 flex items-center justify-center shrink-0">
@@ -374,7 +350,7 @@ const Sidebar = () => {
   );
 };
 
-const SidebarItem = ({ icon: Icon, label, active, unreadCount, isAdminLink, isAuthorityLink }) => {
+const SidebarItem = ({ icon: Icon, label, active, unreadCount, isAdminLink, isAuthorityLink, customIcon }) => {
   return (
     <div
       title={label}
@@ -389,7 +365,11 @@ const SidebarItem = ({ icon: Icon, label, active, unreadCount, isAdminLink, isAu
         }`}
     >
       <div className="flex items-center gap-3">
-        <Icon className="w-6 h-6 md:w-5 md:h-5 lg:w-5 lg:h-5 transition-transform group-hover:scale-110" />
+        {customIcon ? (
+          customIcon
+        ) : (
+          <Icon className="w-6 h-6 md:w-5 md:h-5 lg:w-5 lg:h-5 transition-transform group-hover:scale-110" />
+        )}
         <span className="hidden lg:inline text-sm font-medium">{label}</span>
       </div>
 

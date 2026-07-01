@@ -4,7 +4,7 @@ import {
   Sparkles, UploadCloud, CheckCircle2, X, Plus, MapPin, Compass
 } from "lucide-react";
 import { useState, useEffect, useRef } from "react";
-import { useLocation } from "react-router-dom";
+import { useLocation, useNavigate } from "react-router-dom";
 import { useSelector } from "react-redux";
 import { saveCurrentLocation } from "../utils/locationUtils";
 import axiosInstance from "../utils/axios";
@@ -59,6 +59,7 @@ const generateHDThumbnail = (file) => {
 
 export default function ReportIssue() {
   const { t } = useTranslation();
+  const navigate = useNavigate();
   const routerLocation = useLocation();
   const prefilledData = routerLocation.state?.prefilledData;
 
@@ -117,6 +118,79 @@ export default function ReportIssue() {
   const [isLocating, setIsLocating] = useState(false);
   const [statesList, setStatesList] = useState([]);
   const [citiesList, setCitiesList] = useState([]);
+
+  // --- ULTRA-SMOOTH DRAG LOGIC WITH THRESHOLD ---
+  const bubbleRef = useRef(null);
+  const bubblePos = useRef({ x: 0, y: 0 });
+  const isDragging = useRef(false);
+  const dragStart = useRef({ x: 0, y: 0 });
+  const initialClickPos = useRef({ x: 0, y: 0 });
+  const hasMoved = useRef(false);
+
+  const handlePointerDown = (e) => {
+    if (!bubbleRef.current) return;
+    isDragging.current = true;
+    hasMoved.current = false;
+
+    // Store exact pixel where pointer went down
+    initialClickPos.current = { x: e.clientX, y: e.clientY };
+
+    dragStart.current = {
+      x: e.clientX - bubblePos.current.x,
+      y: e.clientY - bubblePos.current.y
+    };
+    e.currentTarget.setPointerCapture(e.pointerId);
+  };
+
+  const handlePointerMove = (e) => {
+    if (!isDragging.current || !bubbleRef.current) return;
+
+    // Calculate how far the mouse has moved from the initial click
+    const moveDistX = Math.abs(e.clientX - initialClickPos.current.x);
+    const moveDistY = Math.abs(e.clientY - initialClickPos.current.y);
+
+    // THRESHOLD CHECK: Only consider it a drag if moved more than 5px
+    if (moveDistX > 5 || moveDistY > 5) {
+      hasMoved.current = true;
+    }
+
+    let newX = e.clientX - dragStart.current.x;
+    let newY = e.clientY - dragStart.current.y;
+
+    // --- Screen Boundary Logic ---
+    const rect = bubbleRef.current.getBoundingClientRect();
+    const origLeft = rect.left - bubblePos.current.x;
+    const origTop = rect.top - bubblePos.current.y;
+
+    const padding = 8;
+    const bottomNavPadding = 90;
+
+    const minX = -origLeft + padding;
+    const maxX = window.innerWidth - origLeft - rect.width - padding;
+
+    const minY = -origTop + padding;
+    const maxY = window.innerHeight - origTop - rect.height - bottomNavPadding;
+
+    newX = Math.max(minX, Math.min(newX, maxX));
+    newY = Math.max(minY, Math.min(newY, maxY));
+
+    bubblePos.current = { x: newX, y: newY };
+    bubbleRef.current.style.transform = `translate3d(${newX}px, ${newY}px, 0)`;
+  };
+
+  const handlePointerUp = (e) => {
+    isDragging.current = false;
+
+    // Safely release pointer capture
+    try {
+      e.currentTarget.releasePointerCapture(e.pointerId);
+    } catch (err) { }
+
+    // If it wasn't dragged (or dragged very little), trigger the click action
+    if (!hasMoved.current) {
+      navigate('/dashboard/assistant');
+    }
+  };
 
   // Default CSC API Config 
   const CSC_HEADERS = { "X-CSCAPI-KEY": import.meta.env.VITE_CSC_API_KEY || "YOUR_CSC_API_KEY_HERE" };
@@ -326,7 +400,6 @@ export default function ReportIssue() {
         setFormData(prev => ({
           ...prev,
           title: aiResult.title || prev.title,
-          // Fallback to "OTHER" if the AI doesn't return a valid category
           category: aiResult.category ? aiResult.category.toUpperCase() : "OTHER",
           description: aiResult.description || prev.description
         }));
@@ -337,8 +410,6 @@ export default function ReportIssue() {
     } catch (error) {
       console.error("AI Fill Error:", error);
       toast.error(t('ai_fill_fail'));
-
-      // Fallback to "OTHER" if the API call fails completely and no category is currently selected
       setFormData(prev => ({
         ...prev,
         category: prev.category || "OTHER"
@@ -551,7 +622,6 @@ export default function ReportIssue() {
       if (!formData.description || !formData.description.trim()) newErrors.description = t('desc_req');
       else if (formData.description.trim().split(/\s+/).length < 10) newErrors.description = "At least 10 words required in description";
 
-      // PINCODE IS NO LONGER CHECKED HERE
       if (!formData.location.state || !formData.location.city) {
         setSubmitError(t('req_state_city', 'Please ensure state and city are provided.'));
         setIsSubmitting(false);
@@ -583,14 +653,13 @@ export default function ReportIssue() {
     try {
       const base64Thumbnails = previewUrls.map(url => url && url.startsWith('data:image') ? url : "");
 
-      // 🟢 THE FIX: Duplicate city into the district field for the backend payload
       let dataToSend = {
         title: formData.title,
         category: formData.category,
         description: formData.description,
         location: {
           ...formData.location,
-          district: formData.location.city // Satisfies Mongoose Schema
+          district: formData.location.city
         },
         media: formData.mediaUrls,
         isAnonymous: formData.isAnonymous,
@@ -630,338 +699,355 @@ export default function ReportIssue() {
     filter: `blur(${Math.max(0, 8 - (uploadProgress * 0.08))}px) grayscale(${Math.max(0, 100 - uploadProgress)}%) brightness(${0.5 + (uploadProgress * 0.005)})`
   } : {};
 
-  // Map state and city arrays to the format expected by CustomSelect ({ label, value })
   const stateOptions = statesList.map(state => ({ label: state.name, value: state.name }));
   const cityOptions = citiesList.map(city => ({ label: city.name, value: city.name }));
 
   return (
-    <div
-      className={`min-h-[100dvh] bg-texture pb-4 md:pb-6 transition-all duration-500 ease-out ${isMounted ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-4'
-        }`}
-    >
+    <>
+      <div
+        className={`min-h-[100dvh] bg-texture pb-24 lg:pb-8 transition-all duration-500 ease-out ${isMounted ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-4'
+          }`}
+      >
 
-      {/* HEADER */}
-      <header className="glass-card sticky top-2 md:top-4 z-40 mx-2 md:mx-4 rounded-xl md:rounded-2xl shadow-sm border-b border-border/50">
-        <div className="flex items-center justify-between px-4 py-3 md:px-8 md:py-6">
-          <div className="flex items-center gap-2 md:gap-3">
-            <div className="flex h-10 w-10 md:h-12 md:w-12 flex-shrink-0 items-center justify-center rounded-lg md:rounded-xl bg-gradient-to-br from-cyan-600 to-teal-600 shadow-lg">
-              <Megaphone className="h-5 w-5 md:h-6 md:w-6 text-white" />
-            </div>
-            <div>
-              <h1 className="text-lg md:text-xl font-bold text-gradient leading-tight">Report Issue</h1>
-              <p className="text-[10px] md:text-xs text-muted-foreground">{t('community_voice')}</p>
+        {/* HEADER */}
+        <header className="glass-card sticky top-2 md:top-4 z-40 mx-2 md:mx-4 rounded-xl md:rounded-2xl shadow-sm border-b border-border/50">
+          <div className="flex items-center justify-between px-4 py-3 md:px-8 md:py-6">
+            <div className="flex items-center gap-2 md:gap-3">
+              <div className="flex h-10 w-10 md:h-12 md:w-12 flex-shrink-0 items-center justify-center rounded-lg md:rounded-xl bg-gradient-to-br from-cyan-600 to-teal-600 shadow-lg">
+                <Megaphone className="h-5 w-5 md:h-6 md:w-6 text-white" />
+              </div>
+              <div>
+                <h1 className="text-lg md:text-xl font-bold text-gradient leading-tight">Report Issue</h1>
+                <p className="text-[10px] md:text-xs text-muted-foreground">{t('community_voice')}</p>
+              </div>
             </div>
           </div>
-        </div>
-      </header>
+        </header>
 
-      <div className="mx-auto mt-6 md:mt-8 max-w-7xl px-2 md:px-4">
-        <div className="glass-card p-4 md:p-8 shadow-xl rounded-2xl md:rounded-3xl relative">
+        <div className="mx-auto mt-6 md:mt-8 max-w-7xl px-2 md:px-4">
+          <div className="glass-card p-4 md:p-8 shadow-xl rounded-2xl md:rounded-3xl relative">
 
-          {/* =========================================
-              CATEGORY & AI AUTO-FILL HEADER
-          ========================================== */}
-          <div className="flex flex-col sm:flex-row justify-between items-start sm:items-end mb-6 md:mb-8 gap-4 border-b border-border/50 pb-4">
-            <div>
-              <h2 className="mb-1 md:mb-2 text-xl md:text-2xl font-bold text-foreground">{t('select_category_header')}<span className="text-red-600"> *</span></h2>
-              <p className="text-xs md:text-sm text-muted-foreground">{t('select_category_desc')}</p>
-              {errors.category && <p className="mt-1 text-xs font-semibold text-red-500">{errors.category}</p>}
-            </div>
+            {/* =========================================
+                CATEGORY & AI AUTO-FILL HEADER
+            ========================================== */}
+            <div className="flex flex-col sm:flex-row justify-between items-start sm:items-end mb-6 md:mb-8 gap-4 border-b border-border/50 pb-4">
+              <div>
+                <h2 className="mb-1 md:mb-2 text-xl md:text-2xl font-bold text-foreground">{t('select_category_header')}<span className="text-red-600"> *</span></h2>
+                <p className="text-xs md:text-sm text-muted-foreground">{t('select_category_desc')}</p>
+                {errors.category && <p className="mt-1 text-xs font-semibold text-red-500">{errors.category}</p>}
+              </div>
 
-            <button
-              onClick={handleFillWithAI}
-              disabled={isAILoading || formData.media.length === 0}
-              className={`flex items-center justify-center gap-2 w-full sm:w-auto px-4 py-2.5 rounded-xl font-medium text-sm transition-all shadow-lg ${isAILoading || formData.media.length === 0
-                ? 'bg-muted text-muted-foreground cursor-not-allowed'
-                : 'btn-gradient text-white hover:scale-[1.02] active:scale-[0.98]'
-                }`}
-            >
-              {isAILoading ? (
-                <><div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white"></div>{t('analyzing')}</>
-              ) : (
-                <><Sparkles className="w-4 h-4" />{t('auto_fill_ai')}</>
-              )}
-            </button>
-          </div>
-
-          {/* CATEGORY GRID */}
-          <div className="grid grid-cols-2 gap-3 md:gap-4 sm:grid-cols-3 lg:grid-cols-5">
-            {categories.map(({ label, value, icon: Icon }) => (
-              <div
-                key={value}
-                onClick={() => handleInputChange('category', value)}
-                className={`group flex cursor-pointer flex-col items-center gap-2 md:gap-3 rounded-xl border-2 border-border p-3 md:p-4 text-xs md:text-sm text-card-foreground transition-all hover:-translate-y-1 hover:border-cyan-600 hover:bg-muted hover:shadow-lg ${formData.category === value ? 'border-cyan-600 bg-muted' : 'bg-muted/20'}`}
+              <button
+                onClick={handleFillWithAI}
+                disabled={isAILoading || formData.media.length === 0}
+                className={`flex items-center justify-center gap-2 w-full sm:w-auto px-4 py-2.5 rounded-xl font-medium text-sm transition-all shadow-lg ${isAILoading || formData.media.length === 0
+                  ? 'bg-muted text-muted-foreground cursor-not-allowed'
+                  : 'btn-gradient text-white hover:scale-[1.02] active:scale-[0.98]'
+                  }`}
               >
-                <div className="rounded-lg bg-muted p-2 md:p-3 transition-colors group-hover:bg-cyan-600/10 group-hover:text-cyan-600">
-                  <Icon className="h-5 w-5 md:h-6 md:w-6 text-muted-foreground transition-colors group-hover:text-cyan-600" />
+                {isAILoading ? (
+                  <><div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white"></div>{t('analyzing')}</>
+                ) : (
+                  <><Sparkles className="w-4 h-4" />{t('auto_fill_ai')}</>
+                )}
+              </button>
+            </div>
+
+            {/* CATEGORY GRID */}
+            <div className="grid grid-cols-2 gap-3 md:gap-4 sm:grid-cols-3 lg:grid-cols-5">
+              {categories.map(({ label, value, icon: Icon }) => (
+                <div
+                  key={value}
+                  onClick={() => handleInputChange('category', value)}
+                  className={`group flex cursor-pointer flex-col items-center gap-2 md:gap-3 rounded-xl border-2 border-border p-3 md:p-4 text-xs md:text-sm text-card-foreground transition-all hover:-translate-y-1 hover:border-cyan-600 hover:bg-muted hover:shadow-lg ${formData.category === value ? 'border-cyan-600 bg-muted' : 'bg-muted/20'}`}
+                >
+                  <div className="rounded-lg bg-muted p-2 md:p-3 transition-colors group-hover:bg-cyan-600/10 group-hover:text-cyan-600">
+                    <Icon className="h-5 w-5 md:h-6 md:w-6 text-muted-foreground transition-colors group-hover:text-cyan-600" />
+                  </div>
+                  <span className="text-center font-medium leading-tight">{label}</span>
                 </div>
-                <span className="text-center font-medium leading-tight">{label}</span>
-              </div>
-            ))}
-          </div>
+              ))}
+            </div>
 
-          {/* MAIN FORM GRID */}
-          <div className="mt-8 md:mt-10 grid gap-6 md:gap-8 lg:grid-cols-3">
+            {/* MAIN FORM GRID */}
+            <div className="mt-8 md:mt-10 grid gap-6 md:gap-8 lg:grid-cols-3">
 
-            {/* LEFT SIDE: Text Details & Location */}
-            <div className="space-y-4 md:space-y-6 lg:col-span-2">
-              <div>
-                <label className="mb-1.5 md:mb-2 block text-sm font-semibold text-foreground">{t('issue_title')}<span className="text-red-600"> *</span></label>
-                <input
-                  type="text" placeholder={t('brief_title')} value={formData.title}
-                  onChange={(e) => handleInputChange('title', e.target.value)}
-                  className="w-full rounded-xl border-2 border-border bg-muted/20 px-3 md:px-4 py-2.5 md:py-3 text-sm md:text-base outline-none transition-all focus:border-cyan-600 focus:ring-2 focus:ring-cyan-600/20"
-                />
-                {errors.title && <p className="mt-1 text-xs text-red-600 font-semibold">{errors.title}</p>}
-              </div>
-
-              <div>
-                <label className="mb-1.5 md:mb-2 block text-sm font-semibold text-foreground">{t('detailed_desc')}<span className="text-red-600"> *</span></label>
-                <textarea
-                  placeholder={t('issue_desc_placeholder')} value={formData.description}
-                  onChange={(e) => handleInputChange('description', e.target.value)}
-                  className="w-full rounded-xl border-2 border-border bg-muted/20 px-3 md:px-4 py-2.5 md:py-3 text-sm md:text-base outline-none transition-all focus:border-cyan-600 focus:ring-2 focus:ring-cyan-600/20 resize-y min-h-[100px]"
-                  rows={4}
-                />
-                {errors.description && <p className="mt-1 text-xs text-red-600 font-semibold">{errors.description}</p>}
-              </div>
-
-              {/* LOCATION GRID (State, City, Pin) -> MOVED ABOVE SPECIFIC LOCATION */}
-              <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 md:gap-4 mb-2">
+              {/* LEFT SIDE: Text Details & Location */}
+              <div className="space-y-4 md:space-y-6 lg:col-span-2">
                 <div>
-                  <label className="mb-1.5 md:mb-2 block text-sm font-semibold text-foreground">
-                    {t('state')}<span className="text-red-600"> *</span>
-                  </label>
-                  <CustomSelect
-                    options={stateOptions}
-                    value={formData.location.state}
-                    onChange={(val) => handleInputChange('location.state', val)}
-                    placeholder="Select State"
-                    className="bg-muted/20"
-                  />
-                </div>
-                <div>
-                  <label className="mb-1.5 md:mb-2 block text-sm font-semibold text-foreground">
-                    {t('city')}<span className="text-red-600"> *</span>
-                  </label>
-                  <CustomSelect
-                    options={cityOptions}
-                    value={formData.location.city}
-                    onChange={(val) => handleInputChange('location.city', val)}
-                    placeholder="Select City"
-                    disabled={!formData.location.state || citiesList.length === 0}
-                    className="bg-muted/20"
-                  />
-                </div>
-                <div>
-                  {/* NO ASTERSISK FOR PINCODE */}
-                  <label className="mb-1.5 md:mb-2 block text-sm font-semibold text-foreground">{t('pin_code')}</label>
+                  <label className="mb-1.5 md:mb-2 block text-sm font-semibold text-foreground">{t('issue_title')}<span className="text-red-600"> *</span></label>
                   <input
-                    type="text" placeholder={t('pincode_placeholder')} value={formData.location.pinCode}
-                    onChange={(e) => handleInputChange('location.pinCode', e.target.value)}
-                    className="w-full rounded-xl border-2 border-border bg-muted/20 px-3 md:px-4 py-2 text-sm md:text-base outline-none transition-all focus:border-cyan-600 focus:ring-2 focus:ring-cyan-600/20"
+                    type="text" placeholder={t('brief_title')} value={formData.title}
+                    onChange={(e) => handleInputChange('title', e.target.value)}
+                    className="w-full rounded-xl border-2 border-border bg-muted/20 px-3 md:px-4 py-2.5 md:py-3 text-sm md:text-base outline-none transition-all focus:border-cyan-600 focus:ring-2 focus:ring-cyan-600/20"
                   />
+                  {errors.title && <p className="mt-1 text-xs text-red-600 font-semibold">{errors.title}</p>}
                 </div>
-              </div>
 
-              <div>
-                <label className="mb-1.5 md:mb-2 block text-sm font-semibold text-foreground">{t('specific_location')}</label>
-                <input
-                  type="text" placeholder={t('location_placeholder')} value={formData.location.address}
-                  onChange={(e) => handleInputChange('location.address', e.target.value)}
-                  className="w-full rounded-xl border-2 border-border bg-muted/20 px-3 md:px-4 py-2.5 md:py-3 text-sm md:text-base outline-none transition-all focus:border-cyan-600 focus:ring-2 focus:ring-cyan-600/20"
-                />
-                {errors.location && <p className="mt-1 text-xs text-red-600 font-semibold">{errors.location}</p>}
-              </div>
+                <div>
+                  <label className="mb-1.5 md:mb-2 block text-sm font-semibold text-foreground">{t('detailed_desc')}<span className="text-red-600"> *</span></label>
+                  <textarea
+                    placeholder={t('issue_desc_placeholder')} value={formData.description}
+                    onChange={(e) => handleInputChange('description', e.target.value)}
+                    className="w-full rounded-xl border-2 border-border bg-muted/20 px-3 md:px-4 py-2.5 md:py-3 text-sm md:text-base outline-none transition-all focus:border-cyan-600 focus:ring-2 focus:ring-cyan-600/20 resize-y min-h-[100px]"
+                    rows={4}
+                  />
+                  {errors.description && <p className="mt-1 text-xs text-red-600 font-semibold">{errors.description}</p>}
+                </div>
 
-              {/* AUTO GPS STATUS (Removed manual button) */}
-              <div className="mt-2 md:mt-4 p-3 md:p-4 rounded-xl bg-muted/20 border border-border">
-                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 sm:gap-0">
-                  <div className="flex items-center gap-2">
-                    <span className="text-sm font-semibold text-foreground">{t('gps_location')}<span className="text-red-600"> *</span></span>
-
-                    {isLocating ? (
-                      <div className="flex items-center gap-1.5 bg-blue-500/10 px-2 py-1 rounded-full">
-                        <Compass className="h-3 w-3 text-blue-600 animate-spin" />
-                        <span className="text-xs font-medium text-blue-600">Locating...</span>
-                      </div>
-                    ) : formData.location.geoData.coordinates ? (
-                      <div className="flex items-center gap-1.5 bg-green-500/10 px-2 py-1 rounded-full">
-                        <div className="h-2.5 w-2.5 rounded-full bg-green-600"></div>
-                        <span className="text-xs font-medium text-green-600">{t('captured')}</span>
-                      </div>
-                    ) : (
-                      <div className="flex items-center gap-1.5 bg-yellow-500/10 px-2 py-1 rounded-full">
-                        <div className="h-2.5 w-2.5 rounded-full bg-yellow-600"></div>
-                        <span className="text-xs font-medium text-yellow-600">{t('not_captured')}</span>
-                      </div>
-                    )}
+                {/* LOCATION GRID (State, City, Pin) */}
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 md:gap-4 mb-2">
+                  <div>
+                    <label className="mb-1.5 md:mb-2 block text-sm font-semibold text-foreground">
+                      {t('state')}<span className="text-red-600"> *</span>
+                    </label>
+                    <CustomSelect
+                      options={stateOptions}
+                      value={formData.location.state}
+                      onChange={(val) => handleInputChange('location.state', val)}
+                      placeholder="Select State"
+                      className="bg-muted/20"
+                    />
+                  </div>
+                  <div>
+                    <label className="mb-1.5 md:mb-2 block text-sm font-semibold text-foreground">
+                      {t('city')}<span className="text-red-600"> *</span>
+                    </label>
+                    <CustomSelect
+                      options={cityOptions}
+                      value={formData.location.city}
+                      onChange={(val) => handleInputChange('location.city', val)}
+                      placeholder="Select City"
+                      disabled={!formData.location.state || citiesList.length === 0}
+                      className="bg-muted/20"
+                    />
+                  </div>
+                  <div>
+                    <label className="mb-1.5 md:mb-2 block text-sm font-semibold text-foreground">{t('pin_code')}</label>
+                    <input
+                      type="text" placeholder={t('pincode_placeholder')} value={formData.location.pinCode}
+                      onChange={(e) => handleInputChange('location.pinCode', e.target.value)}
+                      className="w-full rounded-xl border-2 border-border bg-muted/20 px-3 md:px-4 py-2 text-sm md:text-base outline-none transition-all focus:border-cyan-600 focus:ring-2 focus:ring-cyan-600/20"
+                    />
                   </div>
                 </div>
-                {errors.geoData && <p className="mt-2 text-xs font-semibold text-red-600">{errors.geoData}</p>}
-                {submitError && submitError.includes('state') && <p className="mt-2 text-xs font-semibold text-red-600">{submitError}</p>}
-              </div>
 
-            </div>
+                <div>
+                  <label className="mb-1.5 md:mb-2 block text-sm font-semibold text-foreground">{t('specific_location')}</label>
+                  <input
+                    type="text" placeholder={t('location_placeholder')} value={formData.location.address}
+                    onChange={(e) => handleInputChange('location.address', e.target.value)}
+                    className="w-full rounded-xl border-2 border-border bg-muted/20 px-3 md:px-4 py-2.5 md:py-3 text-sm md:text-base outline-none transition-all focus:border-cyan-600 focus:ring-2 focus:ring-cyan-600/20"
+                  />
+                  {errors.location && <p className="mt-1 text-xs text-red-600 font-semibold">{errors.location}</p>}
+                </div>
 
-            {/* RIGHT SIDE: Media & Submit */}
-            <div className="space-y-4">
-              <div>
-                <label className="mb-1.5 md:mb-2 block text-sm font-semibold text-foreground">
-                  {t('add_media', 'Add Photos / Videos')}<span className="font-normal text-red-600"> *</span>
-                </label>
+                {/* AUTO GPS STATUS */}
+                <div className="mt-2 md:mt-4 p-3 md:p-4 rounded-xl bg-muted/20 border border-border">
+                  <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 sm:gap-0">
+                    <div className="flex items-center gap-2">
+                      <span className="text-sm font-semibold text-foreground">{t('gps_location')}<span className="text-red-600"> *</span></span>
 
-                <div className={`relative group w-full h-48 md:h-64 rounded-xl overflow-hidden flex items-center justify-center transition-all ${formData.media.length === 0 ? 'border-2 border-dashed border-border bg-muted/20 hover:border-cyan-600' : 'bg-muted/20'}`}>
-
-                  {formData.media.length === 0 ? (
-                    <div className="flex w-full h-full bg-muted/20">
-                      {Capacitor.isNativePlatform() ? (
-                        <button type="button" onClick={handleNativeCamera} className="flex-1 flex flex-col items-center justify-center gap-1 md:gap-2 cursor-pointer hover:bg-muted/50 transition-colors z-10">
-                          <CameraIcon className="h-6 w-6 md:h-8 md:w-8 text-muted-foreground group-hover:text-cyan-600 transition-colors" />
-                          <span className="text-xs md:text-sm font-medium text-muted-foreground">{t('camera', 'Camera')}</span>
-                        </button>
+                      {isLocating ? (
+                        <div className="flex items-center gap-1.5 bg-blue-500/10 px-2 py-1 rounded-full">
+                          <Compass className="h-3 w-3 text-blue-600 animate-spin" />
+                          <span className="text-xs font-medium text-blue-600">Locating...</span>
+                        </div>
+                      ) : formData.location.geoData.coordinates ? (
+                        <div className="flex items-center gap-1.5 bg-green-500/10 px-2 py-1 rounded-full">
+                          <div className="h-2.5 w-2.5 rounded-full bg-green-600"></div>
+                          <span className="text-xs font-medium text-green-600">{t('captured')}</span>
+                        </div>
                       ) : (
-                        <label className="flex-1 flex flex-col items-center justify-center gap-1 md:gap-2 cursor-pointer hover:bg-muted/50 transition-colors z-10">
-                          <CameraIcon className="h-6 w-6 md:h-8 md:w-8 text-muted-foreground group-hover:text-cyan-600 transition-colors" />
-                          <span className="text-xs md:text-sm font-medium text-muted-foreground">{t('camera', 'Camera')}</span>
-                          <input type="file" accept="image/*" capture="environment" className="hidden" onChange={handleFileChange} />
-                        </label>
-                      )}
-                      <div className="w-px bg-border my-6"></div>
-                      <label className="flex-1 flex flex-col items-center justify-center gap-1 md:gap-2 cursor-pointer hover:bg-muted/50 transition-colors z-10">
-                        <UploadCloud className="h-6 w-6 md:h-8 md:w-8 text-muted-foreground group-hover:text-cyan-600 transition-colors" />
-                        <span className="text-xs md:text-sm font-medium text-muted-foreground">{t('browse', 'Browse Files')}</span>
-                        <input type="file" accept="image/*,video/*" multiple className="hidden" onChange={handleFileChange} />
-                      </label>
-                      <div className="absolute bottom-2 left-0 right-0 text-center pointer-events-none">
-                        <span className="text-[10px] md:text-xs text-muted-foreground px-2">Max 3 files, 300MB total</span>
-                      </div>
-                    </div>
-                  ) : (
-                    <div className="w-full h-full relative group cursor-pointer overflow-hidden rounded-xl">
-                      {formData.media[0].type.startsWith('video/') ? (
-                        <video src={primaryVideoUrl} poster={previewUrls[0]} className="w-full h-full object-cover transition-all duration-300" style={{ ...ghostFilterStyle, backgroundColor: 'black' }} autoPlay loop muted playsInline />
-                      ) : (
-                        <img src={previewUrls[0]} alt="Primary Preview" className="w-full h-full object-cover transition-all duration-300" style={ghostFilterStyle} />
-                      )}
-
-                      {isUploading && (
-                        <>
-                          <div className="absolute bottom-0 left-0 w-full h-1.5 bg-black/50 z-20">
-                            <div className="h-full bg-cyan-500 shadow-[0_0_10px_rgba(6,182,212,0.8)] transition-all duration-300 ease-out" style={{ width: `${uploadProgress}%` }} />
-                          </div>
-                          <div className="absolute inset-0 flex flex-col items-center justify-center pointer-events-auto z-20 gap-3">
-                            <span className="text-4xl font-black text-white drop-shadow-[0_4px_4px_rgba(0,0,0,0.8)] tracking-tighter">{uploadProgress}%</span>
-                            <button type="button" onClick={(e) => { e.stopPropagation(); handleCancelUpload(); }} className="flex items-center gap-1.5 bg-red-600/90 hover:bg-red-700 text-white px-4 py-2 rounded-full text-xs font-bold backdrop-blur-md shadow-lg transition-all transform hover:scale-105 active:scale-95 cursor-pointer z-30">
-                              <X className="w-4 h-4" /> Stop Upload
-                            </button>
-                          </div>
-                        </>
-                      )}
-
-                      {!isUploading && formData.mediaUrls.length > 0 && (
-                        <div className="absolute inset-0 bg-green-500/20 backdrop-blur-[2px] flex flex-col items-center justify-center z-20">
-                          <CheckCircle2 className="w-12 h-12 text-green-500 drop-shadow-md mb-2" />
-                          <span className="text-white font-bold drop-shadow-md text-sm">Upload Complete</span>
+                        <div className="flex items-center gap-1.5 bg-yellow-500/10 px-2 py-1 rounded-full">
+                          <div className="h-2.5 w-2.5 rounded-full bg-yellow-600"></div>
+                          <span className="text-xs font-medium text-yellow-600">{t('not_captured')}</span>
                         </div>
                       )}
                     </div>
-                  )}
+                  </div>
+                  {errors.geoData && <p className="mt-2 text-xs font-semibold text-red-600">{errors.geoData}</p>}
+                  {submitError && submitError.includes('state') && <p className="mt-2 text-xs font-semibold text-red-600">{submitError}</p>}
                 </div>
-                {errors.media && <p className="mt-2 text-xs font-semibold text-red-600">{errors.media}</p>}
+
               </div>
 
-              {formData.media.length > 0 && (
-                <div className="flex flex-col gap-3 mt-4">
-                  {!isUploading && formData.mediaUrls.length === 0 && (
-                    <button type="button" onClick={handleUploadMedia} className="w-full btn-gradient py-3 rounded-xl text-white font-bold text-sm shadow-md hover:scale-[1.02] active:scale-[0.98] transition-all flex justify-center items-center gap-2">
-                      <UploadCloud className="w-5 h-5" /> Upload {formData.media.length} File{formData.media.length > 1 ? 's' : ''} to Cloud
-                    </button>
-                  )}
+              {/* RIGHT SIDE: Media & Submit */}
+              <div className="space-y-4">
+                <div>
+                  <label className="mb-1.5 md:mb-2 block text-sm font-semibold text-foreground">
+                    {t('add_media', 'Add Photos / Videos')}<span className="font-normal text-red-600"> *</span>
+                  </label>
 
-                  {uploadError && (
-                    <div className="rounded-lg bg-red-500/10 border border-red-500/20 p-3 text-center">
-                      <p className="text-xs text-red-500 font-medium">{uploadError}</p>
-                    </div>
-                  )}
+                  <div className={`relative group w-full h-48 md:h-64 rounded-xl overflow-hidden flex items-center justify-center transition-all ${formData.media.length === 0 ? 'border-2 border-dashed border-border bg-muted/20 hover:border-cyan-600' : 'bg-muted/20'}`}>
 
-                  <div className="grid grid-cols-5 gap-2 mt-2">
-                    {formData.media.map((file, index) => (
-                      <div key={index} className="relative group aspect-square rounded-lg overflow-hidden bg-muted/20 transition-all">
-                        <img src={previewUrls[index]} alt={`Preview ${index + 1}`} className="w-full h-full object-cover opacity-80 group-hover:opacity-100 transition-opacity" />
-                        {!isUploading && formData.mediaUrls.length === 0 && (
-                          <button type="button" onClick={() => handleRemoveFile(index)} className="absolute -top-1 -right-1 bg-red-600 text-white rounded-full p-1 opacity-100 transition-opacity hover:bg-red-700 shadow-lg z-20 m-1.5">
-                            <X className="w-3.5 h-3.5" />
+                    {formData.media.length === 0 ? (
+                      <div className="flex w-full h-full bg-muted/20">
+                        {Capacitor.isNativePlatform() ? (
+                          <button type="button" onClick={handleNativeCamera} className="flex-1 flex flex-col items-center justify-center gap-1 md:gap-2 cursor-pointer hover:bg-muted/50 transition-colors z-10">
+                            <CameraIcon className="h-6 w-6 md:h-8 md:w-8 text-muted-foreground group-hover:text-cyan-600 transition-colors" />
+                            <span className="text-xs md:text-sm font-medium text-muted-foreground">{t('camera', 'Camera')}</span>
                           </button>
+                        ) : (
+                          <label className="flex-1 flex flex-col items-center justify-center gap-1 md:gap-2 cursor-pointer hover:bg-muted/50 transition-colors z-10">
+                            <CameraIcon className="h-6 w-6 md:h-8 md:w-8 text-muted-foreground group-hover:text-cyan-600 transition-colors" />
+                            <span className="text-xs md:text-sm font-medium text-muted-foreground">{t('camera', 'Camera')}</span>
+                            <input type="file" accept="image/*" capture="environment" className="hidden" onChange={handleFileChange} />
+                          </label>
                         )}
-                        {file.type.startsWith('video/') && (
-                          <div className="absolute bottom-1 left-1 bg-black/60 rounded px-1">
-                            <span className="text-[8px] font-bold text-white tracking-widest">VIDEO</span>
+                        <div className="w-px bg-border my-6"></div>
+                        <label className="flex-1 flex flex-col items-center justify-center gap-1 md:gap-2 cursor-pointer hover:bg-muted/50 transition-colors z-10">
+                          <UploadCloud className="h-6 w-6 md:h-8 md:w-8 text-muted-foreground group-hover:text-cyan-600 transition-colors" />
+                          <span className="text-xs md:text-sm font-medium text-muted-foreground">{t('browse', 'Browse Files')}</span>
+                          <input type="file" accept="image/*,video/*" multiple className="hidden" onChange={handleFileChange} />
+                        </label>
+                        <div className="absolute bottom-2 left-0 right-0 text-center pointer-events-none">
+                          <span className="text-[10px] md:text-xs text-muted-foreground px-2">Max 3 files, 300MB total</span>
+                        </div>
+                      </div>
+                    ) : (
+                      <div className="w-full h-full relative group cursor-pointer overflow-hidden rounded-xl">
+                        {formData.media[0].type.startsWith('video/') ? (
+                          <video src={primaryVideoUrl} poster={previewUrls[0]} className="w-full h-full object-cover transition-all duration-300" style={{ ...ghostFilterStyle, backgroundColor: 'black' }} autoPlay loop muted playsInline />
+                        ) : (
+                          <img src={previewUrls[0]} alt="Primary Preview" className="w-full h-full object-cover transition-all duration-300" style={ghostFilterStyle} />
+                        )}
+
+                        {isUploading && (
+                          <>
+                            <div className="absolute bottom-0 left-0 w-full h-1.5 bg-black/50 z-20">
+                              <div className="h-full bg-cyan-500 shadow-[0_0_10px_rgba(6,182,212,0.8)] transition-all duration-300 ease-out" style={{ width: `${uploadProgress}%` }} />
+                            </div>
+                            <div className="absolute inset-0 flex flex-col items-center justify-center pointer-events-auto z-20 gap-3">
+                              <span className="text-4xl font-black text-white drop-shadow-[0_4px_4px_rgba(0,0,0,0.8)] tracking-tighter">{uploadProgress}%</span>
+                              <button type="button" onClick={(e) => { e.stopPropagation(); handleCancelUpload(); }} className="flex items-center gap-1.5 bg-red-600/90 hover:bg-red-700 text-white px-4 py-2 rounded-full text-xs font-bold backdrop-blur-md shadow-lg transition-all transform hover:scale-105 active:scale-95 cursor-pointer z-30">
+                                <X className="w-4 h-4" /> Stop Upload
+                              </button>
+                            </div>
+                          </>
+                        )}
+
+                        {!isUploading && formData.mediaUrls.length > 0 && (
+                          <div className="absolute inset-0 bg-green-500/20 backdrop-blur-[2px] flex flex-col items-center justify-center z-20">
+                            <CheckCircle2 className="w-12 h-12 text-green-500 drop-shadow-md mb-2" />
+                            <span className="text-white font-bold drop-shadow-md text-sm">Upload Complete</span>
                           </div>
                         )}
                       </div>
-                    ))}
-
-                    {!isUploading && formData.mediaUrls.length === 0 && formData.media.length > 0 && formData.media.length < 3 && (
-                      <label className="relative flex flex-col items-center justify-center aspect-square rounded-lg border-2 border-dashed border-border bg-muted/20 cursor-pointer hover:bg-muted hover:border-cyan-600 transition-all">
-                        <Plus className="w-5 h-5 text-muted-foreground mb-0.5" />
-                        <span className="text-[9px] font-semibold text-muted-foreground uppercase">{t('add_more', 'Add')}</span>
-                        <input type="file" accept="image/*,video/*" multiple className="hidden" onChange={handleFileChange} />
-                      </label>
                     )}
                   </div>
+                  {errors.media && <p className="mt-2 text-xs font-semibold text-red-600">{errors.media}</p>}
                 </div>
-              )}
 
-              {/* RESTORED ANONYMOUS TOGGLE */}
-              <div className="bg-muted/20 p-4 rounded-xl border border-border mt-4">
-                <label className="flex items-center gap-3 text-sm font-bold text-foreground cursor-pointer select-none w-full">
-                  <div className="relative">
-                    <input
-                      type="checkbox"
-                      checked={formData.isAnonymous}
-                      onChange={(e) => handleInputChange('isAnonymous', e.target.checked)}
-                      className="sr-only"
-                    />
-                    <div className={`block w-10 h-6 rounded-full transition-colors ${formData.isAnonymous ? 'bg-cyan-500' : 'bg-muted border border-border'}`}></div>
-                    <div className={`dot absolute left-1 top-1 bg-white w-4 h-4 rounded-full transition-transform ${formData.isAnonymous ? 'transform translate-x-4' : ''}`}></div>
-                  </div>
-                  <div className="flex flex-col">
-                    <span>Submit Anonymously</span>
-                    <span className="text-[10px] text-muted-foreground font-normal mt-0.5">Hide my name from the public feed.</span>
-                  </div>
-                </label>
-              </div>
+                {formData.media.length > 0 && (
+                  <div className="flex flex-col gap-3 mt-4">
+                    {!isUploading && formData.mediaUrls.length === 0 && (
+                      <button type="button" onClick={handleUploadMedia} className="w-full btn-gradient py-3 rounded-xl text-white font-bold text-sm shadow-md hover:scale-[1.02] active:scale-[0.98] transition-all flex justify-center items-center gap-2">
+                        <UploadCloud className="w-5 h-5" /> Upload {formData.media.length} File{formData.media.length > 1 ? 's' : ''} to Cloud
+                      </button>
+                    )}
 
-              <div className="pt-4 border-t border-border/50">
-                <button
-                  onClick={handleSubmit}
-                  disabled={isSubmitting || formData.media.length === 0 || formData.mediaUrls.length === 0 || isUploading}
-                  className="btn-gradient w-full rounded-xl py-3 text-sm md:text-base font-semibold text-white shadow-lg transition-all hover:scale-[1.02] active:scale-[0.98] disabled:opacity-50 disabled:cursor-not-allowed"
-                >
-                  {isSubmitting ? t('submitting') : t('submit_issue')}
-                </button>
+                    {uploadError && (
+                      <div className="rounded-lg bg-red-500/10 border border-red-500/20 p-3 text-center">
+                        <p className="text-xs text-red-500 font-medium">{uploadError}</p>
+                      </div>
+                    )}
 
-                {submitError && (
-                  <div className="mt-3 rounded-lg bg-red-500/10 border border-red-500/20 p-3">
-                    <p className="text-xs font-semibold text-red-600 text-center">{submitError}</p>
-                  </div>
-                )}
+                    <div className="grid grid-cols-5 gap-2 mt-2">
+                      {formData.media.map((file, index) => (
+                        <div key={index} className="relative group aspect-square rounded-lg overflow-hidden bg-muted/20 transition-all">
+                          <img src={previewUrls[index]} alt={`Preview ${index + 1}`} className="w-full h-full object-cover opacity-80 group-hover:opacity-100 transition-opacity" />
+                          {!isUploading && formData.mediaUrls.length === 0 && (
+                            <button type="button" onClick={() => handleRemoveFile(index)} className="absolute -top-1 -right-1 bg-red-600 text-white rounded-full p-1 opacity-100 transition-opacity hover:bg-red-700 shadow-lg z-20 m-1.5">
+                              <X className="w-3.5 h-3.5" />
+                            </button>
+                          )}
+                          {file.type.startsWith('video/') && (
+                            <div className="absolute bottom-1 left-1 bg-black/60 rounded px-1">
+                              <span className="text-[8px] font-bold text-white tracking-widest">VIDEO</span>
+                            </div>
+                          )}
+                        </div>
+                      ))}
 
-                {submitSuccess && (
-                  <div className="mt-3 rounded-lg bg-green-500/10 border border-green-500/20 p-4">
-                    <div className="flex items-center gap-2">
-                      <CheckCircle2 className="w-5 h-5 text-green-500" />
-                      <p className="text-sm text-green-500 font-semibold">{t('issue_submit_success')}</p>
+                      {!isUploading && formData.mediaUrls.length === 0 && formData.media.length > 0 && formData.media.length < 3 && (
+                        <label className="relative flex flex-col items-center justify-center aspect-square rounded-lg border-2 border-dashed border-border bg-muted/20 cursor-pointer hover:bg-muted hover:border-cyan-600 transition-all">
+                          <Plus className="w-5 h-5 text-muted-foreground mb-0.5" />
+                          <span className="text-[9px] font-semibold text-muted-foreground uppercase">{t('add_more', 'Add')}</span>
+                          <input type="file" accept="image/*,video/*" multiple className="hidden" onChange={handleFileChange} />
+                        </label>
+                      )}
                     </div>
-                    <p className="text-xs text-green-600/80 mt-1.5 ml-7">{t('issue_review_shortly')}</p>
                   </div>
                 )}
+
+                {/* RESTORED ANONYMOUS TOGGLE */}
+                <div className="bg-muted/20 p-4 rounded-xl border border-border mt-4">
+                  <label className="flex items-center gap-3 text-sm font-bold text-foreground cursor-pointer select-none w-full">
+                    <div className="relative">
+                      <input
+                        type="checkbox"
+                        checked={formData.isAnonymous}
+                        onChange={(e) => handleInputChange('isAnonymous', e.target.checked)}
+                        className="sr-only"
+                      />
+                      <div className={`block w-10 h-6 rounded-full transition-colors ${formData.isAnonymous ? 'bg-cyan-500' : 'bg-muted border border-border'}`}></div>
+                      <div className={`dot absolute left-1 top-1 bg-white w-4 h-4 rounded-full transition-transform ${formData.isAnonymous ? 'transform translate-x-4' : ''}`}></div>
+                    </div>
+                    <div className="flex flex-col">
+                      <span>Submit Anonymously</span>
+                      <span className="text-[10px] text-muted-foreground font-normal mt-0.5">Hide my name from the public feed.</span>
+                    </div>
+                  </label>
+                </div>
+
+                <div className="pt-4 border-t border-border/50">
+                  <button
+                    onClick={handleSubmit}
+                    disabled={isSubmitting || formData.media.length === 0 || formData.mediaUrls.length === 0 || isUploading}
+                    className="btn-gradient w-full rounded-xl py-3 text-sm md:text-base font-semibold text-white shadow-lg transition-all hover:scale-[1.02] active:scale-[0.98] disabled:opacity-50 disabled:cursor-not-allowed"
+                  >
+                    {isSubmitting ? t('submitting') : t('submit_issue')}
+                  </button>
+
+                  {submitError && (
+                    <div className="mt-3 rounded-lg bg-red-500/10 border border-red-500/20 p-3">
+                      <p className="text-xs font-semibold text-red-600 text-center">{submitError}</p>
+                    </div>
+                  )}
+
+                  {submitSuccess && (
+                    <div className="mt-3 rounded-lg bg-green-500/10 border border-green-500/20 p-4">
+                      <div className="flex items-center gap-2">
+                        <CheckCircle2 className="w-5 h-5 text-green-500" />
+                        <p className="text-sm text-green-500 font-semibold">{t('issue_submit_success')}</p>
+                      </div>
+                      <p className="text-xs text-green-600/80 mt-1.5 ml-7">{t('issue_review_shortly')}</p>
+                    </div>
+                  )}
+                </div>
               </div>
             </div>
           </div>
         </div>
       </div>
-    </div>
+
+      {/* FIXED: Smooth Draggable AI Bubble WITH BOUNDARIES & CLICK LOGIC MERGED IN DRAG HANDLER */}
+      <div
+        ref={bubbleRef}
+        className="fixed bottom-20 right-4 md:bottom-10 md:right-10 z-[100] touch-none will-change-transform w-fit h-fit"
+        onPointerDown={handlePointerDown}
+        onPointerMove={handlePointerMove}
+        onPointerUp={handlePointerUp}
+        onPointerCancel={handlePointerUp}
+      >
+        <button
+          className="relative group flex items-center justify-center w-14 h-14 md:w-16 md:h-16 rounded-full btn-gradient shadow-[0_8px_30px_rgb(0,0,0,0.3)] transition-transform duration-200 hover:scale-110 active:scale-95 cursor-pointer"
+          aria-label="Go to AI Assistant"
+        >
+          <Sparkles className="w-6 h-6 md:w-8 md:h-8 text-white pointer-events-none" />
+        </button>
+      </div>
+    </>
   );
 }
