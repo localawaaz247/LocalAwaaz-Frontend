@@ -3,7 +3,6 @@
 import { useState, useEffect } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { ArrowLeft, User, Lock, Eye, EyeOff, Shield, CheckCircle, ArrowRight } from 'lucide-react';
-import logo from "/logo.png";
 import MiniLoader from '../components/MiniLoader';
 import { showToast } from '../utils/toast';
 import axiosInstance from '../utils/axios';
@@ -157,7 +156,7 @@ const ForgotPassword = () => {
                     <div className="flex items-center gap-3 mb-12">
                         <div className="w-14 h-14 rounded-2xl flex items-center justify-center shadow-lg shadow-primary/30">
                             <span className="text-3xl font-bold text-white">
-                                <img src={logo} alt='LocalAwaaz Logo' />
+                                <img src="/logo.svg" alt='LocalAwaaz Logo' />
                             </span>
                         </div>
                         <span className="text-3xl font-bold font-display text-gradient">
