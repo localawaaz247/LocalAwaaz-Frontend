@@ -3,8 +3,6 @@
 import { useEffect, useState, useActionState } from 'react';
 import { Link, useNavigate, useLocation } from 'react-router-dom';
 import { Eye, EyeOff, User, Lock, Mail, ArrowLeft, UserCircle, Megaphone, Users, MessageCircle, Shield, ArrowRight, CheckCircle, Building2, Briefcase, FileUp } from 'lucide-react';
-import google from "/google.png";
-import logo from "/logo.png";
 import authAction from '../actions/authAction';
 import { useDispatch, useSelector } from "react-redux";
 import { showToast } from '../utils/toast';
@@ -324,7 +322,7 @@ const LoginRegister = () => {
         <div className="relative z-10 flex flex-col justify-center md:px-12 xl:px-20">
           <div className="flex items-center gap-3 mb-12">
             <div className="w-14 h-14 rounded-2xl flex items-center justify-center shadow-lg shadow-primary/30">
-              <span className="text-3xl font-bold text-white"><img src={logo} alt='Logo' /></span>
+              <span className="text-3xl font-bold text-white"><img src="/logo.svg" alt='Logo' /></span>
             </div>
             <span className="text-3xl font-bold font-display text-gradient">LocalAwaaz</span>
           </div>
@@ -381,7 +379,7 @@ const LoginRegister = () => {
               {isLogin && (
                 <>
                   <button type="button" onClick={handleGoogleSignup} className="w-full flex items-center justify-center gap-3 px-4 py-3 rounded-xl border border-border bg-card hover:bg-muted transition-all duration-200 mb-6">
-                    <img src={google} alt="Google" className='w-5 h-5' />
+                    <img src="/google.png" alt="Google" className='w-5 h-5' />
                     <span className="font-medium text-foreground">Continue with Google</span>
                   </button>
                   <div className="flex items-center gap-4 mb-4">
