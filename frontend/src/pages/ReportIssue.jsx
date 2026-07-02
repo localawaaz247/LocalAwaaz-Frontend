@@ -3,7 +3,7 @@ import {
   AlertTriangle, Camera as CameraIcon, HeartPulse, GraduationCap, ShieldAlert,
   Sparkles, UploadCloud, CheckCircle2, X, Plus, MapPin, Compass
 } from "lucide-react";
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect, useRef, useCallback } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
 import { useSelector } from "react-redux";
 import { saveCurrentLocation } from "../utils/locationUtils";
@@ -62,6 +62,8 @@ export default function ReportIssue() {
   const navigate = useNavigate();
   const routerLocation = useLocation();
   const prefilledData = routerLocation.state?.prefilledData;
+  const autoTriggerAI = routerLocation.state?.autoTriggerAI; // 🔴 NEW: Grab the trigger flag
+  const hasAutoTriggeredAI = useRef(false); // 🔴 NEW: Prevent duplicate AI calls
 
   const categories = [
     { label: t('road_&_potholes'), value: "ROAD_&_POTHOLES", icon: Construction },
@@ -132,7 +134,6 @@ export default function ReportIssue() {
     isDragging.current = true;
     hasMoved.current = false;
 
-    // Store exact pixel where pointer went down
     initialClickPos.current = { x: e.clientX, y: e.clientY };
 
     dragStart.current = {
@@ -145,11 +146,9 @@ export default function ReportIssue() {
   const handlePointerMove = (e) => {
     if (!isDragging.current || !bubbleRef.current) return;
 
-    // Calculate how far the mouse has moved from the initial click
     const moveDistX = Math.abs(e.clientX - initialClickPos.current.x);
     const moveDistY = Math.abs(e.clientY - initialClickPos.current.y);
 
-    // THRESHOLD CHECK: Only consider it a drag if moved more than 5px
     if (moveDistX > 5 || moveDistY > 5) {
       hasMoved.current = true;
     }
@@ -157,7 +156,6 @@ export default function ReportIssue() {
     let newX = e.clientX - dragStart.current.x;
     let newY = e.clientY - dragStart.current.y;
 
-    // --- Screen Boundary Logic ---
     const rect = bubbleRef.current.getBoundingClientRect();
     const origLeft = rect.left - bubblePos.current.x;
     const origTop = rect.top - bubblePos.current.y;
@@ -181,18 +179,15 @@ export default function ReportIssue() {
   const handlePointerUp = (e) => {
     isDragging.current = false;
 
-    // Safely release pointer capture
     try {
       e.currentTarget.releasePointerCapture(e.pointerId);
     } catch (err) { }
 
-    // If it wasn't dragged (or dragged very little), trigger the click action
     if (!hasMoved.current) {
       navigate('/dashboard/assistant');
     }
   };
 
-  // Default CSC API Config 
   const CSC_HEADERS = { "X-CSCAPI-KEY": import.meta.env.VITE_CSC_API_KEY || "YOUR_CSC_API_KEY_HERE" };
 
   useEffect(() => {
@@ -221,7 +216,6 @@ export default function ReportIssue() {
     fetchGlobalResolvedCount();
   }, []);
 
-  // FETCH STATES FROM CSC API ON MOUNT
   useEffect(() => {
     const fetchStates = async () => {
       try {
@@ -233,7 +227,6 @@ export default function ReportIssue() {
     fetchStates();
   }, []);
 
-  // FETCH CITIES WHEN STATE CHANGES
   useEffect(() => {
     const fetchCities = async () => {
       if (!formData.location.state || statesList.length === 0) return;
@@ -254,7 +247,6 @@ export default function ReportIssue() {
     fetchCities();
   }, [formData.location.state, statesList]);
 
-  // AUTO LOCATION CAPTURE ENGINE
   const triggerAutoLocation = () => {
     if (isLocating || formData.location.geoData.coordinates) return;
 
@@ -303,6 +295,84 @@ export default function ReportIssue() {
     );
   };
 
+  // 🔴 UPDATED: AI Handler now takes optional override data to completely bypass React state delays
+  const handleFillWithAI = async (overrideFiles = null, overrideCity = null, overrideCoords = null) => {
+    const mediaToUse = overrideFiles || formData.media;
+    const hasVideo = mediaToUse.some(file => file.type.startsWith('video/'));
+
+    if (hasVideo) {
+      toast.error(t('ai_only_images', 'Only images can be analyzed!'));
+      return;
+    }
+
+    const imageFiles = mediaToUse.filter(file => file.type.startsWith('image/'));
+
+    if (imageFiles.length === 0) {
+      toast.error(t('ai_req_image', 'Please upload at least one image for the AI to analyze.'));
+      return;
+    }
+
+    setIsAILoading(true);
+    setUploadError('');
+    setErrors({});
+    let toastId;
+
+    // Only show "Analyzing..." toast if auto-triggering
+    if (overrideFiles) {
+      toastId = toast.loading(t('analyzing', 'AI is analyzing your image...'));
+    }
+
+    try {
+      const aiFormData = new FormData();
+      imageFiles.forEach(file => aiFormData.append('images', file));
+
+      const cityToUse = overrideCity || formData.location.city || user?.contact?.city || '';
+      aiFormData.append('city', cityToUse);
+
+      const coordsToUse = overrideCoords || formData.location.geoData?.coordinates;
+      if (coordsToUse) {
+        aiFormData.append('lng', coordsToUse[0]);
+        aiFormData.append('lat', coordsToUse[1]);
+      }
+
+      aiFormData.append('userHint', formData.description || '');
+
+      const token = localStorage.getItem('access_token') || localStorage.getItem('token');
+      const response = await fetch(`${import.meta.env.VITE_BASE_URL}/ai/analyze-image`, {
+        method: 'POST',
+        headers: { 'Authorization': `Bearer ${token}` },
+        body: aiFormData
+      });
+
+      const data = await response.json();
+
+      if (data?.success && data?.analysis) {
+        const aiResult = data.analysis;
+        setFormData(prev => ({
+          ...prev,
+          title: aiResult.title || prev.title,
+          category: aiResult.category ? aiResult.category.toUpperCase() : prev.category || "OTHER",
+          description: aiResult.description || prev.description
+        }));
+        if (toastId) toast.success(t('ai_draft_success', 'Auto-filled successfully!'), { id: toastId });
+        else toast.success(t('ai_draft_success', 'Auto-filled successfully!'));
+      } else {
+        throw new Error(data?.message || t('ai_analysis_fail'));
+      }
+    } catch (error) {
+      console.error("AI Fill Error:", error);
+      if (toastId) toast.error(t('ai_fill_fail'), { id: toastId });
+      else toast.error(t('ai_fill_fail'));
+
+      setFormData(prev => ({
+        ...prev,
+        category: prev.category || "OTHER"
+      }));
+    } finally {
+      setIsAILoading(false);
+    }
+  };
+
   useEffect(() => {
     if (prefilledData) {
       setFormData(prev => ({
@@ -333,8 +403,19 @@ export default function ReportIssue() {
           }
         } catch (error) { console.error("Error creating preview URL:", error); }
       }
+
+      // 🔴 NEW: Immediately Trigger AI with exact received files, completely skipping React State delays
+      if (autoTriggerAI && prefilledData.originalFiles?.length > 0 && !hasAutoTriggeredAI.current) {
+        hasAutoTriggeredAI.current = true;
+        handleFillWithAI(
+          prefilledData.originalFiles,
+          prefilledData.location?.city,
+          prefilledData.location?.coordinates
+        );
+      }
     }
-  }, [prefilledData]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [prefilledData, autoTriggerAI]);
 
   useEffect(() => {
     return () => {
@@ -354,70 +435,6 @@ export default function ReportIssue() {
       setPrimaryVideoUrl(null);
     }
   }, [formData.media]);
-
-  const handleFillWithAI = async () => {
-    const hasVideo = formData.media.some(file => file.type.startsWith('video/'));
-
-    if (hasVideo) {
-      toast.error(t('ai_only_images', 'Only images can be analyzed!'));
-      return;
-    }
-
-    const imageFiles = formData.media.filter(file => file.type.startsWith('image/'));
-
-    if (imageFiles.length === 0) {
-      toast.error(t('ai_req_image', 'Please upload at least one image for the AI to analyze.'));
-      return;
-    }
-
-    setIsAILoading(true);
-    setUploadError('');
-    setErrors({});
-
-    try {
-      const aiFormData = new FormData();
-      imageFiles.forEach(file => aiFormData.append('images', file));
-      aiFormData.append('city', formData.location.city || user?.contact?.city || '');
-
-      if (formData.location.geoData?.coordinates) {
-        aiFormData.append('lng', formData.location.geoData.coordinates[0]);
-        aiFormData.append('lat', formData.location.geoData.coordinates[1]);
-      }
-
-      aiFormData.append('userHint', formData.description || '');
-
-      const token = localStorage.getItem('access_token') || localStorage.getItem('token');
-      const response = await fetch(`${import.meta.env.VITE_BASE_URL}/ai/analyze-image`, {
-        method: 'POST',
-        headers: { 'Authorization': `Bearer ${token}` },
-        body: aiFormData
-      });
-
-      const data = await response.json();
-
-      if (data?.success && data?.analysis) {
-        const aiResult = data.analysis;
-        setFormData(prev => ({
-          ...prev,
-          title: aiResult.title || prev.title,
-          category: aiResult.category ? aiResult.category.toUpperCase() : "OTHER",
-          description: aiResult.description || prev.description
-        }));
-        toast.success(t('ai_draft_success', 'Auto-filled successfully!'));
-      } else {
-        throw new Error(data?.message || t('ai_analysis_fail'));
-      }
-    } catch (error) {
-      console.error("AI Fill Error:", error);
-      toast.error(t('ai_fill_fail'));
-      setFormData(prev => ({
-        ...prev,
-        category: prev.category || "OTHER"
-      }));
-    } finally {
-      setIsAILoading(false);
-    }
-  };
 
   const handleInputChange = (field, value) => {
     if (field === 'category') triggerAutoLocation();
@@ -738,7 +755,7 @@ export default function ReportIssue() {
               </div>
 
               <button
-                onClick={handleFillWithAI}
+                onClick={() => handleFillWithAI()} // Wrap in anon function to avoid passing event object
                 disabled={isAILoading || formData.media.length === 0}
                 className={`flex items-center justify-center gap-2 w-full sm:w-auto px-4 py-2.5 rounded-xl font-medium text-sm transition-all shadow-lg ${isAILoading || formData.media.length === 0
                   ? 'bg-muted text-muted-foreground cursor-not-allowed'
