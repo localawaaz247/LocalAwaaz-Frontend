@@ -26,6 +26,7 @@ import { ProtectedRoute } from "./components/ProtectedRoute";
 import { PublicRoute } from "./components/PublicRoute";
 import axiosInstance from "./utils/axios";
 import LeaderBoard from "./components/shared/LeaderBoard";
+import { ScreenOrientation } from '@capacitor/screen-orientation';
 
 // 🟢 LAZY LOADED PAGES (Code Splitting for instant boot)
 const LoginRegister = lazy(() => import("./pages/LoginRegister"));
@@ -104,6 +105,18 @@ const AppContent = () => {
       dispatch(validateToken());
     }
   }, [dispatch]);
+
+  useEffect(() => {
+    if (Capacitor.isNativePlatform()) {
+      // Drop splash screen immediately
+      CapacitorUpdater.notifyAppReady().catch(err => console.warn("Capgo notify failed", err));
+
+      // Lock screen to portrait mode
+      ScreenOrientation.lock({ orientation: 'portrait' }).catch(err =>
+        console.error("Failed to lock orientation:", err)
+      );
+    }
+  }, []);
 
   // -------------------------------------------------------------
   // 🟢 OTA (WEB BUNDLE) LOGIC - Polling only, no wake-up listeners
